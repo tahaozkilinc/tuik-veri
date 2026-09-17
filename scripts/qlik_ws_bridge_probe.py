@@ -158,6 +158,47 @@ def main() -> int:
                 print(f"{field!r}: beklenmeyen yanıt yapısı ({exc}): {json.dumps(layout, ensure_ascii=False)[:300]}")
         print("::endgroup::")
 
+        # Son doğrulama: gerçek bir hypercube sorgusu — set analysis ile
+        # ISTPOZ/YIL/IHRITH filtrelenmiş, ülke kırılımlı DOLAR/MIKTAR_1.
+        set_expr = "ISTPOZ={'100590000019'}, YIL={2024}, IHRITH={'İhracat'}"
+        hc_resp = call_engine(
+            page,
+            "CreateSessionObject",
+            [
+                {
+                    "qInfo": {"qType": "hc_test"},
+                    "qHyperCubeDef": {
+                        "qDimensions": [{"qDef": {"qFieldDefs": ["ULKE_ADI"]}}],
+                        "qMeasures": [
+                            {"qDef": {"qDef": f"Sum({{<{set_expr}>}} DOLAR)"}},
+                            {"qDef": {"qDef": f"Sum({{<{set_expr}>}} MIKTAR_1)"}},
+                        ],
+                        "qInitialDataFetch": [{"qWidth": 3, "qHeight": 300, "qTop": 0}],
+                    },
+                }
+            ],
+            handle=doc_handle,
+            req_id=9200,
+            timeout_ms=15_000,
+        )
+        print("::group::HyperCube testi (Mısır 2024 İhracat, ülke kırılımı)")
+        if "error" in hc_resp:
+            print(f"HATA: {hc_resp['error']}")
+        else:
+            hc_handle = hc_resp["result"]["qReturn"]["qHandle"]
+            hc_layout = call_engine(page, "GetLayout", [], handle=hc_handle, req_id=9201, timeout_ms=15_000)
+            try:
+                hc = hc_layout["result"]["qLayout"]["qHyperCube"]
+                print(f"qSize: {hc['qSize']}")
+                rows = hc["qDataPages"][0]["qMatrix"] if hc["qDataPages"] else []
+                nonzero = [r for r in rows if r[1].get("qNum") not in (None, 0, "NaN")]
+                print(f"toplam satır: {len(rows)}, sıfır olmayan: {len(nonzero)}")
+                for r in nonzero[:15]:
+                    print(f"  {r[0].get('qText')}: DOLAR={r[1].get('qNum')} MIKTAR_1={r[2].get('qNum')}")
+            except Exception as exc:  # noqa: BLE001
+                print(f"beklenmeyen yanıt ({exc}): {json.dumps(hc_layout, ensure_ascii=False)[:2000]}")
+        print("::endgroup::")
+
         browser.close()
     return 0
 
