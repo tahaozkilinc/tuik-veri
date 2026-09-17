@@ -177,8 +177,12 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     if target.gtip_code:
         gtip_search = page.get_by_placeholder("Kod ya da Tanım Ara (En az 3 Karakter)")
         try:
-            gtip_search.fill(target.gtip_code, timeout=STEP_TIMEOUT_MS)
-            page.wait_for_timeout(1500)
+            gtip_search.click(timeout=STEP_TIMEOUT_MS)
+            # .fill() bıraktığı değeri React'in kontrollü input'u geri
+            # sıfırlıyor (value boş kalıyor) — gerçek tuş basımlarını
+            # simüle eden press_sequentially deneniyor.
+            gtip_search.press_sequentially(target.gtip_code, delay=120, timeout=STEP_TIMEOUT_MS)
+            page.wait_for_timeout(2000)
         except PlaywrightTimeoutError:
             pass
 
