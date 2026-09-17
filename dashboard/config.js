@@ -3,6 +3,6 @@
 // (db/schema.sql), INSERT/UPDATE/DELETE yalnızca service_role key ile
 // (GitHub Actions secret) mümkün.
 window.TUIK_DASHBOARD_CONFIG = {
-  SUPABASE_URL: "https://YOUR-PROJECT-REF.supabase.co",
-  SUPABASE_ANON_KEY: "YOUR-ANON-KEY",
+  SUPABASE_URL: "https://kajilskrmavwqdaipixu.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_6UslA4U4eYBSQl0RGkAe8g_7qPFuK1M",
 };
