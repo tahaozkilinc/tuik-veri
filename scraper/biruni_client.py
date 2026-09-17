@@ -184,6 +184,13 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     page.get_by_role("button", name="Sonraki Adım").first.click()
     page.wait_for_load_state("networkidle")
 
+    # Yıl / GTİP / Ülke widget'ları asenkron yükleniyor (skeleton placeholder
+    # ile başlıyor); gerçek içerik gelene kadar bekle.
+    try:
+        page.wait_for_selector(".skeleton-wrapper", state="detached", timeout=10_000)
+    except PlaywrightTimeoutError:
+        pass
+
     if discover:
         _dump_fields(page, "step3-date")
         _dump_text(page, "step3-date")
