@@ -152,7 +152,12 @@ def fetch_trade_stats(gtip_codes: list[str]) -> list[dict]:
                 timeout=NAV_TIMEOUT_MS,
             )
 
-            open_resp = _call(page, "OpenDoc", [APP_ID, "", "", "", False], req_id=1)
+            # req_id'ler uygulamanın kendi WS bağlantısında kullandığı düşük
+            # sıralı id'lerle (1,2,3,...) çakışmasın diye yüksek bir bandan
+            # seçiliyor — çakışırsa uygulamanın kendi delta:true isteğine ait
+            # yanıtı (liste/patch formatında) yakalayıp TypeError'a yol
+            # açabiliyor (gerçekten oldu: canlı koşuda görüldü).
+            open_resp = _call(page, "OpenDoc", [APP_ID, "", "", "", False], req_id=90_001)
             doc_handle = open_resp["result"]["qReturn"]["qHandle"]
 
             hc_resp = _call(
@@ -179,11 +184,11 @@ def fetch_trade_stats(gtip_codes: list[str]) -> list[dict]:
                     }
                 ],
                 handle=doc_handle,
-                req_id=2,
+                req_id=90_002,
             )
             hc_handle = hc_resp["result"]["qReturn"]["qHandle"]
 
-            layout_resp = _call(page, "GetLayout", [], handle=hc_handle, req_id=3)
+            layout_resp = _call(page, "GetLayout", [], handle=hc_handle, req_id=90_003)
             hc = layout_resp["result"]["qLayout"]["qHyperCube"]
 
             rows: list[list[dict]] = []
