@@ -2,7 +2,7 @@ name: Deploy Dashboard (GitHub Pages)
 
 on:
   push:
-    branches: [main]
+    branches: [claude/gallant-keller-04r3vb, main]
     paths:
       - "dashboard/**"
   workflow_dispatch: {}
