@@ -146,10 +146,11 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
         _dump_fields(page, "step2-after-category")
         _dump_text(page, "step2-after-category")
 
-    # Adım 2: "Gösterim Şekli" ve "Sınıflandırma" seçimi zorunlu (seçilmeden
-    # "Sonraki Adım" disabled kalıyor). GTİP kodu bu adımda değil.
+    # Adım 2: "Gösterim Şekli", "Sınıflandırma" ve (Harmonize Sistem seçilince
+    # açılan) HS detay seviyesi seçimi zorunlu. GTİP = HS12 detay seviyesi.
     page.get_by_text("Ürün/Ülke", exact=True).first.click()
     page.get_by_text("Harmonize Sistem", exact=True).first.click()
+    page.get_by_text("HS12 (GTIP)", exact=True).first.click()
 
     if discover:
         _dump_fields(page, "step2-filled")
