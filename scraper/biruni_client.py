@@ -176,6 +176,30 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     # oluşmuyor — "Tümü" GTİP panelinde yok, sadece arama sonuçları var).
     if target.gtip_code:
         gtip_search = page.get_by_placeholder("Kod ya da Tanım Ara (En az 3 Karakter)")
+        digits_only = "".join(ch for ch in target.gtip_code if ch.isdigit())
+
+        if discover:
+            # Hem noktalı hem noktasız tam kod aramaları "Arama Sonucu
+            # Bulunamamıştır" döndü — arama indeksinin gerçekte ne formatta
+            # eşleştirdiğini anlamak için kısa bir önek (ör. "1005") deneyip
+            # dönen listeyi dökelim.
+            for probe in (digits_only[:4], digits_only[:6], digits_only[:8]):
+                try:
+                    gtip_search.click(timeout=STEP_TIMEOUT_MS)
+                    page.keyboard.press("Control+A")
+                    page.keyboard.press("Delete")
+                    gtip_search.press_sequentially("0" + probe, delay=150, timeout=STEP_TIMEOUT_MS)
+                    page.wait_for_timeout(1500)
+                except PlaywrightTimeoutError:
+                    pass
+                _dump_dropdown_content(page, "GTİP Seçimi", f"gtip-search-probe-{probe}")
+            try:
+                gtip_search.click(timeout=STEP_TIMEOUT_MS)
+                page.keyboard.press("Control+A")
+                page.keyboard.press("Delete")
+            except PlaywrightTimeoutError:
+                pass
+
         try:
             # .fill() bıraktığı değeri React'in kontrollü input'u geri
             # sıfırlıyor; press_sequentially de — click ile, click'siz,
@@ -184,10 +208,6 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
             # durumu değil, widget'ın kendisi ilk keydown'ı yutuyor gibi
             # görünüyor. Başa "kurban" bir karakter ekleyip onun kaybolmasını
             # bekliyoruz, gerçek kod olduğu gibi kalıyor.
-            # Tam kod ("1005.90.00.00.19") noktalarla arandığında sonuç
-            # bulunamadı — arama indeksinin noktasız (sade rakam) format
-            # beklediğinden şüpheleniyoruz, onu deniyoruz.
-            digits_only = "".join(ch for ch in target.gtip_code if ch.isdigit())
             gtip_search.click(timeout=STEP_TIMEOUT_MS)
             gtip_search.press_sequentially("0" + digits_only, delay=150, timeout=STEP_TIMEOUT_MS)
             page.wait_for_timeout(2000)
@@ -293,6 +313,27 @@ def _dump_chip_wrapper(page: Page, heading_text: str, label: str) -> None:
         print((html or "(bulunamadı)")[:3500], file=sys.stderr)
     except Exception as exc:  # noqa: BLE001
         print(f"chip-wrapper dump failed: {exc}", file=sys.stderr)
+    print("::endgroup::", file=sys.stderr)
+
+
+def _dump_dropdown_content(page: Page, heading_text: str, label: str) -> None:
+    print(f"::group::diagnostics-html [{label}]", file=sys.stderr)
+    try:
+        html = page.evaluate(
+            """(headingText) => {
+                const h = Array.from(document.querySelectorAll('h4'))
+                    .find(el => el.textContent.trim() === headingText);
+                if (!h) return null;
+                const wrapper = h.closest('.chip-wrapper');
+                if (!wrapper) return null;
+                const dc = wrapper.querySelector('.dropdown-content');
+                return dc ? dc.outerHTML : '(dropdown-content bulunamadı)';
+            }""",
+            heading_text,
+        )
+        print((html or "(bulunamadı)")[:4000], file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001
+        print(f"dropdown-content dump failed: {exc}", file=sys.stderr)
     print("::endgroup::", file=sys.stderr)
 
 
