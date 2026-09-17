@@ -306,8 +306,16 @@ def _run_single_query(
         tumu_count = page.locator('input[type="checkbox"][id$="-tumu"]').count()
         print(f"'-tumu' checkbox sayısı: {tumu_count}", file=sys.stderr)
         if target.gtip_code:
-            actual_value = gtip_search.input_value()
-            print(f"arama kutusu değeri: {actual_value!r} (beklenen: {digits_only!r})", file=sys.stderr)
+            # Sonuç seçildikten sonra arama kutusu DOM'dan kalkıyor (panel
+            # "seçili chip" görünümüne geçiyor) — bu artık beklenen bir
+            # durum, okumaya çalışmak zaman aşımına düşüp SORGUYU BAŞTAN
+            # İPTAL ediyordu (yakalanmayan hata _run_single_query'den
+            # fırlıyor, fetch_records tüm sorguyu atlıyordu). Best-effort.
+            try:
+                actual_value = gtip_search.input_value(timeout=1000)
+                print(f"arama kutusu değeri: {actual_value!r} (beklenen: {digits_only!r})", file=sys.stderr)
+            except PlaywrightTimeoutError:
+                print("arama kutusu artık DOM'da yok (seçim sonrası beklenen davranış)", file=sys.stderr)
         print("::endgroup::", file=sys.stderr)
         _dump_chip_wrapper(page, "GTİP Seçimi", "gtip-chip-wrapper-after-search")
 
