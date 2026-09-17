@@ -69,7 +69,7 @@
     renderKpis();
     renderYearChart();
     renderTopBar("gtip_code", "top-gtip-chart", "GTİP");
-    renderTopBar("port_name", "top-port-chart", "Liman");
+    renderTopBar("country_name", "top-country-chart", "Ülke");
     renderTable();
   }
 
@@ -292,7 +292,7 @@
 
     for (const r of rows) {
       const tr = document.createElement("tr");
-      for (const val of [r.period_year, r.gtip_code, r.port_name, r.country_name, fmtUsd(r.value_usd)]) {
+      for (const val of [r.period_year, r.gtip_code, r.country_name, fmtUsd(r.value_usd)]) {
         const td = document.createElement("td");
         td.textContent = val == null ? "—" : val;
         tr.appendChild(td);

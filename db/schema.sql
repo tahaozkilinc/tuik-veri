@@ -16,7 +16,13 @@ create table if not exists trade_stats (
     weight_kg       numeric,
     source          text not null default 'tuik',
     fetched_at      timestamptz not null default now(),
-    unique (period_year, period_month, flow, gtip_code, port_code, country_code)
+    -- NULLS NOT DISTINCT önemli: period_month ve port_code bu veri
+    -- kaynağında (Qlik Engine API, ay/liman kırılımı yok) her satırda
+    -- NULL. Standart UNIQUE'de NULL != NULL sayıldığı için normal bir
+    -- unique constraint bu satırlar için HİÇBİR tekillik garanti etmez —
+    -- her scrape çalışması aynı veriyi üst üste yeni satır olarak
+    -- ekler (upsert'ün ON CONFLICT'i hiç eşleşme bulamaz).
+    unique nulls not distinct (period_year, period_month, flow, gtip_code, port_code, country_code)
 );
 
 create index if not exists idx_trade_stats_period on trade_stats (period_year, period_month);
@@ -54,3 +60,24 @@ create policy "public read daily_reports" on daily_reports for select using (tru
 
 -- Yazma işlemleri yalnızca service_role key ile (GitHub Actions secret) yapılır,
 -- anon key hiçbir zaman INSERT/UPDATE/DELETE yapamaz.
+
+-- MİGRASYON: bu şemayı daha önce (NULLS NOT DISTINCT olmadan) çalıştırdıysanız
+-- — yani trade_stats tablosu zaten varsa — aşağıdaki blok eski unique
+-- constraint'i bulup NULLS NOT DISTINCT olanla değiştirir. Script hem sıfırdan
+-- kurulumda hem tekrar çalıştırıldığında güvenli (idempotent).
+do $$
+declare
+    cons_name text;
+begin
+    select conname into cons_name
+    from pg_constraint
+    where conrelid = 'trade_stats'::regclass
+      and contype = 'u';
+
+    if cons_name is not null and cons_name <> 'trade_stats_unique' then
+        execute format('alter table trade_stats drop constraint %I', cons_name);
+        alter table trade_stats
+            add constraint trade_stats_unique
+            unique nulls not distinct (period_year, period_month, flow, gtip_code, port_code, country_code);
+    end if;
+end $$;
