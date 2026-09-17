@@ -107,101 +107,20 @@ def main() -> int:
             req_id=9050,
             timeout_ms=10_000,
         )
-        print("::group::GetTablesAndKeys")
-        print(json.dumps(tables_resp, ensure_ascii=False, indent=2)[:15000])
-        print("::endgroup::")
-
-        script_resp = call_engine(page, "GetScript", [], handle=doc_handle, req_id=9051, timeout_ms=10_000)
-        print("::group::GetScript")
-        if "result" in script_resp:
-            script_text = script_resp["result"].get("qScript", "")
-            print(script_text[:15000])
+        print("::group::GetTablesAndKeys (tablo/alan adları, kompakt)")
+        if "result" in tables_resp:
+            for table in tables_resp["result"].get("qtr", []):
+                names = [f["qName"] for f in table.get("qFields", [])]
+                print(f"TABLO {table['qName']} ({table.get('qNoOfRows')} satır): {names}")
         else:
-            print(json.dumps(script_resp, ensure_ascii=False)[:1000])
+            print(json.dumps(tables_resp, ensure_ascii=False)[:2000])
         print("::endgroup::")
 
-        # GetFieldList "Method not found" döndü — bu embed/anonim oturumda
-        # Engine API'nin izin verilen method listesi kısıtlı görünüyor
-        # (sadece gerçek uygulamanın kullandığı method'lar açık). Ama
-        # CreateSessionObject çalıştığını biliyoruz (gerçek trafikte
-        # görüldü) — standart Qlik "master measure/dimension" deseniyle
-        # (MeasureList/DimensionList session object) uygulamanın
-        # tanımladığı ölçü/boyut adlarını ve altındaki gerçek alan
-        # adlarını/ifadelerini keşfedelim.
-        measure_list_resp = call_engine(
-            page,
-            "CreateSessionObject",
-            [
-                {
-                    "qInfo": {"qType": "MeasureList"},
-                    "qMeasureListDef": {
-                        "qType": "measure",
-                        "qData": {"title": "/qMetaDef/title", "descr": "/qMetaDef/description", "def": "/qMeasure/qDef"},
-                    },
-                }
-            ],
-            handle=doc_handle,
-            req_id=9002,
-        )
-        print("::group::MeasureList (CreateSessionObject)")
-        print(json.dumps(measure_list_resp, ensure_ascii=False, indent=2)[:2000])
-        print("::endgroup::")
-
-        if "result" in measure_list_resp:
-            m_handle = measure_list_resp["result"]["qReturn"]["qHandle"]
-            m_layout = call_engine(page, "GetLayout", [], handle=m_handle, req_id=9004)
-            print("::group::MeasureList (GetLayout)")
-            print(json.dumps(m_layout, ensure_ascii=False, indent=2)[:20000])
-            print("::endgroup::")
-
-        dim_list_resp = call_engine(
-            page,
-            "CreateSessionObject",
-            [
-                {
-                    "qInfo": {"qType": "DimensionList"},
-                    "qDimensionListDef": {
-                        "qType": "dimension",
-                        "qData": {"title": "/qMetaDef/title", "descr": "/qMetaDef/description", "grouping": "/qDim/qGrouping", "info": "/qDimInfos"},
-                    },
-                }
-            ],
-            handle=doc_handle,
-            req_id=9003,
-        )
-        print("::group::DimensionList (CreateSessionObject)")
-        print(json.dumps(dim_list_resp, ensure_ascii=False, indent=2)[:2000])
-        print("::endgroup::")
-
-        if "result" in dim_list_resp:
-            d_handle = dim_list_resp["result"]["qReturn"]["qHandle"]
-            d_layout = call_engine(page, "GetLayout", [], handle=d_handle, req_id=9005)
-            print("::group::DimensionList (GetLayout)")
-            print(json.dumps(d_layout, ensure_ascii=False, indent=2)[:20000])
-            print("::endgroup::")
-
-        # MeasureList/DimensionList boş çıktı (uygulama master item
-        # kullanmıyor, sheet'lerde alan adlarını doğrudan gömüyor
-        # olabilir). YIL/AY/ISTPOZ_ARAMA/ULKE_ARAMA deseninden yola
-        # çıkarak muhtemel gerçek alan adlarını (GTİP kodu, ülke, yön,
-        # tutar/miktar ölçüleri) doğrudan deneyip hangisinin var
-        # olduğunu görelim.
-        candidates = [
-            # ISTPOZ/ULKE_KODU/ULKE_ADI zaten doğrulandı — yeni denemeler:
-            "YONU", "ITH_IHR", "IH_ITH_KODU", "DURUM", "TIP", "TUR",
-            "TICARET_SISTEMI", "ISTPOZ_ARAMA_TIP",
-            # ihracat/ithalat önekli ölçü adayları
-            "IHR_USD", "ITH_USD", "IHR_KG", "ITH_KG",
-            "IHRACAT_USD", "ITHALAT_USD", "IHRACAT_KG", "ITHALAT_KG",
-            "IHRACAT_TUTARI", "ITHALAT_TUTARI", "IHRACAT_DEGER", "ITHALAT_DEGER",
-            "IHRACAT_MIKTAR", "ITHALAT_MIKTAR", "IHRACAT_MIKTAR1", "ITHALAT_MIKTAR1",
-            # yön/tip olmadan, tek başına değer alanları (işaretli tek sütun ihtimali)
-            "TUTAR", "DEGER", "KIYMET", "AGIRLIK", "MIKTAR", "MIKTAR1", "MIKTAR2",
-            "TUTAR_USD", "TUTAR_TL", "TUTAR_EUR", "DEGER_USD", "KIYMET_USD", "KIYMET_DOLAR",
-            "NET_AGIRLIK", "NET_AGIRLIK_KG",
-        ]
+        # IHRITH gerçek alan olarak bulundu (2 farklı değer) — muhtemelen
+        # akış/yön (İhracat/İthalat). Gerçek değerlerini görelim.
+        candidates = ["IHRITH", "IHRITH_FLAG", "OLCU_KODU"]
         req_id = 9100
-        print("::group::alan adı denemeleri")
+        print("::group::alan değerleri (IHRITH ve ilişkili)")
         for field in candidates:
             req_id += 1
             resp = call_engine(
@@ -212,7 +131,7 @@ def main() -> int:
                         "qInfo": {"qType": "probe"},
                         "qListObjectDef": {
                             "qDef": {"qFieldDefs": [field]},
-                            "qInitialDataFetch": [{"qWidth": 1, "qHeight": 5, "qTop": 0}],
+                            "qInitialDataFetch": [{"qWidth": 1, "qHeight": 10, "qTop": 0}],
                         },
                     }
                 ],
