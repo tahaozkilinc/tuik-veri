@@ -146,18 +146,15 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
         _dump_fields(page, "step2-after-category")
         _dump_text(page, "step2-after-category")
 
-    # Adım 2: GTİP ve yön (ihracat/ithalat) bilgisi — alan adları kalibrasyon
-    # bekliyor, bu yüzden birden fazla olası locator deneniyor.
-    if target.gtip_code:
-        _fill_best_effort(page, ["GTİP", "Ürün", "Fasıl"], target.gtip_code)
+    # Adım 2: "Gösterim Şekli" ve "Sınıflandırma" seçimi zorunlu (seçilmeden
+    # "Sonraki Adım" disabled kalıyor). GTİP kodu bu adımda değil.
+    page.get_by_text("Ürün/Ülke", exact=True).first.click()
+    page.get_by_text("Harmonize Sistem", exact=True).first.click()
 
-    flow_label = "İhracat" if target.flow == "export" else "İthalat"
-    try:
-        page.get_by_text(flow_label, exact=False).first.click(timeout=STEP_TIMEOUT_MS)
-    except PlaywrightTimeoutError:
-        pass
+    if discover:
+        _dump_fields(page, "step2-filled")
 
-    page.get_by_role("button", name="Sonraki Adım").click()
+    page.get_by_role("button", name="Sonraki Adım").first.click()
     page.wait_for_load_state("networkidle")
 
     if discover:
