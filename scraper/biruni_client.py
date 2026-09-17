@@ -158,17 +158,19 @@ def fetch_records(targets: list[QueryTarget], headless: bool = True) -> list[dic
                     def _on_socketerror(err):  # noqa: ANN001
                         network_log.append(f"WS ERROR: {ws.url} :: {err}")
 
+                    keywords = ("Cube", "List", "Field", "hs2", "Gtip", "GTIP", "Ulke", "lke", "error", "Symbol")
+
                     def _on_framesent(payload):  # noqa: ANN001
                         counters["sent"] += 1
-                        if counters["sent"] <= 4:
-                            text = payload if isinstance(payload, str) else "<binary>"
-                            network_log.append(f"WS SEND #{counters['sent']}: {str(text)[:300]}")
+                        text = str(payload if isinstance(payload, str) else "<binary>")
+                        if counters["sent"] <= 10 or any(k in text for k in keywords):
+                            network_log.append(f"WS SEND #{counters['sent']}: {text[:350]}")
 
                     def _on_framereceived(payload):  # noqa: ANN001
                         counters["recv"] += 1
-                        if counters["recv"] <= 6:
-                            text = payload if isinstance(payload, str) else "<binary>"
-                            network_log.append(f"WS RECV #{counters['recv']}: {str(text)[:300]}")
+                        text = str(payload if isinstance(payload, str) else "<binary>")
+                        if counters["recv"] <= 10 or any(k in text for k in keywords):
+                            network_log.append(f"WS RECV #{counters['recv']}: {text[:450]}")
 
                     ws.on("close", _on_close)
                     ws.on("socketerror", _on_socketerror)
@@ -259,7 +261,7 @@ def _run_single_query(
         hs2_wrapper = page.locator(".chip-item-wrapper.hs2-select").first
         resolved = True
         try:
-            hs2_wrapper.locator(".skeleton-wrapper").first.wait_for(state="detached", timeout=20_000)
+            hs2_wrapper.locator(".skeleton-wrapper").first.wait_for(state="detached", timeout=35_000)
         except PlaywrightTimeoutError:
             resolved = False
         print(
@@ -299,10 +301,11 @@ def _run_single_query(
         print("::endgroup::", file=sys.stderr)
         _dump_chip_wrapper(page, "GTİP Seçimi", "gtip-chip-wrapper-after-search")
 
+        page.wait_for_timeout(5000)
         print("::group::diagnostics-network [after-gtip-search]", file=sys.stderr)
         if network_log:
             print(f"toplam olay sayısı: {len(network_log)}", file=sys.stderr)
-            for line in network_log[-60:]:
+            for line in network_log[-150:]:
                 print(line, file=sys.stderr)
         else:
             print("(hiç istek/yanıt yakalanmadı)", file=sys.stderr)
