@@ -113,7 +113,10 @@ def fetch_records(targets: list[QueryTarget], headless: bool = True) -> list[dic
                 # _run_single_query içinde bağladığımız için goto sırasındaki
                 # istekleri kaçırmış, "hiç XHR yakalanmadı" görmüştük.
                 def _skip(url: str) -> bool:
-                    return any(s in url for s in (".png", ".jpg", ".svg", ".css", ".woff", ".map"))
+                    return any(
+                        s in url
+                        for s in (".png", ".jpg", ".svg", ".css", ".woff", ".map", "sense-client")
+                    )
 
                 def _on_request(req):  # noqa: ANN001
                     try:
@@ -138,6 +141,41 @@ def fetch_records(targets: list[QueryTarget], headless: bool = True) -> list[dic
                 page.on("request", _on_request)
                 page.on("response", _on_response)
                 page.on("requestfailed", _on_request_failed)
+
+                # Sadece REST/HTTP trafiğinde hiçbir ilgili istek yoktu —
+                # GTİP kod listesi büyük ihtimalle bir Qlik Sense mashup'ı
+                # (URL'de "sense-client" görüldü) ve gerçek veri WebSocket
+                # üzerinden Qlik Engine JSON-RPC protokolüyle geliyor. Bunu
+                # ayrıca dinleyip bağlanıp bağlanmadığını, kapanıp
+                # kapanmadığını ve ilk birkaç frame'i dökelim.
+                def _on_websocket(ws):  # noqa: ANN001
+                    network_log.append(f"WS OPEN: {ws.url}")
+                    counters = {"sent": 0, "recv": 0}
+
+                    def _on_close(_ws=None):  # noqa: ANN001
+                        network_log.append(f"WS CLOSED: {ws.url}")
+
+                    def _on_socketerror(err):  # noqa: ANN001
+                        network_log.append(f"WS ERROR: {ws.url} :: {err}")
+
+                    def _on_framesent(payload):  # noqa: ANN001
+                        counters["sent"] += 1
+                        if counters["sent"] <= 4:
+                            text = payload if isinstance(payload, str) else "<binary>"
+                            network_log.append(f"WS SEND #{counters['sent']}: {str(text)[:300]}")
+
+                    def _on_framereceived(payload):  # noqa: ANN001
+                        counters["recv"] += 1
+                        if counters["recv"] <= 6:
+                            text = payload if isinstance(payload, str) else "<binary>"
+                            network_log.append(f"WS RECV #{counters['recv']}: {str(text)[:300]}")
+
+                    ws.on("close", _on_close)
+                    ws.on("socketerror", _on_socketerror)
+                    ws.on("framesent", _on_framesent)
+                    ws.on("framereceived", _on_framereceived)
+
+                page.on("websocket", _on_websocket)
 
             try:
                 page.goto(MASHUP_URL, wait_until="networkidle", timeout=NAV_TIMEOUT_MS)
