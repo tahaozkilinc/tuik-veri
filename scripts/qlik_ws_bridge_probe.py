@@ -96,22 +96,64 @@ def main() -> int:
         doc_handle = open_resp["result"]["qReturn"]["qHandle"]
         print(f"doc_handle = {doc_handle}")
 
-        field_resp = call_engine(
+        # GetFieldList "Method not found" döndü — bu embed/anonim oturumda
+        # Engine API'nin izin verilen method listesi kısıtlı görünüyor
+        # (sadece gerçek uygulamanın kullandığı method'lar açık). Ama
+        # CreateSessionObject çalıştığını biliyoruz (gerçek trafikte
+        # görüldü) — standart Qlik "master measure/dimension" deseniyle
+        # (MeasureList/DimensionList session object) uygulamanın
+        # tanımladığı ölçü/boyut adlarını ve altındaki gerçek alan
+        # adlarını/ifadelerini keşfedelim.
+        measure_list_resp = call_engine(
             page,
-            "GetFieldList",
-            [{"qShowSystem": False, "qShowHidden": False, "qShowSrcTables": True, "qShowSemantic": True, "qShowDerivedFields": False}],
+            "CreateSessionObject",
+            [
+                {
+                    "qInfo": {"qType": "MeasureList"},
+                    "qMeasureListDef": {
+                        "qType": "measure",
+                        "qData": {"title": "/qMetaDef/title", "descr": "/qMetaDef/description", "def": "/qMeasure/qDef"},
+                    },
+                }
+            ],
             handle=doc_handle,
             req_id=9002,
         )
-        print("::group::GetFieldList")
-        print(json.dumps(field_resp, ensure_ascii=False, indent=2)[:30000])
+        print("::group::MeasureList (CreateSessionObject)")
+        print(json.dumps(measure_list_resp, ensure_ascii=False, indent=2)[:2000])
         print("::endgroup::")
 
-        if "result" in field_resp:
-            items = field_resp["result"]["qReturn"]["qFieldList"]["qItems"]
-            print("::group::alan adları (özet)")
-            for item in items:
-                print(f"{item.get('qName')!r} src={item.get('qSrcTables')}")
+        if "result" in measure_list_resp:
+            m_handle = measure_list_resp["result"]["qReturn"]["qHandle"]
+            m_layout = call_engine(page, "GetLayout", [], handle=m_handle, req_id=9004)
+            print("::group::MeasureList (GetLayout)")
+            print(json.dumps(m_layout, ensure_ascii=False, indent=2)[:20000])
+            print("::endgroup::")
+
+        dim_list_resp = call_engine(
+            page,
+            "CreateSessionObject",
+            [
+                {
+                    "qInfo": {"qType": "DimensionList"},
+                    "qDimensionListDef": {
+                        "qType": "dimension",
+                        "qData": {"title": "/qMetaDef/title", "descr": "/qMetaDef/description", "grouping": "/qDim/qGrouping", "info": "/qDimInfos"},
+                    },
+                }
+            ],
+            handle=doc_handle,
+            req_id=9003,
+        )
+        print("::group::DimensionList (CreateSessionObject)")
+        print(json.dumps(dim_list_resp, ensure_ascii=False, indent=2)[:2000])
+        print("::endgroup::")
+
+        if "result" in dim_list_resp:
+            d_handle = dim_list_resp["result"]["qReturn"]["qHandle"]
+            d_layout = call_engine(page, "GetLayout", [], handle=d_handle, req_id=9005)
+            print("::group::DimensionList (GetLayout)")
+            print(json.dumps(d_layout, ensure_ascii=False, indent=2)[:20000])
             print("::endgroup::")
 
         browser.close()
