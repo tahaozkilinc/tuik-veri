@@ -352,7 +352,17 @@ def _run_single_query(
     if report_button.count() == 0:
         report_button = page.get_by_role("button", name="Oluştur", exact=False)
     report_button.first.click()
-    page.wait_for_load_state("networkidle")
+
+    # wait_for_load_state("networkidle") sadece HTTP trafiğini izliyor;
+    # rapor tablosu Qlik Engine'e WebSocket üzerinden gidip gelen bir
+    # hypercube sorgusuyla dolduruluyor (hs2-select panelinde de aynı
+    # şekilde 20-35sn sürebildiğini gördük) — "networkidle" neredeyse
+    # anında dönüyor ve tablo daha DOM'a gelmeden kontrol ediyorduk.
+    # Doğrudan <table> belirene kadar bekle.
+    try:
+        page.wait_for_selector("table", timeout=40_000)
+    except PlaywrightTimeoutError:
+        pass
 
     table = page.locator("table").first
 
