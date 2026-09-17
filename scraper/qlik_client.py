@@ -82,13 +82,33 @@ class QlikClientError(RuntimeError):
     pass
 
 
-def _call(page: Page, method: str, params: list, handle: int = -1, req_id: int = 1, timeout_ms: int = CALL_TIMEOUT_MS) -> dict:
-    resp = page.evaluate(_CALL_JS, [APP_ID, method, params, handle, req_id, timeout_ms])
-    if "__error" in resp:
-        raise QlikClientError(f"{method} (id={req_id}): {resp['__error']}")
-    if "error" in resp:
-        raise QlikClientError(f"{method} (id={req_id}): {resp['error']}")
-    return resp
+def _call(
+    page: Page,
+    method: str,
+    params: list,
+    handle: int = -1,
+    req_id: int = 1,
+    timeout_ms: int = CALL_TIMEOUT_MS,
+    retries: int = 3,
+) -> dict:
+    # Qlik Engine, OpenDoc hemen sonrası gelen ilk isteklerde bazen
+    # "Request aborted" (code 15) hatası veriyor — gerçek tarayıcı
+    # trafiğinde de aynı hata görülüp bir sonraki denemede kendiliğinden
+    # düzeliyordu. Kısa bir bekleyip yeniden dene.
+    last_resp: dict | None = None
+    for attempt in range(retries + 1):
+        attempt_id = req_id + attempt * 100_000
+        resp = page.evaluate(_CALL_JS, [APP_ID, method, params, handle, attempt_id, timeout_ms])
+        if "__error" not in resp and "error" not in resp:
+            return resp
+        last_resp = resp
+        error = resp.get("error") or {}
+        if error.get("code") == 15 and attempt < retries:
+            page.wait_for_timeout(1000)
+            continue
+        break
+    err = last_resp.get("__error") if last_resp and "__error" in last_resp else last_resp.get("error") if last_resp else "bilinmeyen hata"
+    raise QlikClientError(f"{method} (id={req_id}): {err}")
 
 
 def _to_number(cell: dict) -> float | None:
