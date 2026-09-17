@@ -159,9 +159,15 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     page.wait_for_load_state("networkidle")
 
     # Yıl / GTİP / Ülke widget'ları asenkron yükleniyor (skeleton placeholder
-    # ile başlıyor); gerçek içerik gelene kadar bekle.
+    # ile başlıyor); gerçek içerik gelene kadar bekle. Genel ".skeleton-wrapper"
+    # selector'ı "detached" beklemesi, sayfada birden fazla skeleton-wrapper
+    # varken (Yıl + GTİP paneli + Ülke paneli) yanlış elemanın kaybolmasıyla
+    # erken dönebiliyordu — Yıl widget'ı hâlâ yüklenirken _select_year
+    # çalışıp "Seçiniz" placeholder'ında kalıyordu. Bunun yerine özellikle
+    # Yıl wrapper'ının kendi skeleton'unun kaybolmasını bekliyoruz.
+    year_wrapper = page.locator(".date-wrapper", has_text="Yıl").first
     try:
-        page.wait_for_selector(".skeleton-wrapper", state="detached", timeout=10_000)
+        year_wrapper.locator(".skeleton-wrapper").wait_for(state="detached", timeout=15_000)
     except PlaywrightTimeoutError:
         pass
 
@@ -182,15 +188,17 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
             # press_sequentially ile klavye simülasyonu güvenilmez çıktı
             # (ilk karakteri bazen yutuyor, bazen yutmuyor — deterministik
             # değil). Native input value setter + 'input' event dispatch ile
-            # React'in kontrollü input'unu bypass ediyoruz; kısa bir önekle
-            # (ör. "1005") arama indeksinin gerçekte ne döndürdüğünü dökelim.
-            for probe in (digits_only[:4], digits_only[:6], digits_only[:8]):
+            # React'in kontrollü input'unu bypass ediyoruz. Önce kısa sayısal
+            # önekler, sonra ürün adıyla ("Mısır") arayıp indeksin gerçekte
+            # neye göre eşleştiğini (kod mu, açıklama mı) dökelim. Sabit
+            # timeout yerine dropdown içeriği değişene kadar bekliyoruz.
+            for probe in (digits_only[:4], digits_only[:6], digits_only[:8], "Mısır"):
                 _set_react_input_value(page, gtip_search, probe)
-                page.wait_for_timeout(1500)
+                _wait_dropdown_settled(page, "GTİP Seçimi")
                 _dump_dropdown_content(page, "GTİP Seçimi", f"gtip-search-probe-{probe}")
 
         _set_react_input_value(page, gtip_search, digits_only)
-        page.wait_for_timeout(2000)
+        _wait_dropdown_settled(page, "GTİP Seçimi")
 
     if discover:
         print("::group::diagnostics-result [after-gtip-search]", file=sys.stderr)
@@ -317,6 +325,28 @@ def _set_react_input_value(page: Page, locator, value: str) -> None:
         }""",
         [element, value],
     )
+
+
+def _wait_dropdown_settled(page: Page, heading_text: str, timeout_ms: int = 6000) -> None:
+    """Arama kutusu değeri değiştikten sonra dropdown-content'in boş
+    (yükleniyor) durumdan çıkıp gerçek içerik (sonuç listesi ya da
+    "bulunamadı" mesajı) gösterene kadar bekler — sabit sleep yerine."""
+    try:
+        page.wait_for_function(
+            """(headingText) => {
+                const h = Array.from(document.querySelectorAll('h4'))
+                    .find(el => el.textContent.trim() === headingText);
+                if (!h) return false;
+                const wrapper = h.closest('.chip-wrapper');
+                if (!wrapper) return false;
+                const dc = wrapper.querySelector('.dropdown-content');
+                return !!dc && dc.textContent.trim().length > 0;
+            }""",
+            arg=heading_text,
+            timeout=timeout_ms,
+        )
+    except PlaywrightTimeoutError:
+        pass
 
 
 def _dump_dropdown_content(page: Page, heading_text: str, label: str) -> None:
