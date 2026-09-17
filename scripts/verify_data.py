@@ -6,7 +6,11 @@ GitHub Actions log'undaki değerlerle eşleşip eşleşmediği, ve saçma
 
 from __future__ import annotations
 
+import sys
 from collections import Counter
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from loader.supabase_loader import get_client
 
