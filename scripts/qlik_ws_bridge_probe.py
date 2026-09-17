@@ -163,11 +163,18 @@ def main() -> int:
         # tutar/miktar ölçüleri) doğrudan deneyip hangisinin var
         # olduğunu görelim.
         candidates = [
-            "ISTPOZ", "GTIP", "ISTPOZ_KOD", "ISTPOZ_NO", "ISTPOZ_AD", "ISTPOZ_TANIM",
-            "ULKE", "ULKE_KODU", "ULKE_ADI",
-            "YON", "AKIS", "HAREKET", "ITHALAT_IHRACAT", "TICARET_YONU", "ISLEM_TURU", "REJIM", "YON_KODU",
-            "USD", "FOB_USD", "CIF_USD", "DEGER_USD", "TUTAR_USD", "ISTATISTIKI_DEGER_USD",
-            "KG", "NET_KG", "MIKTAR", "MIKTAR1", "MIKTAR2",
+            # ISTPOZ/ULKE_KODU/ULKE_ADI zaten doğrulandı — yeni denemeler:
+            "YONU", "ITH_IHR", "IH_ITH_KODU", "DURUM", "TIP", "TUR",
+            "TICARET_SISTEMI", "ISTPOZ_ARAMA_TIP",
+            # ihracat/ithalat önekli ölçü adayları
+            "IHR_USD", "ITH_USD", "IHR_KG", "ITH_KG",
+            "IHRACAT_USD", "ITHALAT_USD", "IHRACAT_KG", "ITHALAT_KG",
+            "IHRACAT_TUTARI", "ITHALAT_TUTARI", "IHRACAT_DEGER", "ITHALAT_DEGER",
+            "IHRACAT_MIKTAR", "ITHALAT_MIKTAR", "IHRACAT_MIKTAR1", "ITHALAT_MIKTAR1",
+            # yön/tip olmadan, tek başına değer alanları (işaretli tek sütun ihtimali)
+            "TUTAR", "DEGER", "KIYMET", "AGIRLIK", "MIKTAR", "MIKTAR1", "MIKTAR2",
+            "TUTAR_USD", "TUTAR_TL", "TUTAR_EUR", "DEGER_USD", "KIYMET_USD", "KIYMET_DOLAR",
+            "NET_AGIRLIK", "NET_AGIRLIK_KG",
         ]
         req_id = 9100
         print("::group::alan adı denemeleri")
