@@ -156,6 +156,58 @@ def main() -> int:
             print(json.dumps(d_layout, ensure_ascii=False, indent=2)[:20000])
             print("::endgroup::")
 
+        # MeasureList/DimensionList boş çıktı (uygulama master item
+        # kullanmıyor, sheet'lerde alan adlarını doğrudan gömüyor
+        # olabilir). YIL/AY/ISTPOZ_ARAMA/ULKE_ARAMA deseninden yola
+        # çıkarak muhtemel gerçek alan adlarını (GTİP kodu, ülke, yön,
+        # tutar/miktar ölçüleri) doğrudan deneyip hangisinin var
+        # olduğunu görelim.
+        candidates = [
+            "ISTPOZ", "GTIP", "ISTPOZ_KOD", "ISTPOZ_NO", "ISTPOZ_AD", "ISTPOZ_TANIM",
+            "ULKE", "ULKE_KODU", "ULKE_ADI",
+            "YON", "AKIS", "HAREKET", "ITHALAT_IHRACAT", "TICARET_YONU", "ISLEM_TURU", "REJIM", "YON_KODU",
+            "USD", "FOB_USD", "CIF_USD", "DEGER_USD", "TUTAR_USD", "ISTATISTIKI_DEGER_USD",
+            "KG", "NET_KG", "MIKTAR", "MIKTAR1", "MIKTAR2",
+        ]
+        req_id = 9100
+        print("::group::alan adı denemeleri")
+        for field in candidates:
+            req_id += 1
+            resp = call_engine(
+                page,
+                "CreateSessionObject",
+                [
+                    {
+                        "qInfo": {"qType": "probe"},
+                        "qListObjectDef": {
+                            "qDef": {"qFieldDefs": [field]},
+                            "qInitialDataFetch": [{"qWidth": 1, "qHeight": 5, "qTop": 0}],
+                        },
+                    }
+                ],
+                handle=doc_handle,
+                req_id=req_id,
+                timeout_ms=8_000,
+            )
+            if "error" in resp:
+                print(f"{field!r}: HATA {resp['error'].get('message')}")
+                continue
+            probe_handle = resp["result"]["qReturn"]["qHandle"]
+            req_id += 1
+            layout = call_engine(page, "GetLayout", [], handle=probe_handle, req_id=req_id, timeout_ms=8_000)
+            try:
+                lo = layout["result"]["qLayout"]["qListObject"]
+                size = lo["qSize"]
+                pages = lo.get("qDataPages", [])
+                samples = []
+                if pages:
+                    for row in pages[0].get("qMatrix", [])[:5]:
+                        samples.append(row[0].get("qText"))
+                print(f"{field!r}: VAR qcy={size.get('qcy')} örnek={samples}")
+            except Exception as exc:  # noqa: BLE001
+                print(f"{field!r}: beklenmeyen yanıt yapısı ({exc}): {json.dumps(layout, ensure_ascii=False)[:300]}")
+        print("::endgroup::")
+
         browser.close()
     return 0
 
