@@ -1,32 +1,18 @@
 # Hangi GTİP kodlarını takip edeceğimizi burada tanımlıyoruz. Scraper her gün
-# bu listedeki kodları TÜİK'ten (Ürün/Ülke kırılımında, ülke bazlı) çeker.
+# bu listedeki kodların hepsi için ülke + yıl + yön (ihracat/ithalat)
+# kırılımındaki TÜM veriyi tek bir Qlik Engine hypercube sorgusuyla çeker
+# (bkz. scraper/qlik_client.py) — ayrı yıl/ay aralığı belirtmeye gerek yok.
 #
 # gtip_codes: 12 haneli (HS12) GTİP kodları — TÜİK'in gösterdiği noktalı format
-# ports: bu genel amaçlı TÜİK sorgulama aracında liman/gümrük idaresi kırılımı
-#        yok (bkz. README) — bu alan kullanılmıyor, ileride başka bir kaynak
-#        eklenirse devreye girecek
-# years: geriye dönük hangi yıllar taranacak (year-over-year karşılaştırma için)
-
-# NOT: kalibrasyon hızını artırmak için geçici olarak tek koda indirildi,
-# doğrulandıktan sonra tüm liste geri eklenecek.
+#             (scraper rakam dışındaki karakterleri kendisi temizler)
 gtip_codes:
   - code: "1005.90.00.00.19"
     name: "Mısır"
-  # - code: "1201.90.00.00.00"
-  #   name: "Soya Fasulyesi"
-  # - code: "1104.30.90.00.11"
-  #   name: "Mısır Özü"
-  # - code: "2304.00.00.00.00"
-  #   name: "Soya Küspesi"
-  # - code: "1206.00.99.00.19"
-  #   name: "Çekirdek"
-
-ports: []
-
-years:
-  start: 2019
-  end: 2026
-
-flows:
-  - export
-  - import
+  - code: "1201.90.00.00.00"
+    name: "Soya Fasulyesi"
+  - code: "1104.30.90.00.11"
+    name: "Mısır Özü"
+  - code: "2304.00.00.00.00"
+    name: "Soya Küspesi"
+  - code: "1206.00.99.00.19"
+    name: "Çekirdek"

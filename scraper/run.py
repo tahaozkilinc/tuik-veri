@@ -1,16 +1,17 @@
 """Günlük scrape işini uçtan uca çalıştıran CLI giriş noktası.
 
 Kullanım:
-    python -m scraper.run                # varsayılan: mevcut + önceki 2 yıl
-    python -m scraper.run --full-history  # config'teki tüm yıl aralığını çeker (tek seferlik backfill)
+    python -m scraper.run
+
+Not: Qlik Engine hypercube sorgusu config'teki tüm GTİP kodları için
+ülke/yıl/yön kırılımındaki veriyi TEK seferde çeker (yıl aralığı ayrıca
+belirtilmez — veri modelinde ne varsa gelir).
 """
 
 from __future__ import annotations
 
-import argparse
 import sys
 from datetime import date
-from itertools import product
 from pathlib import Path
 
 import yaml
@@ -23,8 +24,7 @@ from loader.supabase_loader import (
     upsert_trade_stats,
 )
 from reports.daily_report import build_report
-from scraper.biruni_client import BiruniScrapeError, QueryTarget, fetch_records
-from scraper.parser import normalize
+from scraper.qlik_client import QlikClientError, fetch_trade_stats
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "targets.yaml"
 
@@ -34,40 +34,18 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
-def build_targets(config: dict, full_history: bool) -> list[QueryTarget]:
-    current_year = date.today().year
-    if full_history:
-        years = range(config["years"]["start"], config["years"]["end"] + 1)
-    else:
-        years = range(current_year - 2, current_year + 1)
-
-    gtip_entries = config.get("gtip_codes") or [{"code": None, "name": None}]
-    gtip_codes = [entry["code"] for entry in gtip_entries]
-    ports = config.get("ports") or [None]
-    flows = config.get("flows") or ["export", "import"]
-
-    targets = []
-    for year, flow, gtip, port in product(years, flows, gtip_codes, ports):
-        targets.append(QueryTarget(year=year, flow=flow, gtip_code=gtip, port_name=port))
-    return targets
-
-
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--full-history", action="store_true")
-    args = parser.parse_args()
-
     config = load_config()
-    targets = build_targets(config, args.full_history)
-    print(f"{len(targets)} sorgu hedefi oluşturuldu.")
+    gtip_entries = config.get("gtip_codes") or []
+    gtip_codes = [entry["code"] for entry in gtip_entries if entry.get("code")]
+    print(f"{len(gtip_codes)} GTİP kodu için veri çekilecek: {gtip_codes}")
 
     client = get_client()
     run_id = start_run(client)
 
     try:
-        raw_records = fetch_records(targets)
-        normalized = normalize(raw_records)
-        rows_upserted = upsert_trade_stats(client, normalized) if normalized else 0
+        records = fetch_trade_stats(gtip_codes)
+        rows_upserted = upsert_trade_stats(client, records) if records else 0
         print(f"{rows_upserted} satır upsert edildi.")
 
         report_md = build_report(client, date.today().year)
@@ -77,7 +55,7 @@ def main() -> int:
         finish_run(client, run_id, status="success", rows_upserted=rows_upserted)
         return 0
 
-    except BiruniScrapeError as exc:
+    except QlikClientError as exc:
         finish_run(client, run_id, status="failed", error_message=str(exc))
         print(f"HATA: {exc}", file=sys.stderr)
         return 1

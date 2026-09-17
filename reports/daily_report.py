@@ -1,5 +1,5 @@
 """trade_stats tablosundan günlük özet rapor (markdown) üretir:
-GTİP ve liman kırılımında en güncel dönem + year-over-year karşılaştırma.
+GTİP ve ülke kırılımında en güncel dönem + year-over-year karşılaştırma.
 """
 
 from __future__ import annotations
@@ -55,9 +55,9 @@ def build_report(client: Client, current_year: int) -> str:
             lines.append(f"- {gtip}: ${value:,.0f}")
         lines.append("")
 
-        lines.append("### Liman bazında ilk 5")
-        for port, value in _top_n(cur_rows, "port_name"):
-            lines.append(f"- {port}: ${value:,.0f}")
+        lines.append("### Ülke bazında ilk 5")
+        for country, value in _top_n(cur_rows, "country_name"):
+            lines.append(f"- {country}: ${value:,.0f}")
         lines.append("")
 
     return "\n".join(lines)

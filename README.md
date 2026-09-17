@@ -1,6 +1,6 @@
 # tuik-veri
 
-TÜİK dış ticaret istatistiklerini (GTİP + liman + yıl kırılımında, ihracat/ithalat)
+TÜİK dış ticaret istatistiklerini (GTİP + ülke + yıl kırılımında, ihracat/ithalat)
 her gün otomatik çeken, Supabase'e yazan ve canlı bir dashboard'da gösteren pipeline.
 
 ## Mimari
@@ -8,17 +8,40 @@ her gün otomatik çeken, Supabase'e yazan ve canlı bir dashboard'da gösteren 
 ```
 GitHub Actions (cron, her gün 06:00 UTC)
   -> scraper/run.py
-       -> scraper/biruni_client.py   (Playwright ile biruni.tuik.gov.tr'den veri çeker)
-       -> scraper/parser.py          (ham veriyi normalize eder)
+       -> scraper/qlik_client.py     (Qlik Engine API'sine WebSocket JSON-RPC ile bağlanır)
        -> loader/supabase_loader.py  (Supabase'e upsert + scrape_runs log)
        -> reports/daily_report.py    (günlük özet + YoY karşılaştırma üretir)
   -> Supabase Postgres (trade_stats, scrape_runs, daily_reports)
   -> dashboard/ (statik HTML, GitHub Pages) — Supabase REST API'den (anon key) canlı okur
 ```
 
-Scraper GitHub Actions runner'ında çalışır (bu geliştirme oturumunun ağ erişimi
-tuik.gov.tr'ye kapalı olduğu için biruni arayüzüne karşı canlı doğrulanamadı —
-detaylar aşağıda "Bilinen kısıt" bölümünde).
+### Neden Qlik Engine API, neden DOM otomasyonu değil
+
+TÜİK'in yeni dış ticaret sorgulama aracı (`bi.tuik.gov.tr/extensions/tuik-mashup`)
+aslında gömülü bir **Qlik Sense** uygulaması. UI'yi Playwright ile tıklatmak
+(GTİP arama kutusuna yazmak, "Raporu Oluştur"a basmak) son derece kırılgan
+çıktı: arama kutusunun arkasındaki veri WebSocket üzerinden gelen bir Qlik
+Engine hypercube sorgusuna bağlı ve bu bazen 35 saniyeye kadar sürebiliyor,
+üstelik rapor oluşturma adımı hiçbir zaman DOM'da bir `<table>`'a dönüşmedi.
+
+Bunun yerine `scraper/qlik_client.py`, Playwright'ı SADECE oturum/CSRF/
+WebSocket-handshake bootstrap için kullanıyor (tarayıcı bunu zaten doğru
+yapıyor), sonra sayfanın kendi açtığı WebSocket'i bir init script ile ele
+geçirip üzerinden ham Qlik Engine JSON-RPC istekleri gönderiyor. Tüm GTİP
+kodları için ülke/yıl/yön kırılımındaki veri TEK bir hypercube sorgusuyla
+(set analysis filtreli) çekiliyor — DOM'a hiç dokunulmuyor, sayfa yüklenir
+yüklenmez birkaç saniye içinde tüm veri gelir.
+
+Keşfedilen Qlik veri modeli (`DT_GENEL` tablosu, ~92M satır):
+
+| Alan | Anlamı |
+|---|---|
+| `ISTPOZ` / `ISTPOZ_ADI` | GTİP kodu (12 hane, noktasız) / açıklaması |
+| `ULKE_KODU` / `ULKE_ADI` | ülke kodu / adı |
+| `YIL` / `AY` | yıl / ay (şu an sadece yıllık toplam çekiliyor) |
+| `IHRITH` | `"İhracat"` \| `"İthalat"` |
+| `DOLAR` / `EURO` / `TL` | para birimi bazlı istatistiki değer |
+| `MIKTAR_1` / `MIKTAR_2` | miktar (MIKTAR_1 çoğunlukla kilogram) |
 
 ## Kurulum
 
@@ -49,43 +72,27 @@ tasarlanmıştır, RLS onu SELECT ile sınırlar).
 Repo → Settings → Pages → Source: "GitHub Actions" seçin.
 `dashboard/` klasörüne her push'ta `.github/workflows/deploy-dashboard.yml` otomatik yayınlar.
 
-### 5. Takip edilecek GTİP / liman listesi
+### 5. Takip edilecek GTİP listesi
 
-`config/targets.yaml` dosyasını gerçek GTİP kodları ve limanlarla güncelleyin.
-Boş bırakılan alanlar TÜİK'in genel toplam kırılımını çeker.
-
-### 6. İlk (tek seferlik) geçmiş veri yüklemesi
-
-Yıllar içi (year-over-year) karşılaştırma için geçmiş yılları bir kere doldurun:
-
-```bash
-pip install -r requirements.txt
-playwright install --with-deps chromium
-export SUPABASE_URL=...
-export SUPABASE_SERVICE_ROLE_KEY=...
-python -m scraper.run --full-history
-```
-
-Bundan sonra günlük cron (`daily-scrape.yml`) sadece son 3 yılı güncel tutar.
-
-## Bilinen kısıt: scraper canlı sitede kalibre edilmeli
-
-`scraper/biruni_client.py`, biruni.tuik.gov.tr'nin genel arayüz yapısına (Türkçe
-etiketler: "İhracat/İthalat", "GTİP", "Liman", "Yıl", "Sorgula") dayanan bir ilk
-sürümdür. Bu geliştirme ortamının ağ politikası `*.gov.tr` alan adlarına erişimi
-engellediği için canlı sayfaya karşı doğrulanamadı.
-
-İlk `daily-scrape.yml` çalıştırmasında selector uyuşmazlığı olursa:
-1. Actions log'unda `diagnostics` grubu altında sayfa başlığı ve görünür metin
-   basılır (`_dump_diagnostics` fonksiyonu).
-2. Bu çıktıyı paylaşın, `scraper/biruni_client.py` ve `scraper/parser.py`
-   (özellikle `COLUMN_MAP`) gerçek sayfa yapısına göre güncellenir.
+`config/targets.yaml` dosyasındaki `gtip_codes` listesini güncelleyin. Her
+GTİP kodu için ülke + yıl + yön (ihracat/ithalat) kırılımındaki tüm veri
+tek seferde çekilir — ayrı yıl/ay aralığı belirtmeye gerek yok.
 
 ## Yerel geliştirme
 
 ```bash
 pip install -r requirements.txt
 playwright install --with-deps chromium
-python -m scraper.run          # son 3 yılı çeker
-python -m scraper.run --full-history  # targets.yaml'daki tüm yıl aralığı
+export SUPABASE_URL=...
+export SUPABASE_SERVICE_ROLE_KEY=...
+python -m scraper.run
 ```
+
+## Hata ayıklama
+
+Qlik Engine ile ilgili bir sorun olursa (`GetFieldList` gibi bazı Engine API
+method'ları anonim/embed oturumlarda kısıtlı — `GetTablesAndKeys` ve
+`CreateSessionObject` çalışıyor), `.github/workflows/qlik-probe.yml` ve
+`scripts/qlik_ws_bridge_probe.py` ile hızlı (saniyeler içinde tamamlanan,
+tarayıcı kurulumu dışında) keşif/deneme yapılabilir — tam bir scrape
+çalıştırmasını (dakikalar) beklemeden.
