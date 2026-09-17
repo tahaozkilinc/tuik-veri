@@ -1,0 +1,19 @@
+# Hangi GTİP kodlarını ve hangi limanları/gümrük idarelerini takip edeceğimizi
+# burada tanımlıyoruz. Scraper her gün bu listedeki kombinasyonları TÜİK'ten çeker.
+#
+# gtip_codes: 4, 6, 8 veya 12 haneli GTİP/Fasıl kodları (boş bırakılırsa "genel toplam" çekilir)
+# ports: liman/gümrük idaresi adları veya kodları (boş bırakılırsa tüm Türkiye toplamı çekilir)
+# years: geriye dönük hangi yıllar taranacak (year-over-year karşılaştırma için)
+
+gtip_codes:
+  - "1006"   # Pirinç (örnek — gerçek kodlarla değiştirilecek)
+
+ports: []    # örn: ["İSTANBUL GÜMRÜK VE DIŞ TİCARET BÖLGE MÜDÜRLÜĞÜ"]
+
+years:
+  start: 2019
+  end: 2026
+
+flows:
+  - export
+  - import

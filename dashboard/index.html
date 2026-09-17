@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TÜİK Dış Ticaret Dashboard</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <h1>TÜİK Dış Ticaret Dashboard</h1>
+    <div class="status">
+      <span class="dot"></span>
+      <span id="status-text">Yükleniyor…</span>
+      <button id="theme-toggle" aria-label="Tema değiştir" style="margin-left:8px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-primary);cursor:pointer;">🌓</button>
+    </div>
+  </header>
+
+  <div class="filters">
+    <button class="toggle flow-toggle" data-flow="export" aria-pressed="true">İhracat</button>
+    <button class="toggle flow-toggle" data-flow="import" aria-pressed="false">İthalat</button>
+  </div>
+
+  <section class="kpi-row" id="kpi-row"></section>
+
+  <section class="card">
+    <h2>Yıllara göre ihracat / ithalat (USD)</h2>
+    <div class="legend">
+      <span class="key"><span class="swatch" style="background:var(--series-1)"></span>İhracat</span>
+      <span class="key"><span class="swatch" style="background:var(--series-2)"></span>İthalat</span>
+    </div>
+    <svg id="year-chart" role="img" aria-label="Yıllara göre ihracat ve ithalat"></svg>
+  </section>
+
+  <section class="card">
+    <h2>GTİP bazında ilk 5 (seçili yön ve yıl)</h2>
+    <svg id="top-gtip-chart" role="img" aria-label="GTİP bazında en yüksek 5 kalem"></svg>
+  </section>
+
+  <section class="card">
+    <h2>Liman bazında ilk 5 (seçili yön ve yıl)</h2>
+    <svg id="top-port-chart" role="img" aria-label="Liman bazında en yüksek 5 kalem"></svg>
+  </section>
+
+  <section class="card">
+    <h2>Günlük rapor</h2>
+    <div id="report-body"></div>
+  </section>
+
+  <section class="card">
+    <details class="table-toggle">
+      <summary>Tablo görünümü (ilk 50 satır)</summary>
+      <table class="data-table">
+        <thead>
+          <tr><th>Yıl</th><th>GTİP</th><th>Liman</th><th>Ülke</th><th>Değer (USD)</th></tr>
+        </thead>
+        <tbody id="data-table-body"></tbody>
+      </table>
+    </details>
+  </section>
+
+  <footer class="note">
+    Veri kaynağı: TÜİK (Türkiye İstatistik Kurumu) dış ticaret istatistikleri. Günlük olarak otomatik güncellenir.
+  </footer>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
