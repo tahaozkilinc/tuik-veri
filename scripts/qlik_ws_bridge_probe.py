@@ -96,6 +96,30 @@ def main() -> int:
         doc_handle = open_resp["result"]["qReturn"]["qHandle"]
         print(f"doc_handle = {doc_handle}")
 
+        # GetFieldList bloklandı — belki GetTablesAndKeys (veri modeli
+        # görüntüleyici) veya GetScript (yükleme betiği, TÜM alan
+        # adlarını ve ifadeleri tek seferde verir) engellenmemiştir.
+        tables_resp = call_engine(
+            page,
+            "GetTablesAndKeys",
+            [{"qcx": 1000, "qcy": 1000}, {"qcx": 1000, "qcy": 1000}, 0, True, False],
+            handle=doc_handle,
+            req_id=9050,
+            timeout_ms=10_000,
+        )
+        print("::group::GetTablesAndKeys")
+        print(json.dumps(tables_resp, ensure_ascii=False, indent=2)[:15000])
+        print("::endgroup::")
+
+        script_resp = call_engine(page, "GetScript", [], handle=doc_handle, req_id=9051, timeout_ms=10_000)
+        print("::group::GetScript")
+        if "result" in script_resp:
+            script_text = script_resp["result"].get("qScript", "")
+            print(script_text[:15000])
+        else:
+            print(json.dumps(script_resp, ensure_ascii=False)[:1000])
+        print("::endgroup::")
+
         # GetFieldList "Method not found" döndü — bu embed/anonim oturumda
         # Engine API'nin izin verilen method listesi kısıtlı görünüyor
         # (sadece gerçek uygulamanın kullandığı method'lar açık). Ama
