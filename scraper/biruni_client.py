@@ -172,17 +172,46 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     # "date-wrapper" içindeki tıklanabilir elemanı aç ve yılı seç.
     _select_year(page, target.year)
 
+    # GTİP ve Ülke seçim panelleri boş başlıyor — varsayılan olarak hepsini
+    # seç ("Tümü"); ihracat/ithalat kutucuğunu hedefe göre işaretle.
+    for tumu in page.get_by_text("Tümü", exact=True).all():
+        try:
+            tumu.click(timeout=STEP_TIMEOUT_MS)
+        except PlaywrightTimeoutError:
+            continue
+
+    flow_checkbox = page.locator(f'input#{"export" if target.flow == "export" else "import"}')
+    try:
+        if flow_checkbox.count() > 0 and not flow_checkbox.first.is_checked():
+            flow_checkbox.first.check(timeout=STEP_TIMEOUT_MS)
+    except PlaywrightTimeoutError:
+        pass
+
+    if discover:
+        _dump_date_wrappers(page, "step3-after-tumu")
+
     report_button = page.get_by_role("button", name="Rapor", exact=False)
     if report_button.count() == 0:
         report_button = page.get_by_role("button", name="Oluştur", exact=False)
     report_button.first.click()
     page.wait_for_load_state("networkidle")
 
-    if discover:
-        _dump_date_wrappers(page, "step4-after-submit")
-        _dump_text(page, "step4-after-submit")
-
     table = page.locator("table").first
+
+    if discover:
+        print("::group::diagnostics-result [table-check]", file=sys.stderr)
+        print(f"table bulundu mu: {table.count() > 0}", file=sys.stderr)
+        if table.count() > 0:
+            all_rows = table.locator("tr").all()
+            print(f"satır sayısı: {len(all_rows)}", file=sys.stderr)
+            if all_rows:
+                print(f"ilk satır: {all_rows[0].inner_text()[:300]}", file=sys.stderr)
+            if len(all_rows) > 1:
+                print(f"ikinci satır: {all_rows[1].inner_text()[:300]}", file=sys.stderr)
+        else:
+            print(page.inner_text("body")[:1500], file=sys.stderr)
+        print("::endgroup::", file=sys.stderr)
+
     if table.count() == 0:
         return []
 
