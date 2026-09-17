@@ -254,20 +254,19 @@ def _run_single_query(
     _select_year(page, target.year)
 
     # GTİP Seçimi panelindeki "hs2-select" alanı (chip-item-wrapper two-col)
-    # önceki koşularda arama yapılırken bile hâlâ skeleton gösteriyordu —
-    # aramanın filtrelediği asıl veri kümesi bu olabilir. Uzunca bekleyip
-    # gerçekten çözülüp çözülmediğini dökelim.
-    if discover and target.gtip_code:
+    # arka planda Qlik Engine'den (WebSocket/JSON-RPC) veri çekiyor ve bu
+    # gerçekten uzun sürebiliyor (20sn yetmiyordu, 35sn'de çözüldüğü
+    # doğrulandı) — arama kutusu bu veri gelmeden hiçbir sonuç döndürmüyor.
+    # Bu yüzden discover'a bakmaksızın HER hedefte bekliyoruz.
+    if target.gtip_code:
         hs2_wrapper = page.locator(".chip-item-wrapper.hs2-select").first
         resolved = True
         try:
             hs2_wrapper.locator(".skeleton-wrapper").first.wait_for(state="detached", timeout=35_000)
         except PlaywrightTimeoutError:
             resolved = False
-        print(
-            f"::notice::hs2-select skeleton çözüldü mü: {resolved}",
-            file=sys.stderr,
-        )
+        if discover:
+            print(f"::notice::hs2-select skeleton çözüldü mü: {resolved}", file=sys.stderr)
 
     # GTİP Seçimi arama kutusuna kodu yaz (rapor GTİP filtresi olmadan
     # oluşmuyor — "Tümü" GTİP panelinde yok, sadece arama sonuçları var).
@@ -290,6 +289,17 @@ def _run_single_query(
 
         _set_react_input_value(page, gtip_search, digits_only)
         _wait_dropdown_settled(page, "GTİP Seçimi")
+
+        # Arama sonuçlarındaki checkbox'lar "readonly" ama React click
+        # handler'ı label üzerinde — label'a tıklayarak seçiyoruz. Tam
+        # 12 haneli kodla arandığında tek bir tam eşleşme dönüyor.
+        gtip_wrapper = page.locator(".chip-wrapper:has(h4:text-is('GTİP Seçimi'))").first
+        result_labels = gtip_wrapper.locator("label.search.form-check-label")
+        for j in range(result_labels.count()):
+            try:
+                result_labels.nth(j).click(timeout=STEP_TIMEOUT_MS)
+            except PlaywrightTimeoutError:
+                continue
 
     if discover:
         print("::group::diagnostics-result [after-gtip-search]", file=sys.stderr)
