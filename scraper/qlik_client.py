@@ -179,7 +179,14 @@ def fetch_trade_stats(gtip_codes: list[str]) -> list[dict]:
                                 {"qDef": {"qDef": f"Sum({{<{set_expr}>}} DOLAR)"}},
                                 {"qDef": {"qDef": f"Sum({{<{set_expr}>}} MIKTAR_1)"}},
                             ],
-                            "qInitialDataFetch": [{"qWidth": 8, "qHeight": 10_000, "qTop": 0}],
+                            # qInitialDataFetch büyük bir sayfayı (8 sütun x
+                            # 10000 satır = 80000 hücre) tek seferde istediğinde
+                            # sunucu qSize'ı doğru hesaplayıp qDataPages'i SESSİZCE
+                            # boş döndürdü (muhtemelen anonim oturum için hücre
+                            # bütçesi aşıldı) — canlı koşuda görüldü. Objeyi veri
+                            # istemeden oluşturup, GetHyperCubeData ile küçük
+                            # sayfalar hâlinde açıkça çekiyoruz.
+                            "qInitialDataFetch": [],
                         },
                     }
                 ],
@@ -190,18 +197,33 @@ def fetch_trade_stats(gtip_codes: list[str]) -> list[dict]:
 
             layout_resp = _call(page, "GetLayout", [], handle=hc_handle, req_id=90_003)
             hc = layout_resp["result"]["qLayout"]["qHyperCube"]
+            total = hc.get("qSize", {}).get("qcy", 0)
+            width = hc.get("qSize", {}).get("qcx", 8)
 
             rows: list[list[dict]] = []
-            for data_page in hc.get("qDataPages", []):
-                rows.extend(data_page.get("qMatrix", []))
-
-            total = hc.get("qSize", {}).get("qcy", len(rows))
-            if total > len(rows):
-                print(
-                    f"[uyarı] hypercube {total} satır bildirdi ama {len(rows)} tanesi ilk sayfada geldi "
-                    "(sayfalama henüz uygulanmadı, veri eksik olabilir)",
-                    file=sys.stderr,
+            page_height = 1000
+            top = 0
+            req_id = 90_010
+            while top < total:
+                height = min(page_height, total - top)
+                data_resp = _call(
+                    page,
+                    "GetHyperCubeData",
+                    ["/qHyperCubeDef", [{"qLeft": 0, "qTop": top, "qWidth": width, "qHeight": height}]],
+                    handle=hc_handle,
+                    req_id=req_id,
                 )
+                req_id += 1
+                data_pages = data_resp["result"].get("qDataPages", [])
+                matrix = data_pages[0].get("qMatrix", []) if data_pages else []
+                if not matrix:
+                    print(f"[uyarı] GetHyperCubeData qTop={top} boş sayfa döndürdü, duruluyor.", file=sys.stderr)
+                    break
+                rows.extend(matrix)
+                top += len(matrix)
+
+            if len(rows) < total:
+                print(f"[uyarı] {total} satırın {len(rows)} tanesi çekilebildi.", file=sys.stderr)
         finally:
             browser.close()
 
