@@ -179,45 +179,26 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
         digits_only = "".join(ch for ch in target.gtip_code if ch.isdigit())
 
         if discover:
-            # Hem noktalı hem noktasız tam kod aramaları "Arama Sonucu
-            # Bulunamamıştır" döndü — arama indeksinin gerçekte ne formatta
-            # eşleştirdiğini anlamak için kısa bir önek (ör. "1005") deneyip
-            # dönen listeyi dökelim.
+            # press_sequentially ile klavye simülasyonu güvenilmez çıktı
+            # (ilk karakteri bazen yutuyor, bazen yutmuyor — deterministik
+            # değil). Native input value setter + 'input' event dispatch ile
+            # React'in kontrollü input'unu bypass ediyoruz; kısa bir önekle
+            # (ör. "1005") arama indeksinin gerçekte ne döndürdüğünü dökelim.
             for probe in (digits_only[:4], digits_only[:6], digits_only[:8]):
-                try:
-                    gtip_search.click(timeout=STEP_TIMEOUT_MS)
-                    page.keyboard.press("Control+A")
-                    page.keyboard.press("Delete")
-                    gtip_search.press_sequentially("0" + probe, delay=150, timeout=STEP_TIMEOUT_MS)
-                    page.wait_for_timeout(1500)
-                except PlaywrightTimeoutError:
-                    pass
+                _set_react_input_value(page, gtip_search, probe)
+                page.wait_for_timeout(1500)
                 _dump_dropdown_content(page, "GTİP Seçimi", f"gtip-search-probe-{probe}")
-            try:
-                gtip_search.click(timeout=STEP_TIMEOUT_MS)
-                page.keyboard.press("Control+A")
-                page.keyboard.press("Delete")
-            except PlaywrightTimeoutError:
-                pass
 
-        try:
-            # .fill() bıraktığı değeri React'in kontrollü input'u geri
-            # sıfırlıyor; press_sequentially de — click ile, click'siz,
-            # bekleme ile, beklemesiz — HER durumda tam olarak ilk karakteri
-            # kaybediyor (3 farklı denemede birebir aynı sonuç). Bu bir yarış
-            # durumu değil, widget'ın kendisi ilk keydown'ı yutuyor gibi
-            # görünüyor. Başa "kurban" bir karakter ekleyip onun kaybolmasını
-            # bekliyoruz, gerçek kod olduğu gibi kalıyor.
-            gtip_search.click(timeout=STEP_TIMEOUT_MS)
-            gtip_search.press_sequentially("0" + digits_only, delay=150, timeout=STEP_TIMEOUT_MS)
-            page.wait_for_timeout(2000)
-        except PlaywrightTimeoutError:
-            pass
+        _set_react_input_value(page, gtip_search, digits_only)
+        page.wait_for_timeout(2000)
 
     if discover:
         print("::group::diagnostics-result [after-gtip-search]", file=sys.stderr)
         tumu_count = page.locator('input[type="checkbox"][id$="-tumu"]').count()
         print(f"'-tumu' checkbox sayısı: {tumu_count}", file=sys.stderr)
+        if target.gtip_code:
+            actual_value = gtip_search.input_value()
+            print(f"arama kutusu değeri: {actual_value!r} (beklenen: {digits_only!r})", file=sys.stderr)
         print("::endgroup::", file=sys.stderr)
         _dump_chip_wrapper(page, "GTİP Seçimi", "gtip-chip-wrapper-after-search")
 
@@ -314,6 +295,28 @@ def _dump_chip_wrapper(page: Page, heading_text: str, label: str) -> None:
     except Exception as exc:  # noqa: BLE001
         print(f"chip-wrapper dump failed: {exc}", file=sys.stderr)
     print("::endgroup::", file=sys.stderr)
+
+
+def _set_react_input_value(page: Page, locator, value: str) -> None:
+    """React'in kontrollü input'una native value setter + 'input' event ile
+    değer yazar. Klavye simülasyonu (press_sequentially) ilk karakteri
+    tutarsız biçimde kaybediyordu; bu yöntem DOM'a doğrudan native setter
+    ile yazıp React'in dinlediği sentetik event'i tetikliyor."""
+    try:
+        locator.click(timeout=STEP_TIMEOUT_MS)
+    except PlaywrightTimeoutError:
+        pass
+    element = locator.element_handle()
+    if element is None:
+        return
+    page.evaluate(
+        """([el, value]) => {
+            const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            setter.call(el, value);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        }""",
+        [element, value],
+    )
 
 
 def _dump_dropdown_content(page: Page, heading_text: str, label: str) -> None:
