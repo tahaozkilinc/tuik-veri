@@ -7,17 +7,19 @@
 #        eklenirse devreye girecek
 # years: geriye dönük hangi yıllar taranacak (year-over-year karşılaştırma için)
 
+# NOT: kalibrasyon hızını artırmak için geçici olarak tek koda indirildi,
+# doğrulandıktan sonra tüm liste geri eklenecek.
 gtip_codes:
   - code: "1005.90.00.00.19"
     name: "Mısır"
-  - code: "1201.90.00.00.00"
-    name: "Soya Fasulyesi"
-  - code: "1104.30.90.00.11"
-    name: "Mısır Özü"
-  - code: "2304.00.00.00.00"
-    name: "Soya Küspesi"
-  - code: "1206.00.99.00.19"
-    name: "Çekirdek"
+  # - code: "1201.90.00.00.00"
+  #   name: "Soya Fasulyesi"
+  # - code: "1104.30.90.00.11"
+  #   name: "Mısır Özü"
+  # - code: "2304.00.00.00.00"
+  #   name: "Soya Küspesi"
+  # - code: "1206.00.99.00.19"
+  #   name: "Çekirdek"
 
 ports: []
 

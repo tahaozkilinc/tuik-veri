@@ -178,10 +178,12 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
         gtip_search = page.get_by_placeholder("Kod ya da Tanım Ara (En az 3 Karakter)")
         try:
             # .fill() bıraktığı değeri React'in kontrollü input'u geri
-            # sıfırlıyor (value boş kalıyor) — gerçek tuş basımlarını simüle
-            # eden press_sequentially deneniyor. press_sequentially kendi
-            # actionability/focus beklemesini yapıyor; önce ayrı bir click()
-            # yapmak bir yarış durumuna yol açıp ilk karakteri kaybettiriyordu.
+            # sıfırlıyor; press_sequentially de (click ile veya click'siz)
+            # ilk karakteri kaybediyor — focus kurulur kurulmaz ilk tuş
+            # basımı bir re-render'a denk geliyor gibi görünüyor. Click
+            # sonrası kısa bir bekleme ekleyip focus'un oturmasını sağlıyoruz.
+            gtip_search.click(timeout=STEP_TIMEOUT_MS)
+            page.wait_for_timeout(400)
             gtip_search.press_sequentially(target.gtip_code, delay=150, timeout=STEP_TIMEOUT_MS)
             page.wait_for_timeout(2000)
         except PlaywrightTimeoutError:
