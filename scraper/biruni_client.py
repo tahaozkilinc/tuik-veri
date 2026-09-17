@@ -172,11 +172,29 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     # "date-wrapper" içindeki tıklanabilir elemanı aç ve yılı seç.
     _select_year(page, target.year)
 
-    # GTİP ve Ülke seçim panelleri boş başlıyor — varsayılan olarak hepsini
-    # seç ("Tümü"); ihracat/ithalat kutucuğunu hedefe göre işaretle.
-    for tumu in page.get_by_text("Tümü", exact=True).all():
+    # GTİP Seçimi arama kutusuna kodu yaz (rapor GTİP filtresi olmadan
+    # oluşmuyor — "Tümü" GTİP panelinde yok, sadece arama sonuçları var).
+    if target.gtip_code:
+        gtip_search = page.get_by_placeholder("Kod ya da Tanım Ara (En az 3 Karakter)")
         try:
-            tumu.click(timeout=STEP_TIMEOUT_MS)
+            gtip_search.fill(target.gtip_code, timeout=STEP_TIMEOUT_MS)
+            page.wait_for_timeout(1500)
+        except PlaywrightTimeoutError:
+            pass
+
+    if discover:
+        print("::group::diagnostics-result [after-gtip-search]", file=sys.stderr)
+        tumu_count = page.locator('input[type="checkbox"][id$="-tumu"]').count()
+        print(f"'-tumu' checkbox sayısı: {tumu_count}", file=sys.stderr)
+        print(page.inner_text("body")[:1500], file=sys.stderr)
+        print("::endgroup::", file=sys.stderr)
+
+    # Hem GTİP arama sonuçlarındaki hem de Ülke panelindeki "Tümü" checkbox'ları
+    # id'si "-tumu" ile bitiyor — hepsini işaretle (text tıklamak yerine
+    # doğrudan checkbox'ı .check() ile, daha güvenilir).
+    for tumu_cb in page.locator('input[type="checkbox"][id$="-tumu"]').all():
+        try:
+            tumu_cb.check(timeout=STEP_TIMEOUT_MS)
         except PlaywrightTimeoutError:
             continue
 
