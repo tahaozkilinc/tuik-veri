@@ -186,8 +186,8 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
         print("::group::diagnostics-result [after-gtip-search]", file=sys.stderr)
         tumu_count = page.locator('input[type="checkbox"][id$="-tumu"]').count()
         print(f"'-tumu' checkbox sayısı: {tumu_count}", file=sys.stderr)
-        print(page.inner_text("body")[:1500], file=sys.stderr)
         print("::endgroup::", file=sys.stderr)
+        _dump_chip_wrapper(page, "GTİP Seçimi", "gtip-chip-wrapper-after-search")
 
     # Hem GTİP arama sonuçlarındaki hem de Ülke panelindeki "Tümü" checkbox'ları
     # id'si "-tumu" ile bitiyor — hepsini işaretle (text tıklamak yerine
@@ -262,6 +262,25 @@ def _dump_date_wrappers(page: Page, label: str) -> None:
             print("---", file=sys.stderr)
     except Exception as exc:  # noqa: BLE001
         print(f"date-wrapper dump failed: {exc}", file=sys.stderr)
+    print("::endgroup::", file=sys.stderr)
+
+
+def _dump_chip_wrapper(page: Page, heading_text: str, label: str) -> None:
+    print(f"::group::diagnostics-html [{label}]", file=sys.stderr)
+    try:
+        html = page.evaluate(
+            """(headingText) => {
+                const h = Array.from(document.querySelectorAll('h4'))
+                    .find(el => el.textContent.trim() === headingText);
+                if (!h) return null;
+                const wrapper = h.closest('.chip-wrapper');
+                return (wrapper || h.parentElement).outerHTML;
+            }""",
+            heading_text,
+        )
+        print((html or "(bulunamadı)")[:3500], file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001
+        print(f"chip-wrapper dump failed: {exc}", file=sys.stderr)
     print("::endgroup::", file=sys.stderr)
 
 
