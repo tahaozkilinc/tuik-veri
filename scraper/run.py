@@ -41,7 +41,8 @@ def build_targets(config: dict, full_history: bool) -> list[QueryTarget]:
     else:
         years = range(current_year - 2, current_year + 1)
 
-    gtip_codes = config.get("gtip_codes") or [None]
+    gtip_entries = config.get("gtip_codes") or [{"code": None, "name": None}]
+    gtip_codes = [entry["code"] for entry in gtip_entries]
     ports = config.get("ports") or [None]
     flows = config.get("flows") or ["export", "import"]
 

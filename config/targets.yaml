@@ -1,14 +1,25 @@
-# Hangi GTİP kodlarını ve hangi limanları/gümrük idarelerini takip edeceğimizi
-# burada tanımlıyoruz. Scraper her gün bu listedeki kombinasyonları TÜİK'ten çeker.
+# Hangi GTİP kodlarını takip edeceğimizi burada tanımlıyoruz. Scraper her gün
+# bu listedeki kodları TÜİK'ten (Ürün/Ülke kırılımında, ülke bazlı) çeker.
 #
-# gtip_codes: 4, 6, 8 veya 12 haneli GTİP/Fasıl kodları (boş bırakılırsa "genel toplam" çekilir)
-# ports: liman/gümrük idaresi adları veya kodları (boş bırakılırsa tüm Türkiye toplamı çekilir)
+# gtip_codes: 12 haneli (HS12) GTİP kodları — TÜİK'in gösterdiği noktalı format
+# ports: bu genel amaçlı TÜİK sorgulama aracında liman/gümrük idaresi kırılımı
+#        yok (bkz. README) — bu alan kullanılmıyor, ileride başka bir kaynak
+#        eklenirse devreye girecek
 # years: geriye dönük hangi yıllar taranacak (year-over-year karşılaştırma için)
 
 gtip_codes:
-  - "1006"   # Pirinç (örnek — gerçek kodlarla değiştirilecek)
+  - code: "1005.90.00.00.19"
+    name: "Mısır"
+  - code: "1201.90.00.00.00"
+    name: "Soya Fasulyesi"
+  - code: "1104.30.90.00.11"
+    name: "Mısır Özü"
+  - code: "2304.00.00.00.00"
+    name: "Soya Küspesi"
+  - code: "1206.00.99.00.19"
+    name: "Çekirdek"
 
-ports: []    # örn: ["İSTANBUL GÜMRÜK VE DIŞ TİCARET BÖLGE MÜDÜRLÜĞÜ"]
+ports: []
 
 years:
   start: 2019
