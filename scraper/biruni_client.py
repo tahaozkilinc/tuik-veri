@@ -137,6 +137,19 @@ def fetch_records(targets: list[QueryTarget], headless: bool = True) -> list[dic
 
 
 def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[dict]:
+    network_log: list[str] = []
+    if discover:
+        def _log_response(response):  # noqa: ANN001
+            try:
+                url = response.url
+                if any(skip in url for skip in (".png", ".jpg", ".svg", ".css", ".woff", ".js", ".map", "chunk")):
+                    return
+                network_log.append(f"{response.request.method} {response.status} {url}")
+            except Exception:  # noqa: BLE001
+                pass
+
+        page.on("response", _log_response)
+
     # Adım 1: kategori seçimi
     page.get_by_text(CATEGORY_PRODUCT_COUNTRY, exact=False).first.click()
     page.get_by_role("button", name="Sonraki Adım").click()
@@ -209,6 +222,14 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
             print(f"arama kutusu değeri: {actual_value!r} (beklenen: {digits_only!r})", file=sys.stderr)
         print("::endgroup::", file=sys.stderr)
         _dump_chip_wrapper(page, "GTİP Seçimi", "gtip-chip-wrapper-after-search")
+
+        print("::group::diagnostics-network [after-gtip-search]", file=sys.stderr)
+        if network_log:
+            for line in network_log[-40:]:
+                print(line, file=sys.stderr)
+        else:
+            print("(hiç XHR/fetch yakalanmadı)", file=sys.stderr)
+        print("::endgroup::", file=sys.stderr)
 
     # Hem GTİP arama sonuçlarındaki hem de Ülke panelindeki "Tümü" checkbox'ları
     # id'si "-tumu" ile bitiyor — hepsini işaretle (text tıklamak yerine
