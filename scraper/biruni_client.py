@@ -184,8 +184,12 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
             # durumu değil, widget'ın kendisi ilk keydown'ı yutuyor gibi
             # görünüyor. Başa "kurban" bir karakter ekleyip onun kaybolmasını
             # bekliyoruz, gerçek kod olduğu gibi kalıyor.
+            # Tam kod ("1005.90.00.00.19") noktalarla arandığında sonuç
+            # bulunamadı — arama indeksinin noktasız (sade rakam) format
+            # beklediğinden şüpheleniyoruz, onu deniyoruz.
+            digits_only = "".join(ch for ch in target.gtip_code if ch.isdigit())
             gtip_search.click(timeout=STEP_TIMEOUT_MS)
-            gtip_search.press_sequentially("0" + target.gtip_code, delay=150, timeout=STEP_TIMEOUT_MS)
+            gtip_search.press_sequentially("0" + digits_only, delay=150, timeout=STEP_TIMEOUT_MS)
             page.wait_for_timeout(2000)
         except PlaywrightTimeoutError:
             pass
