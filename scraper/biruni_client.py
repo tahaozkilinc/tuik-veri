@@ -106,6 +106,39 @@ def fetch_records(targets: list[QueryTarget], headless: bool = True) -> list[dic
             page.set_default_timeout(STEP_TIMEOUT_MS)
             discover = i == 0  # yalnızca ilk hedefte detaylı alan dökümü yap
 
+            network_log: list[str] = []
+            if discover:
+                # goto'dan ÖNCE bağla ki ilk sayfa yüklemesindeki veri
+                # çekme istekleri de (varsa) yakalansın — önceki denemede
+                # _run_single_query içinde bağladığımız için goto sırasındaki
+                # istekleri kaçırmış, "hiç XHR yakalanmadı" görmüştük.
+                def _skip(url: str) -> bool:
+                    return any(s in url for s in (".png", ".jpg", ".svg", ".css", ".woff", ".map"))
+
+                def _on_request(req):  # noqa: ANN001
+                    try:
+                        if not _skip(req.url):
+                            network_log.append(f"→ {req.method} {req.url}")
+                    except Exception:  # noqa: BLE001
+                        pass
+
+                def _on_response(res):  # noqa: ANN001
+                    try:
+                        if not _skip(res.url):
+                            network_log.append(f"← {res.status} {res.url}")
+                    except Exception:  # noqa: BLE001
+                        pass
+
+                def _on_request_failed(req):  # noqa: ANN001
+                    try:
+                        network_log.append(f"✗ FAILED {req.method} {req.url} :: {req.failure}")
+                    except Exception:  # noqa: BLE001
+                        pass
+
+                page.on("request", _on_request)
+                page.on("response", _on_response)
+                page.on("requestfailed", _on_request_failed)
+
             try:
                 page.goto(MASHUP_URL, wait_until="networkidle", timeout=NAV_TIMEOUT_MS)
             except PlaywrightTimeoutError as exc:
@@ -120,7 +153,7 @@ def fetch_records(targets: list[QueryTarget], headless: bool = True) -> list[dic
                 _dump_fields(page, "step1-category")
 
             try:
-                record_rows = _run_single_query(page, target, discover)
+                record_rows = _run_single_query(page, target, discover, network_log)
                 results.extend(record_rows)
             except Exception as exc:  # noqa: BLE001
                 print(
@@ -136,20 +169,9 @@ def fetch_records(targets: list[QueryTarget], headless: bool = True) -> list[dic
     return results
 
 
-def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[dict]:
-    network_log: list[str] = []
-    if discover:
-        def _log_response(response):  # noqa: ANN001
-            try:
-                url = response.url
-                if any(skip in url for skip in (".png", ".jpg", ".svg", ".css", ".woff", ".js", ".map", "chunk")):
-                    return
-                network_log.append(f"{response.request.method} {response.status} {url}")
-            except Exception:  # noqa: BLE001
-                pass
-
-        page.on("response", _log_response)
-
+def _run_single_query(
+    page: Page, target: QueryTarget, discover: bool, network_log: list[str] | None = None
+) -> list[dict]:
     # Adım 1: kategori seçimi
     page.get_by_text(CATEGORY_PRODUCT_COUNTRY, exact=False).first.click()
     page.get_by_role("button", name="Sonraki Adım").click()
@@ -191,6 +213,22 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     # "date-wrapper" içindeki tıklanabilir elemanı aç ve yılı seç.
     _select_year(page, target.year)
 
+    # GTİP Seçimi panelindeki "hs2-select" alanı (chip-item-wrapper two-col)
+    # önceki koşularda arama yapılırken bile hâlâ skeleton gösteriyordu —
+    # aramanın filtrelediği asıl veri kümesi bu olabilir. Uzunca bekleyip
+    # gerçekten çözülüp çözülmediğini dökelim.
+    if discover and target.gtip_code:
+        hs2_wrapper = page.locator(".chip-item-wrapper.hs2-select").first
+        resolved = True
+        try:
+            hs2_wrapper.locator(".skeleton-wrapper").first.wait_for(state="detached", timeout=20_000)
+        except PlaywrightTimeoutError:
+            resolved = False
+        print(
+            f"::notice::hs2-select skeleton çözüldü mü: {resolved}",
+            file=sys.stderr,
+        )
+
     # GTİP Seçimi arama kutusuna kodu yaz (rapor GTİP filtresi olmadan
     # oluşmuyor — "Tümü" GTİP panelinde yok, sadece arama sonuçları var).
     if target.gtip_code:
@@ -225,10 +263,11 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
 
         print("::group::diagnostics-network [after-gtip-search]", file=sys.stderr)
         if network_log:
-            for line in network_log[-40:]:
+            print(f"toplam olay sayısı: {len(network_log)}", file=sys.stderr)
+            for line in network_log[-60:]:
                 print(line, file=sys.stderr)
         else:
-            print("(hiç XHR/fetch yakalanmadı)", file=sys.stderr)
+            print("(hiç istek/yanıt yakalanmadı)", file=sys.stderr)
         print("::endgroup::", file=sys.stderr)
 
     # Hem GTİP arama sonuçlarındaki hem de Ülke panelindeki "Tümü" checkbox'ları
