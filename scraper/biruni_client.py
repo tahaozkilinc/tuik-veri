@@ -94,32 +94,6 @@ def _dump_fields(page: Page, label: str) -> None:
     print("::endgroup::", file=sys.stderr)
 
 
-_HTML_NEAR_JS = """
-(searchText) => {
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  let node;
-  while (node = walker.nextNode()) {
-    if (node.textContent.trim() === searchText) {
-      let el = node.parentElement;
-      for (let i = 0; i < 4 && el.parentElement; i++) el = el.parentElement;
-      return el.outerHTML;
-    }
-  }
-  return null;
-}
-"""
-
-
-def _dump_html_near(page: Page, text: str, label: str) -> None:
-    print(f"::group::diagnostics-html [{label}: near '{text}']", file=sys.stderr)
-    try:
-        html = page.evaluate(_HTML_NEAR_JS, text)
-        print((html or "(bulunamadı)")[:4000], file=sys.stderr)
-    except Exception as exc:  # noqa: BLE001
-        print(f"html dump failed: {exc}", file=sys.stderr)
-    print("::endgroup::", file=sys.stderr)
-
-
 def fetch_records(targets: list[QueryTarget], headless: bool = True) -> list[dict]:
     """Her QueryTarget için mashup uygulamasında sorgu çalıştırır, ham satırları döner."""
     results: list[dict] = []
@@ -192,13 +166,11 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
         pass
 
     if discover:
-        _dump_fields(page, "step3-date")
-        _dump_text(page, "step3-date")
-        _dump_html_near(page, "Yıl", "step3-year-widget")
-        _dump_html_near(page, "GTİP Seçimi", "step3-gtip-widget")
+        _dump_date_wrappers(page, "step3-date-widgets")
 
-    # Adım 3: tarih seçimi
-    _fill_best_effort(page, ["Yıl", "Başlangıç", "Yıldan"], str(target.year))
+    # Adım 3: tarih seçimi — Yıl özel bir dropdown (native <select> değil),
+    # "date-wrapper" içindeki tıklanabilir elemanı aç ve yılı seç.
+    _select_year(page, target.year)
 
     report_button = page.get_by_role("button", name="Rapor", exact=False)
     if report_button.count() == 0:
@@ -207,8 +179,8 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     page.wait_for_load_state("networkidle")
 
     if discover:
-        _dump_fields(page, "step4-result")
-        _dump_text(page, "step4-result")
+        _dump_date_wrappers(page, "step4-after-submit")
+        _dump_text(page, "step4-after-submit")
 
     table = page.locator("table").first
     if table.count() == 0:
@@ -232,20 +204,26 @@ def _run_single_query(page: Page, target: QueryTarget, discover: bool) -> list[d
     return parsed
 
 
-def _fill_best_effort(page: Page, label_candidates: list[str], value: str) -> bool:
-    for candidate in label_candidates:
-        try:
-            field = page.get_by_label(candidate, exact=False)
-            if field.count() > 0:
-                field.first.fill(value, timeout=STEP_TIMEOUT_MS)
-                return True
-        except PlaywrightTimeoutError:
-            continue
-        try:
-            field = page.get_by_placeholder(candidate, exact=False)
-            if field.count() > 0:
-                field.first.fill(value, timeout=STEP_TIMEOUT_MS)
-                return True
-        except PlaywrightTimeoutError:
-            continue
-    return False
+def _dump_date_wrappers(page: Page, label: str) -> None:
+    print(f"::group::diagnostics-html [{label}]", file=sys.stderr)
+    try:
+        html_list = page.evaluate(
+            "() => Array.from(document.querySelectorAll('.date-wrapper')).map(w => w.outerHTML)"
+        )
+        for html in html_list:
+            print((html or "")[:2500], file=sys.stderr)
+            print("---", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001
+        print(f"date-wrapper dump failed: {exc}", file=sys.stderr)
+    print("::endgroup::", file=sys.stderr)
+
+
+def _select_year(page: Page, year: int) -> None:
+    """Yıl özel bir dropdown (native <select> değil) — wrapper'a tıklayıp
+    açılan listeden yılı seçmeyi dener. Yapı kesinleşene kadar best-effort."""
+    try:
+        wrapper = page.locator(".date-wrapper", has_text="Yıl").first
+        wrapper.click(timeout=STEP_TIMEOUT_MS)
+        page.get_by_text(str(year), exact=True).first.click(timeout=STEP_TIMEOUT_MS)
+    except PlaywrightTimeoutError:
+        pass
