@@ -58,17 +58,71 @@
     };
   }
 
+  // Renders the small, fixed markdown subset build_report() (reports/daily_report.py)
+  // actually produces: #/##/### headings, "- " bullet lists, **bold**, blank-line breaks.
+  // A generic markdown library is overkill for one known, self-authored source.
+  function renderInlineMd(text) {
+    const frag = document.createDocumentFragment();
+    const re = /\*\*(.+?)\*\*/g;
+    let last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const strong = document.createElement("strong");
+      strong.textContent = m[1];
+      frag.appendChild(strong);
+      last = re.lastIndex;
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    return frag;
+  }
+
   function renderReport(report) {
     const el = document.getElementById("report-body");
+    el.textContent = "";
     if (!report) {
       el.textContent = "Henüz rapor üretilmedi.";
       return;
     }
-    el.textContent = "";
-    for (const line of report.summary_md.split("\n")) {
-      const p = document.createElement("div");
-      p.textContent = line;
-      el.appendChild(p);
+
+    let ul = null;
+    const closeList = () => { ul = null; };
+
+    for (const raw of report.summary_md.split("\n")) {
+      // bullet lines reference bare GTİP codes ("- 100590000019: $…") — show the
+      // same "kod AD" label used everywhere else in the report instead of a bare code.
+      const line = raw.replace(/\b(\d{12})\b/g, code => GTIP_NAMES[code] || code);
+      let m;
+      if (!line.trim()) {
+        closeList();
+      } else if ((m = /^### (.+)/.exec(line))) {
+        closeList();
+        const h = document.createElement("h4");
+        h.className = "report-h3";
+        h.appendChild(renderInlineMd(m[1]));
+        el.appendChild(h);
+      } else if ((m = /^## (.+)/.exec(line))) {
+        closeList();
+        const h = document.createElement("h3");
+        h.className = "report-h2";
+        h.appendChild(renderInlineMd(m[1]));
+        el.appendChild(h);
+      } else if ((m = /^# (.+)/.exec(line))) {
+        closeList();
+        const h = document.createElement("div");
+        h.className = "report-h1";
+        h.appendChild(renderInlineMd(m[1]));
+        el.appendChild(h);
+      } else if ((m = /^- (.+)/.exec(line))) {
+        if (!ul) { ul = document.createElement("ul"); ul.className = "report-list"; el.appendChild(ul); }
+        const li = document.createElement("li");
+        li.appendChild(renderInlineMd(m[1]));
+        ul.appendChild(li);
+      } else {
+        closeList();
+        const p = document.createElement("p");
+        p.appendChild(renderInlineMd(line));
+        el.appendChild(p);
+      }
     }
   }
 
@@ -364,7 +418,9 @@
         return;
       }
 
-      const rowH = 30, gap = 2, padL = 220, padR = 64, padTop = 6;
+      const twoLine = dims.length > 1;
+      const rowH = twoLine ? 38 : 28, gap = 4, padL = 220, padR = 64, padTop = 6;
+      const barH = 20;
       const width = 590;
       const height = groups.length * (rowH + gap) + padTop;
       svg.setAttribute("viewBox", "0 0 " + width + " " + height);
@@ -372,20 +428,40 @@
       const maxVal = Math.max(...groups.map(g => g.usd), 1);
       const barMax = width - padL - padR;
 
+      function truncate(s, n) { return s.length > n ? s.slice(0, n - 2) + "…" : s; }
+
       groups.forEach((g, i) => {
         const y = padTop + i * (rowH + gap);
         const barW = Math.max(3, (g.usd / maxVal) * barMax);
-        const label = g.parts.map((p, j) => DIMENSIONS[dims[j]].display(p)).join(" · ");
+        const parts = g.parts.map((p, j) => DIMENSIONS[dims[j]].display(p));
+        const label = parts.join(" · ");
 
-        const labelT = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        labelT.setAttribute("x", padL - 10); labelT.setAttribute("y", y + rowH / 2 + 4);
-        labelT.setAttribute("text-anchor", "end"); labelT.setAttribute("class", "bar-label");
-        labelT.textContent = label.length > 32 ? label.slice(0, 30) + "…" : label;
-        svg.appendChild(labelT);
+        if (twoLine) {
+          // primary dimension (e.g. Ürün) on its own line, the rest (e.g. Ülke) below it —
+          // a single truncated "Ürün · Ülke" string was hiding the second dimension entirely
+          // whenever the first one alone was already long.
+          const line1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          line1.setAttribute("x", padL - 10); line1.setAttribute("y", y + rowH / 2 - 5);
+          line1.setAttribute("text-anchor", "end"); line1.setAttribute("class", "bar-label");
+          line1.textContent = truncate(parts[0], 30);
+          svg.appendChild(line1);
+
+          const line2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          line2.setAttribute("x", padL - 10); line2.setAttribute("y", y + rowH / 2 + 10);
+          line2.setAttribute("text-anchor", "end"); line2.setAttribute("class", "axis-label");
+          line2.textContent = truncate(parts.slice(1).join(" · "), 30);
+          svg.appendChild(line2);
+        } else {
+          const labelT = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          labelT.setAttribute("x", padL - 10); labelT.setAttribute("y", y + rowH / 2 + 4);
+          labelT.setAttribute("text-anchor", "end"); labelT.setAttribute("class", "bar-label");
+          labelT.textContent = truncate(label, 32);
+          svg.appendChild(labelT);
+        }
 
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        rect.setAttribute("x", padL); rect.setAttribute("y", y);
-        rect.setAttribute("width", barW); rect.setAttribute("height", rowH - gap);
+        rect.setAttribute("x", padL); rect.setAttribute("y", y + (rowH - barH) / 2);
+        rect.setAttribute("width", barW); rect.setAttribute("height", barH);
         rect.setAttribute("rx", 4); rect.setAttribute("fill", "var(--series-export)");
         rect.style.cursor = "pointer";
         rect.tabIndex = 0;
