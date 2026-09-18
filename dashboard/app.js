@@ -30,7 +30,7 @@
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const res = await fetch(
-        `${cfg.SUPABASE_URL}/rest/v1/trade_stats?select=period_year,flow,gtip_code,country_code,country_name,value_usd,weight_kg&order=id.asc`,
+        `${cfg.SUPABASE_URL}/rest/v1/trade_stats?select=period_year,period_month,flow,gtip_code,country_code,country_name,value_usd,weight_kg&order=id.asc`,
         { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
       );
       if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
@@ -53,6 +53,7 @@
         r.country_name || "Bilinmiyor",
         r.value_usd,
         r.weight_kg,
+        r.period_month,
       ]),
       report: reports[0] || null,
     };

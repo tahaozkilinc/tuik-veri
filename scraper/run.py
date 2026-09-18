@@ -17,6 +17,7 @@ from pathlib import Path
 import yaml
 
 from loader.supabase_loader import (
+    delete_stale_annual_rows,
     finish_run,
     get_client,
     save_daily_report,
@@ -47,6 +48,16 @@ def main() -> int:
         records = fetch_trade_stats(gtip_codes)
         rows_upserted = upsert_trade_stats(client, records) if records else 0
         print(f"{rows_upserted} satır upsert edildi.")
+
+        if rows_upserted:
+            # Kaynak artık aylık (AY) kırılım döndürüyor; period_month'u NULL
+            # olan eski yıllık-toplam satırlar artık üretilmiyor ve upsert'in
+            # ON CONFLICT'i onları güncellemiyor (farklı anahtar) — silinmezse
+            # yıllık toplamlar iki katına çıkar. Sadece yeni veri başarıyla
+            # yazıldıysa temizle.
+            deleted = delete_stale_annual_rows(client)
+            if deleted:
+                print(f"{deleted} eski yıllık-toplam (period_month IS NULL) satır silindi.")
 
         report_md = build_report(client, date.today().year)
         save_daily_report(client, date.today().isoformat(), report_md)

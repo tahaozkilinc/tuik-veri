@@ -1,9 +1,10 @@
 """trade_stats tablosundaki tüm satırları kompakt JSON olarak stdout'a
 basar (rapor artifact'ı için tek seferlik veri anlık görüntüsü).
 
-Her satır [yil, flow, gtip_kodu, ulke_kodu, ulke_adi, value_usd, weight_kg]
+Her satır [yil, flow, gtip_kodu, ulke_kodu, ulke_adi, value_usd, weight_kg, ay]
 dizisi olarak çıkar (flow: 0=export, 1=import) — sütun adlarını tekrar
-tekrar yazmamak için kompakt tutuluyor.
+tekrar yazmamak için kompakt tutuluyor. `ay` en sona eklendi ki mevcut
+tüketicilerin r[0..6] index'leri değişmesin.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ def main() -> None:
     while True:
         resp = (
             client.table("trade_stats")
-            .select("period_year,flow,gtip_code,country_code,country_name,value_usd,weight_kg")
+            .select("period_year,period_month,flow,gtip_code,country_code,country_name,value_usd,weight_kg")
             .range(offset, offset + page_size - 1)
             .execute()
         )
@@ -45,6 +46,7 @@ def main() -> None:
             r["country_name"],
             r["value_usd"],
             r["weight_kg"],
+            r["period_month"],
         ]
         for r in all_rows
     ]

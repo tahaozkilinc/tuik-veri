@@ -27,6 +27,18 @@ def upsert_trade_stats(client: Client, records: list[dict]) -> int:
     return total
 
 
+def delete_stale_annual_rows(client: Client) -> int:
+    """Kaynak artık aylık kırılım (AY) döndürüyor, eskiden yıllık toplam
+    olarak çekilmiş (period_month IS NULL) satırlar artık üretilmiyor ve
+    aylık satırlarla AYNI yıl/ülke/ürün/yön için farklı bir upsert
+    anahtarına düştüğü için üst üste yazılmıyor — silinmezlerse toplamlar
+    (yıllık satır + 12 aylık satır) iki katına çıkar. Her scrape sonunda
+    çağrılır; aylık satır kalmadıktan sonra hiçbir etkisi olmaz (idempotent).
+    """
+    resp = client.table("trade_stats").delete().is_("period_month", "null").execute()
+    return len(resp.data or [])
+
+
 def start_run(client: Client) -> int:
     resp = client.table("scrape_runs").insert({"status": "running"}).execute()
     return resp.data[0]["id"]
