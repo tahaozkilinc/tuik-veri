@@ -1,6 +1,17 @@
 (function () {
   "use strict";
 
+  const GTIP_NAMES = {
+    "100590000019": "1005.90.00.00.19 MISIR",
+    "120190000000": "1201.90.00.00.00 SOYA FASULYESİ",
+    "110430900011": "1104.30.90.00.11 MISIR ÖZÜ",
+    "230400000000": "2304.00.00.00.00 SOYA KÜSPESİ",
+    "120600990019": "1206.00.99.00.19 ÇEKİRDEK",
+  };
+  function gtipLabel(code) {
+    return GTIP_NAMES[code] || code;
+  }
+
   const cfg = window.TUIK_DASHBOARD_CONFIG;
   const restUrl = (path) => `${cfg.SUPABASE_URL}/rest/v1/${path}`;
   const headers = {
@@ -68,7 +79,7 @@
   function render() {
     renderKpis();
     renderYearChart();
-    renderTopBar("gtip_code", "top-gtip-chart", "GTİP");
+    renderTopBar("gtip_code", "top-gtip-chart", "GTİP", gtipLabel);
     renderTopBar("country_name", "top-country-chart", "Ülke");
     renderTable();
   }
@@ -219,7 +230,7 @@
     });
   }
 
-  function renderTopBar(key, elId, keyLabel) {
+  function renderTopBar(key, elId, keyLabel, labelFmt) {
     const svgEl = document.getElementById(elId);
     svgEl.textContent = "";
 
@@ -230,22 +241,23 @@
     const width = 720;
     const rowH = 32;
     const height = top.length * rowH + 20;
-    const padL = 140;
+    const padL = 210;
     const padR = 60;
     svgEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
 
     const maxVal = Math.max(1, ...top.map(([, v]) => v));
     const barMax = width - padL - padR;
 
-    top.forEach(([label, value], i) => {
+    top.forEach(([rawLabel, value], i) => {
       const y = i * rowH + 8;
       const barW = Math.max(2, (value / maxVal) * barMax);
+      const label = labelFmt ? labelFmt(rawLabel) : rawLabel;
 
       const labelT = document.createElementNS("http://www.w3.org/2000/svg", "text");
       labelT.setAttribute("x", padL - 10);
       labelT.setAttribute("y", y + 14);
       labelT.setAttribute("text-anchor", "end");
-      labelT.textContent = String(label).length > 20 ? String(label).slice(0, 18) + "…" : label;
+      labelT.textContent = String(label).length > 30 ? String(label).slice(0, 28) + "…" : label;
       svgEl.appendChild(labelT);
 
       const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -292,7 +304,7 @@
 
     for (const r of rows) {
       const tr = document.createElement("tr");
-      for (const val of [r.period_year, r.gtip_code, r.country_name, fmtUsd(r.value_usd)]) {
+      for (const val of [r.period_year, gtipLabel(r.gtip_code), r.country_name, fmtUsd(r.value_usd)]) {
         const td = document.createElement("td");
         td.textContent = val == null ? "—" : val;
         tr.appendChild(td);

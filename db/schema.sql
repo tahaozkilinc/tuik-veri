@@ -60,6 +60,14 @@ create policy "public read daily_reports" on daily_reports for select using (tru
 
 -- Yazma işlemleri yalnızca service_role key ile (GitHub Actions secret) yapılır,
 -- anon key hiçbir zaman INSERT/UPDATE/DELETE yapamaz.
+--
+-- Savunma derinliği: RLS'nin (ve policy'lerin) yanlışlıkla kapatılması/silinmesi
+-- ihtimaline karşı, anon ve authenticated rollerinden yazma yetkisini tablo
+-- grant seviyesinde de açıkça geri alıyoruz. Böylece RLS devre dışı kalsa bile
+-- dashboard'un kullandığı public anon key ile veri değiştirilemez/silinemez.
+revoke insert, update, delete, truncate on trade_stats from anon, authenticated;
+revoke insert, update, delete, truncate on daily_reports from anon, authenticated;
+revoke insert, update, delete, truncate, select on scrape_runs from anon, authenticated;
 
 -- MİGRASYON: bu şemayı daha önce (NULLS NOT DISTINCT olmadan) çalıştırdıysanız
 -- — yani trade_stats tablosu zaten varsa — aşağıdaki blok eski unique
