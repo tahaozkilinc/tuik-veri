@@ -1,6 +1,7 @@
 (function () {
   "use strict";
 
+  const cfg = window.TUIK_DASHBOARD_CONFIG;
   const GTIP_NAMES = {
     "100590000019": "1005.90.00.00.19 MISIR",
     "120190000000": "1201.90.00.00.00 SOYA FASULYESİ",
@@ -8,309 +9,53 @@
     "230400000000": "2304.00.00.00.00 SOYA KÜSPESİ",
     "120600990019": "1206.00.99.00.19 ÇEKİRDEK",
   };
-  function gtipLabel(code) {
-    return GTIP_NAMES[code] || code;
+  const FLOW_LABEL = ["İhracat", "İthalat"];
+  const FLOW_COLOR = ["var(--series-export)", "var(--series-import)"];
+  const CAT_COLORS = ["var(--series-export)", "var(--series-import)", "var(--cat-3)", "var(--cat-4)", "var(--cat-5)"];
+
+  // ---------- status ----------
+  function setStatus(text, ok) {
+    const dot = document.getElementById("status-dot");
+    const label = document.getElementById("status-text");
+    label.textContent = text;
+    dot.style.background = ok ? "var(--good)" : "var(--bad)";
   }
 
-  const cfg = window.TUIK_DASHBOARD_CONFIG;
-  const restUrl = (path) => `${cfg.SUPABASE_URL}/rest/v1/${path}`;
-  const headers = {
-    apikey: cfg.SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}`,
-  };
-
-  const state = {
-    rows: [],
-    flow: "export",
-    currentYear: new Date().getFullYear(),
-  };
-
-  async function fetchJson(path) {
-    const res = await fetch(restUrl(path), { headers });
-    if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
-    return res.json();
-  }
-
-  async function loadData() {
-    const minYear = new Date().getFullYear() - 5;
-    const rows = await fetchJson(
-      `trade_stats?select=*&period_year=gte.${minYear}&order=period_year.asc`
+  // ---------- live data ----------
+  async function fetchAllRows() {
+    const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
+    const pageSize = 1000;
+    let rows = [];
+    let from = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await fetch(
+        `${cfg.SUPABASE_URL}/rest/v1/trade_stats?select=period_year,flow,gtip_code,country_code,country_name,value_usd,weight_kg&order=id.asc`,
+        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
+      );
+      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
+      const page = await res.json();
+      rows = rows.concat(page);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    const reportRes = await fetch(
+      `${cfg.SUPABASE_URL}/rest/v1/daily_reports?select=*&order=report_date.desc&limit=1`,
+      { headers }
     );
-    state.rows = rows;
-
-    const reports = await fetchJson(
-      "daily_reports?select=*&order=report_date.desc&limit=1"
-    );
-    renderReport(reports[0]);
-
-    render();
-    setStatus(true, rows.length);
-  }
-
-  function setStatus(ok, rowCount) {
-    const el = document.getElementById("status-text");
-    const dot = document.querySelector(".status .dot");
-    if (ok) {
-      el.textContent = `Canlı — ${rowCount} kayıt yüklendi — ${new Date().toLocaleString("tr-TR")}`;
-      dot.style.background = "var(--success)";
-    } else {
-      el.textContent = "Veri çekilemedi — Supabase bağlantısını kontrol edin";
-      dot.style.background = "var(--danger)";
-    }
-  }
-
-  function fmtUsd(v) {
-    if (v == null) return "—";
-    if (Math.abs(v) >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
-    if (Math.abs(v) >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
-    if (Math.abs(v) >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
-    return `$${v.toFixed(0)}`;
-  }
-
-  function sumBy(rows, keyFn) {
-    const totals = new Map();
-    for (const r of rows) {
-      const k = keyFn(r);
-      totals.set(k, (totals.get(k) || 0) + (r.value_usd || 0));
-    }
-    return totals;
-  }
-
-  function render() {
-    renderKpis();
-    renderYearChart();
-    renderTopBar("gtip_code", "top-gtip-chart", "GTİP", gtipLabel);
-    renderTopBar("country_name", "top-country-chart", "Ülke");
-    renderTable();
-  }
-
-  function renderKpis() {
-    const container = document.getElementById("kpi-row");
-    container.textContent = "";
-
-    for (const [flow, label] of [["export", "İhracat"], ["import", "İthalat"]]) {
-      const curRows = state.rows.filter((r) => r.flow === flow && r.period_year === state.currentYear);
-      const prevRows = state.rows.filter((r) => r.flow === flow && r.period_year === state.currentYear - 1);
-      const cur = curRows.reduce((s, r) => s + (r.value_usd || 0), 0);
-      const prev = prevRows.reduce((s, r) => s + (r.value_usd || 0), 0);
-      const yoy = prev ? ((cur - prev) / prev) * 100 : null;
-
-      const tile = document.createElement("div");
-      tile.className = "stat-tile";
-
-      const labelEl = document.createElement("div");
-      labelEl.className = "label";
-      labelEl.textContent = `Toplam ${label} (${state.currentYear})`;
-      tile.appendChild(labelEl);
-
-      const valueEl = document.createElement("div");
-      valueEl.className = "value";
-      valueEl.textContent = fmtUsd(cur);
-      tile.appendChild(valueEl);
-
-      if (yoy != null) {
-        const deltaEl = document.createElement("div");
-        deltaEl.className = `delta ${yoy >= 0 ? "up" : "down"}`;
-        deltaEl.textContent = `${yoy >= 0 ? "▲" : "▼"} ${yoy.toFixed(1)}% YoY`;
-        tile.appendChild(deltaEl);
-      }
-
-      container.appendChild(tile);
-    }
-  }
-
-  function makeTooltip() {
-    let el = document.querySelector(".tooltip");
-    if (!el) {
-      el = document.createElement("div");
-      el.className = "tooltip";
-      document.body.appendChild(el);
-    }
-    return el;
-  }
-
-  function showTooltip(evt, html) {
-    const tip = makeTooltip();
-    tip.textContent = "";
-    tip.appendChild(html);
-    tip.style.opacity = "1";
-    tip.style.left = `${evt.pageX + 12}px`;
-    tip.style.top = `${evt.pageY + 12}px`;
-  }
-
-  function hideTooltip() {
-    const tip = document.querySelector(".tooltip");
-    if (tip) tip.style.opacity = "0";
-  }
-
-  function renderYearChart() {
-    const svgEl = document.getElementById("year-chart");
-    svgEl.textContent = "";
-
-    const years = [...new Set(state.rows.map((r) => r.period_year))].sort();
-    const exportTotals = sumBy(state.rows.filter((r) => r.flow === "export"), (r) => r.period_year);
-    const importTotals = sumBy(state.rows.filter((r) => r.flow === "import"), (r) => r.period_year);
-
-    const width = 720;
-    const height = 220;
-    const padL = 56;
-    const padB = 24;
-    const padT = 12;
-    const padR = 12;
-    svgEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
-
-    const maxVal = Math.max(1, ...years.map((y) => Math.max(exportTotals.get(y) || 0, importTotals.get(y) || 0)));
-    const xStep = years.length > 1 ? (width - padL - padR) / (years.length - 1) : 0;
-    const yScale = (v) => height - padB - (v / maxVal) * (height - padB - padT);
-    const xScale = (i) => padL + i * xStep;
-
-    // gridlines
-    for (let g = 0; g <= 4; g++) {
-      const y = padT + (g * (height - padB - padT)) / 4;
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      line.setAttribute("class", "gridline");
-      line.setAttribute("x1", padL);
-      line.setAttribute("x2", width - padR);
-      line.setAttribute("y1", y);
-      line.setAttribute("y2", y);
-      svgEl.appendChild(line);
-    }
-
-    function drawLine(years, totals, color) {
-      const pts = years.map((y, i) => [xScale(i), yScale(totals.get(y) || 0)]);
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0]},${p[1]}`).join(" "));
-      path.setAttribute("stroke", color);
-      path.setAttribute("stroke-width", "2");
-      path.setAttribute("fill", "none");
-      path.setAttribute("stroke-linejoin", "round");
-      path.setAttribute("stroke-linecap", "round");
-      svgEl.appendChild(path);
-
-      pts.forEach(([x, y], i) => {
-        const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        dot.setAttribute("cx", x);
-        dot.setAttribute("cy", y);
-        dot.setAttribute("r", "4");
-        dot.setAttribute("fill", color);
-        dot.setAttribute("stroke", "var(--surface-1)");
-        dot.setAttribute("stroke-width", "2");
-        dot.style.cursor = "pointer";
-        dot.tabIndex = 0;
-        const val = totals.get(years[i]) || 0;
-        const showFn = (evt) => {
-          const wrap = document.createElement("div");
-          const row = document.createElement("div");
-          const strong = document.createElement("span");
-          strong.className = "val";
-          strong.textContent = fmtUsd(val);
-          row.appendChild(strong);
-          row.appendChild(document.createTextNode(` — ${years[i]}`));
-          wrap.appendChild(row);
-          showTooltip(evt, wrap);
-        };
-        dot.addEventListener("pointermove", showFn);
-        dot.addEventListener("focus", showFn);
-        dot.addEventListener("pointerleave", hideTooltip);
-        dot.addEventListener("blur", hideTooltip);
-        svgEl.appendChild(dot);
-      });
-    }
-
-    drawLine(years, exportTotals, "var(--series-1)");
-    drawLine(years, importTotals, "var(--series-2)");
-
-    years.forEach((y, i) => {
-      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      t.setAttribute("x", xScale(i));
-      t.setAttribute("y", height - 6);
-      t.setAttribute("text-anchor", "middle");
-      t.textContent = y;
-      svgEl.appendChild(t);
-    });
-  }
-
-  function renderTopBar(key, elId, keyLabel, labelFmt) {
-    const svgEl = document.getElementById(elId);
-    svgEl.textContent = "";
-
-    const rows = state.rows.filter((r) => r.flow === state.flow && r.period_year === state.currentYear);
-    const totals = sumBy(rows, (r) => r[key] || "bilinmiyor");
-    const top = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-    const width = 720;
-    const rowH = 32;
-    const height = top.length * rowH + 20;
-    const padL = 210;
-    const padR = 60;
-    svgEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
-
-    const maxVal = Math.max(1, ...top.map(([, v]) => v));
-    const barMax = width - padL - padR;
-
-    top.forEach(([rawLabel, value], i) => {
-      const y = i * rowH + 8;
-      const barW = Math.max(2, (value / maxVal) * barMax);
-      const label = labelFmt ? labelFmt(rawLabel) : rawLabel;
-
-      const labelT = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      labelT.setAttribute("x", padL - 10);
-      labelT.setAttribute("y", y + 14);
-      labelT.setAttribute("text-anchor", "end");
-      labelT.textContent = String(label).length > 30 ? String(label).slice(0, 28) + "…" : label;
-      svgEl.appendChild(labelT);
-
-      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-      rect.setAttribute("class", "bar-mark");
-      rect.setAttribute("x", padL);
-      rect.setAttribute("y", y);
-      rect.setAttribute("width", barW);
-      rect.setAttribute("height", 18);
-      rect.setAttribute("rx", 4);
-      rect.setAttribute("fill", "var(--series-1)");
-      rect.tabIndex = 0;
-      const showFn = (evt) => {
-        const wrap = document.createElement("div");
-        const row = document.createElement("div");
-        const strong = document.createElement("span");
-        strong.className = "val";
-        strong.textContent = fmtUsd(value);
-        row.appendChild(strong);
-        row.appendChild(document.createTextNode(` — ${keyLabel}: ${label}`));
-        wrap.appendChild(row);
-        showTooltip(evt, wrap);
-      };
-      rect.addEventListener("pointermove", showFn);
-      rect.addEventListener("focus", showFn);
-      rect.addEventListener("pointerleave", hideTooltip);
-      rect.addEventListener("blur", hideTooltip);
-      svgEl.appendChild(rect);
-
-      const valT = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      valT.setAttribute("x", padL + barW + 8);
-      valT.setAttribute("y", y + 14);
-      valT.textContent = fmtUsd(value);
-      svgEl.appendChild(valT);
-    });
-  }
-
-  function renderTable() {
-    const tbody = document.getElementById("data-table-body");
-    tbody.textContent = "";
-    const rows = state.rows
-      .filter((r) => r.flow === state.flow && r.period_year === state.currentYear)
-      .sort((a, b) => (b.value_usd || 0) - (a.value_usd || 0))
-      .slice(0, 50);
-
-    for (const r of rows) {
-      const tr = document.createElement("tr");
-      for (const val of [r.period_year, gtipLabel(r.gtip_code), r.country_name, fmtUsd(r.value_usd)]) {
-        const td = document.createElement("td");
-        td.textContent = val == null ? "—" : val;
-        tr.appendChild(td);
-      }
-      tbody.appendChild(tr);
-    }
+    const reports = reportRes.ok ? await reportRes.json() : [];
+    return {
+      rows: rows.map(r => [
+        r.period_year,
+        r.flow === "import" ? 1 : 0,
+        r.gtip_code,
+        r.country_code,
+        r.country_name || "Bilinmiyor",
+        r.value_usd,
+        r.weight_kg,
+      ]),
+      report: reports[0] || null,
+    };
   }
 
   function renderReport(report) {
@@ -327,25 +72,578 @@
     }
   }
 
-  function wireControls() {
-    document.querySelectorAll(".flow-toggle").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.flow = btn.dataset.flow;
-        document.querySelectorAll(".flow-toggle").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
-        render();
+  // ---------- theme (works immediately, doesn't need data) ----------
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    const root = document.documentElement;
+    const current = root.getAttribute("data-theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const next = current === "dark" ? "light" : current === "light" ? (prefersDark ? "dark" : "light") : (prefersDark ? "light" : "dark");
+    root.setAttribute("data-theme", next);
+  });
+
+  function init(RAW, report) {
+
+    const countryNames = {};
+    RAW.forEach(r => { if (!countryNames[r[3]]) countryNames[r[3]] = r[4]; });
+    const allCountries = Object.keys(countryNames).sort((a, b) => countryNames[a].localeCompare(countryNames[b], "tr"));
+    const allProducts = Object.keys(GTIP_NAMES);
+    const allYears = [...new Set(RAW.map(r => r[0]))].sort((a, b) => b - a);
+    const maxYear = allYears[0];
+
+    const state = {
+      flow: "all",
+      year: String(maxYear),
+      products: new Set(),
+      countries: new Set(),
+      groupDims: new Set(["product", "country"]),
+      tableSort: { key: "usd", dir: "desc" },
+      tableSearch: "",
+    };
+
+    const DIMENSIONS = {
+      product: { label: "Ürün", get: r => r[2], display: v => GTIP_NAMES[v] || v },
+      country: { label: "Ülke", get: r => r[3], display: v => countryNames[v] || v },
+      year: { label: "Yıl", get: r => r[0], display: v => String(v) },
+      flow: { label: "Yön", get: r => r[1], display: v => FLOW_LABEL[v] },
+    };
+    const DIM_ORDER = ["product", "country", "year", "flow"];
+
+    function fmtUsd(v) {
+      if (v == null || isNaN(v)) return "—";
+      const a = Math.abs(v);
+      if (a >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
+      if (a >= 1e6) return "$" + (v / 1e6).toFixed(1) + "M";
+      if (a >= 1e3) return "$" + (v / 1e3).toFixed(1) + "K";
+      return "$" + v.toFixed(0);
+    }
+    function fmtUsdFull(v) {
+      if (v == null || isNaN(v)) return "—";
+      return "$" + Math.round(v).toLocaleString("tr-TR");
+    }
+    function fmtKg(v) {
+      if (v == null || isNaN(v)) return "—";
+      const ton = v / 1000;
+      const a = Math.abs(ton);
+      if (a >= 1e6) return (ton / 1e6).toFixed(2) + "M ton";
+      if (a >= 1e3) return (ton / 1e3).toFixed(1) + "K ton";
+      if (a >= 1) return ton.toFixed(1) + " ton";
+      return v.toFixed(0) + " kg";
+    }
+
+    // ---------- filtering ----------
+    function filteredRows() {
+      return RAW.filter(r => {
+        if (state.flow !== "all" && String(r[1]) !== state.flow) return false;
+        if (state.year !== "all" && r[0] !== Number(state.year)) return false;
+        if (state.products.size && !state.products.has(r[2])) return false;
+        if (state.countries.size && !state.countries.has(r[3])) return false;
+        return true;
       });
+    }
+    // trend chart ignores the year filter so the timeline stays visible
+    function filteredRowsAllYears() {
+      return RAW.filter(r => {
+        if (state.flow !== "all" && String(r[1]) !== state.flow) return false;
+        if (state.products.size && !state.products.has(r[2])) return false;
+        if (state.countries.size && !state.countries.has(r[3])) return false;
+        return true;
+      });
+    }
+
+    function computeGroups(rows, dims) {
+      const map = new Map();
+      for (const r of rows) {
+        const parts = dims.map(d => DIMENSIONS[d].get(r));
+        const key = parts.join("§");
+        let entry = map.get(key);
+        if (!entry) { entry = { parts, usd: 0, kg: 0, n: 0 }; map.set(key, entry); }
+        entry.usd += r[5] || 0;
+        entry.kg += r[6] || 0;
+        entry.n++;
+      }
+      return [...map.values()];
+    }
+
+    // ---------- KPIs ----------
+    function renderKpis() {
+      const rows = filteredRows();
+      const exp = rows.filter(r => r[1] === 0).reduce((s, r) => s + (r[5] || 0), 0);
+      const imp = rows.filter(r => r[1] === 1).reduce((s, r) => s + (r[5] || 0), 0);
+      const net = exp - imp;
+
+      let yoyExp = null, yoyImp = null;
+      if (state.year !== "all") {
+        const prevYear = Number(state.year) - 1;
+        const prevRows = RAW.filter(r => {
+          if (r[0] !== prevYear) return false;
+          if (state.flow !== "all" && String(r[1]) !== state.flow) return false;
+          if (state.products.size && !state.products.has(r[2])) return false;
+          if (state.countries.size && !state.countries.has(r[3])) return false;
+          return true;
+        });
+        const prevExp = prevRows.filter(r => r[1] === 0).reduce((s, r) => s + (r[5] || 0), 0);
+        const prevImp = prevRows.filter(r => r[1] === 1).reduce((s, r) => s + (r[5] || 0), 0);
+        if (prevExp) yoyExp = ((exp - prevExp) / prevExp) * 100;
+        if (prevImp) yoyImp = ((imp - prevImp) / prevImp) * 100;
+      }
+
+      const countries = new Set(rows.map(r => r[3])).size;
+      const products = new Set(rows.map(r => r[2])).size;
+
+      const tiles = [
+        { label: "Toplam İhracat" + (state.year === "all" ? " (tüm yıllar)" : " (" + state.year + ")"), value: fmtUsd(exp), delta: yoyExp },
+        { label: "Toplam İthalat" + (state.year === "all" ? " (tüm yıllar)" : " (" + state.year + ")"), value: fmtUsd(imp), delta: yoyImp },
+        { label: "Net (İhracat − İthalat)", value: (net >= 0 ? "+" : "") + fmtUsd(net), delta: null },
+        { label: "Kapsanan ülke", value: String(countries), delta: null },
+        { label: "Kapsanan ürün", value: String(products), delta: null },
+        { label: "Filtrelenen kayıt", value: rows.length.toLocaleString("tr-TR"), delta: null },
+      ];
+
+      const container = document.getElementById("kpi-row");
+      container.textContent = "";
+      for (const t of tiles) {
+        const tile = document.createElement("div");
+        tile.className = "stat-tile";
+        const label = document.createElement("div");
+        label.className = "label"; label.textContent = t.label;
+        const value = document.createElement("div");
+        value.className = "value num"; value.textContent = t.value;
+        tile.appendChild(label); tile.appendChild(value);
+        if (t.delta != null) {
+          const d = document.createElement("div");
+          const dir = t.delta > 0.05 ? "up" : t.delta < -0.05 ? "down" : "flat";
+          d.className = "delta " + dir;
+          d.textContent = (t.delta >= 0 ? "▲ " : "▼ ") + Math.abs(t.delta).toFixed(1) + "% YoY";
+          tile.appendChild(d);
+        }
+        container.appendChild(tile);
+      }
+    }
+
+    // ---------- filter controls ----------
+    function buildYearSelect() {
+      const sel = document.getElementById("year-select");
+      sel.textContent = "";
+      const optAll = document.createElement("option");
+      optAll.value = "all"; optAll.textContent = "Tüm Yıllar (Toplam)";
+      sel.appendChild(optAll);
+      for (const y of allYears) {
+        const opt = document.createElement("option");
+        opt.value = String(y); opt.textContent = String(y);
+        sel.appendChild(opt);
+      }
+      sel.value = state.year;
+      sel.addEventListener("change", () => { state.year = sel.value; renderAll(); });
+    }
+
+    function buildFlowFilter() {
+      const wrap = document.getElementById("flow-filter");
+      wrap.querySelectorAll(".seg").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.flow = btn.dataset.value;
+          wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+          renderAll();
+        });
+      });
+    }
+
+    function buildProductChips() {
+      const wrap = document.getElementById("product-chips");
+      wrap.textContent = "";
+      allProducts.forEach((code, i) => {
+        const chip = document.createElement("button");
+        chip.className = "chip";
+        chip.type = "button";
+        const sw = document.createElement("span");
+        sw.className = "swatch";
+        sw.style.background = CAT_COLORS[i % CAT_COLORS.length];
+        chip.appendChild(sw);
+        chip.appendChild(document.createTextNode(GTIP_NAMES[code] || code));
+        chip.addEventListener("click", () => {
+          if (state.products.has(code)) state.products.delete(code); else state.products.add(code);
+          chip.classList.toggle("active");
+          renderAll();
+        });
+        wrap.appendChild(chip);
+      });
+    }
+
+    function renderCountrySelected() {
+      const wrap = document.getElementById("country-selected");
+      wrap.textContent = "";
+      [...state.countries].sort((a, b) => (countryNames[a] || "").localeCompare(countryNames[b] || "", "tr")).forEach(code => {
+        const chip = document.createElement("button");
+        chip.className = "chip active";
+        chip.type = "button";
+        chip.appendChild(document.createTextNode(countryNames[code] || code));
+        const x = document.createElement("span");
+        x.className = "x"; x.textContent = " ✕";
+        chip.appendChild(x);
+        chip.addEventListener("click", () => { state.countries.delete(code); renderAll(); });
+        wrap.appendChild(chip);
+      });
+    }
+
+    function buildCountrySearch() {
+      const datalist = document.getElementById("country-datalist");
+      datalist.textContent = "";
+      allCountries.forEach(code => {
+        const opt = document.createElement("option");
+        opt.value = countryNames[code];
+        datalist.appendChild(opt);
+      });
+      const input = document.getElementById("country-search");
+      input.addEventListener("change", () => {
+        const val = input.value.trim();
+        const match = allCountries.find(c => countryNames[c].toLowerCase() === val.toLowerCase());
+        if (match) { state.countries.add(match); input.value = ""; renderAll(); }
+      });
+    }
+
+    function buildGroupControls() {
+      const wrap = document.getElementById("group-controls");
+      wrap.textContent = "";
+      DIM_ORDER.forEach(dim => {
+        const btn = document.createElement("button");
+        btn.className = "dim-toggle" + (state.groupDims.has(dim) ? " active" : "");
+        btn.type = "button";
+        btn.textContent = DIMENSIONS[dim].label;
+        btn.addEventListener("click", () => {
+          if (state.groupDims.has(dim)) state.groupDims.delete(dim); else state.groupDims.add(dim);
+          btn.classList.toggle("active");
+          renderAll();
+        });
+        wrap.appendChild(btn);
+      });
+    }
+
+    document.getElementById("reset-filters").addEventListener("click", () => {
+      state.flow = "all"; state.year = String(maxYear);
+      state.products.clear(); state.countries.clear();
+      document.querySelectorAll("#flow-filter .seg").forEach(b => b.classList.toggle("active", b.dataset.value === "all"));
+      document.getElementById("year-select").value = String(maxYear);
+      document.querySelectorAll("#product-chips .chip").forEach(c => c.classList.remove("active"));
+      renderAll();
     });
 
-    document.getElementById("theme-toggle").addEventListener("click", () => {
-      const root = document.documentElement;
-      const current = root.getAttribute("data-theme");
-      root.setAttribute("data-theme", current === "dark" ? "light" : "dark");
+    // ---------- tooltip ----------
+    function makeTooltip() {
+      let el = document.querySelector(".tooltip");
+      if (!el) { el = document.createElement("div"); el.className = "tooltip"; document.body.appendChild(el); }
+      return el;
+    }
+    function showTooltip(evt, node) {
+      const tip = makeTooltip();
+      tip.textContent = ""; tip.appendChild(node);
+      tip.style.opacity = "1";
+      let x = evt.clientX + 14, y = evt.clientY + 14;
+      tip.style.left = x + "px"; tip.style.top = y + "px";
+      const rect = tip.getBoundingClientRect();
+      if (rect.right > window.innerWidth) tip.style.left = (evt.clientX - rect.width - 14) + "px";
+      if (rect.bottom > window.innerHeight) tip.style.top = (evt.clientY - rect.height - 14) + "px";
+    }
+    function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
+
+    // ---------- top-N bar chart ----------
+    function renderTopChart() {
+      const rows = filteredRows();
+      const dims = [...state.groupDims].length ? [...state.groupDims] : ["product"];
+      const groups = computeGroups(rows, dims).sort((a, b) => b.usd - a.usd).slice(0, 10);
+
+      document.getElementById("top-chart-title").textContent =
+        "İlk 10 — " + dims.map(d => DIMENSIONS[d].label).join(" × ") + (state.year === "all" ? " (tüm yıllar)" : " (" + state.year + ")");
+
+      const svg = document.getElementById("top-chart");
+      svg.textContent = "";
+      if (!groups.length) {
+        svg.setAttribute("viewBox", "0 0 520 60");
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", 10); t.setAttribute("y", 30); t.setAttribute("class", "axis-label");
+        t.textContent = "Bu filtrelerle veri yok.";
+        svg.appendChild(t);
+        return;
+      }
+
+      const rowH = 30, gap = 2, padL = 220, padR = 64, padTop = 6;
+      const width = 590;
+      const height = groups.length * (rowH + gap) + padTop;
+      svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+
+      const maxVal = Math.max(...groups.map(g => g.usd), 1);
+      const barMax = width - padL - padR;
+
+      groups.forEach((g, i) => {
+        const y = padTop + i * (rowH + gap);
+        const barW = Math.max(3, (g.usd / maxVal) * barMax);
+        const label = g.parts.map((p, j) => DIMENSIONS[dims[j]].display(p)).join(" · ");
+
+        const labelT = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        labelT.setAttribute("x", padL - 10); labelT.setAttribute("y", y + rowH / 2 + 4);
+        labelT.setAttribute("text-anchor", "end"); labelT.setAttribute("class", "bar-label");
+        labelT.textContent = label.length > 32 ? label.slice(0, 30) + "…" : label;
+        svg.appendChild(labelT);
+
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", padL); rect.setAttribute("y", y);
+        rect.setAttribute("width", barW); rect.setAttribute("height", rowH - gap);
+        rect.setAttribute("rx", 4); rect.setAttribute("fill", "var(--series-export)");
+        rect.style.cursor = "pointer";
+        rect.tabIndex = 0;
+        const showFn = (evt) => {
+          const wrap = document.createElement("div");
+          const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = label;
+          wrap.appendChild(ttl);
+          const row1 = document.createElement("div"); row1.className = "row";
+          const v1 = document.createElement("span"); v1.className = "val"; v1.textContent = fmtUsdFull(g.usd);
+          row1.appendChild(v1); row1.appendChild(document.createTextNode(" toplam değer"));
+          wrap.appendChild(row1);
+          const row2 = document.createElement("div"); row2.className = "row";
+          const v2 = document.createElement("span"); v2.className = "val"; v2.textContent = fmtKg(g.kg);
+          row2.appendChild(v2); row2.appendChild(document.createTextNode(" toplam miktar"));
+          wrap.appendChild(row2);
+          showTooltip(evt, wrap);
+        };
+        rect.addEventListener("pointermove", showFn);
+        rect.addEventListener("focus", showFn);
+        rect.addEventListener("pointerleave", hideTooltip);
+        rect.addEventListener("blur", hideTooltip);
+        svg.appendChild(rect);
+
+        const valT = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        valT.setAttribute("x", padL + barW + 8); valT.setAttribute("y", y + rowH / 2 + 4);
+        valT.setAttribute("class", "bar-value");
+        valT.textContent = fmtUsd(g.usd);
+        svg.appendChild(valT);
+      });
+    }
+
+    // ---------- year trend line chart ----------
+    function renderTrendChart() {
+      const rows = filteredRowsAllYears();
+      const showBoth = state.flow === "all";
+      const flowsToShow = showBoth ? [0, 1] : [Number(state.flow)];
+
+      const legend = document.getElementById("trend-legend");
+      legend.textContent = "";
+      if (showBoth) {
+        flowsToShow.forEach(f => {
+          const key = document.createElement("span"); key.className = "key";
+          const sw = document.createElement("span"); sw.className = "swatch-line";
+          sw.style.background = FLOW_COLOR[f];
+          key.appendChild(sw); key.appendChild(document.createTextNode(FLOW_LABEL[f]));
+          legend.appendChild(key);
+        });
+      }
+
+      const svg = document.getElementById("trend-chart");
+      svg.textContent = "";
+      const width = 560, height = 220, padL = 60, padR = 16, padT = 12, padB = 26;
+      svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+
+      const totalsByFlow = flowsToShow.map(f => {
+        const m = new Map();
+        rows.filter(r => r[1] === f).forEach(r => m.set(r[0], (m.get(r[0]) || 0) + (r[5] || 0)));
+        return m;
+      });
+      const maxVal = Math.max(1, ...totalsByFlow.flatMap(m => [...m.values()]));
+      const xStep = allYears.length > 1 ? (width - padL - padR) / (allYears.length - 1) : 0;
+      const years = [...allYears].sort((a, b) => a - b);
+      const xScale = i => padL + i * xStep;
+      const yScale = v => height - padB - (v / maxVal) * (height - padB - padT);
+
+      for (let g = 0; g <= 3; g++) {
+        const y = padT + (g * (height - padB - padT)) / 3;
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("class", "gridline");
+        line.setAttribute("x1", padL); line.setAttribute("x2", width - padR);
+        line.setAttribute("y1", y); line.setAttribute("y2", y);
+        svg.appendChild(line);
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", padL - 8); t.setAttribute("y", y + 3);
+        t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+        t.textContent = fmtUsd(maxVal - (g * maxVal) / 3);
+        svg.appendChild(t);
+      }
+
+      const tickEvery = Math.ceil(years.length / 8);
+      years.forEach((y, i) => {
+        if (i % tickEvery !== 0 && i !== years.length - 1) return;
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", xScale(i)); t.setAttribute("y", height - 6);
+        t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+        t.textContent = String(y);
+        svg.appendChild(t);
+      });
+
+      const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      hoverLine.setAttribute("class", "baseline");
+      hoverLine.setAttribute("y1", padT); hoverLine.setAttribute("y2", height - padB);
+      hoverLine.style.opacity = "0";
+      svg.appendChild(hoverLine);
+
+      flowsToShow.forEach((f, fi) => {
+        const totals = totalsByFlow[fi];
+        const pts = years.map((y, i) => [xScale(i), yScale(totals.get(y) || 0)]);
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+        path.setAttribute("stroke", FLOW_COLOR[f]); path.setAttribute("stroke-width", "2");
+        path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+        svg.appendChild(path);
+      });
+
+      const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      years.forEach((y, i) => {
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        const hitW = Math.max(xStep, 20);
+        rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", padT);
+        rect.setAttribute("width", hitW); rect.setAttribute("height", height - padB - padT);
+        rect.setAttribute("fill", "transparent"); rect.style.cursor = "crosshair";
+        rect.tabIndex = 0;
+        const showFn = evt => {
+          hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
+          hoverLine.style.opacity = "1";
+          const wrap = document.createElement("div");
+          const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = String(y);
+          wrap.appendChild(ttl);
+          flowsToShow.forEach((f, fi) => {
+            const val = totalsByFlow[fi].get(y) || 0;
+            const row = document.createElement("div"); row.className = "row";
+            const key = document.createElement("span"); key.className = "key-line"; key.style.background = FLOW_COLOR[f];
+            const v = document.createElement("span"); v.className = "val"; v.textContent = fmtUsdFull(val);
+            row.appendChild(key); row.appendChild(v); row.appendChild(document.createTextNode(" " + FLOW_LABEL[f]));
+            wrap.appendChild(row);
+          });
+          showTooltip(evt, wrap);
+        };
+        rect.addEventListener("pointermove", showFn);
+        rect.addEventListener("focus", showFn);
+        rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+        rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+        hitLayer.appendChild(rect);
+      });
+      svg.appendChild(hitLayer);
+    }
+
+    // ---------- pivot table ----------
+    function renderTable() {
+      const rows = filteredRows();
+      const dims = [...state.groupDims];
+      let groups = computeGroups(rows, dims);
+      const total = groups.reduce((s, g) => s + g.usd, 0) || 1;
+
+      if (state.tableSearch) {
+        const q = state.tableSearch.toLowerCase();
+        groups = groups.filter(g => dims.some((d, i) => DIMENSIONS[d].display(g.parts[i]).toLowerCase().includes(q)));
+      }
+
+      const sortKey = state.tableSort.key, sortDir = state.tableSort.dir;
+      groups.sort((a, b) => {
+        let av, bv;
+        if (sortKey === "usd" || sortKey === "kg" || sortKey === "n") { av = a[sortKey]; bv = b[sortKey]; }
+        else { const di = dims.indexOf(sortKey); av = DIMENSIONS[dims[di]].display(a.parts[di]); bv = DIMENSIONS[dims[di]].display(b.parts[di]); }
+        if (typeof av === "string") return sortDir === "asc" ? av.localeCompare(bv, "tr") : bv.localeCompare(av, "tr");
+        return sortDir === "asc" ? av - bv : bv - av;
+      });
+
+      const thead = document.getElementById("pivot-thead");
+      thead.textContent = "";
+      const cols = [{ key: "rank", label: "#", num: false }]
+        .concat(dims.map(d => ({ key: d, label: DIMENSIONS[d].label, num: false })))
+        .concat([
+          { key: "usd", label: "Toplam Değer", num: true },
+          { key: "kg", label: "Toplam Miktar", num: true },
+          { key: "share", label: "Pay", num: true },
+        ]);
+      cols.forEach(c => {
+        const th = document.createElement("th");
+        if (c.num) th.classList.add("num-col");
+        th.textContent = c.label;
+        if (c.key !== "rank" && c.key !== "share") {
+          if (state.tableSort.key === c.key) {
+            const arrow = document.createElement("span");
+            arrow.className = "arrow"; arrow.textContent = state.tableSort.dir === "asc" ? "↑" : "↓";
+            th.appendChild(arrow);
+          }
+          th.addEventListener("click", () => {
+            if (state.tableSort.key === c.key) state.tableSort.dir = state.tableSort.dir === "asc" ? "desc" : "asc";
+            else state.tableSort = { key: c.key, dir: "desc" };
+            renderTable();
+          });
+        }
+        thead.appendChild(th);
+      });
+
+      const tbody = document.getElementById("pivot-tbody");
+      tbody.textContent = "";
+      groups.slice(0, 300).forEach((g, i) => {
+        const tr = document.createElement("tr");
+        const rankTd = document.createElement("td"); rankTd.className = "rank num"; rankTd.textContent = String(i + 1);
+        tr.appendChild(rankTd);
+        dims.forEach((d, di) => {
+          const td = document.createElement("td");
+          if (d === "flow") {
+            const tag = document.createElement("span"); tag.className = "flow-tag";
+            const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = FLOW_COLOR[g.parts[di]];
+            tag.appendChild(dot); tag.appendChild(document.createTextNode(FLOW_LABEL[g.parts[di]]));
+            td.appendChild(tag);
+          } else {
+            td.textContent = DIMENSIONS[d].display(g.parts[di]);
+          }
+          tr.appendChild(td);
+        });
+        const usdTd = document.createElement("td"); usdTd.className = "num-col num"; usdTd.textContent = fmtUsdFull(g.usd);
+        tr.appendChild(usdTd);
+        const kgTd = document.createElement("td"); kgTd.className = "num-col num"; kgTd.textContent = fmtKg(g.kg);
+        tr.appendChild(kgTd);
+        const shareTd = document.createElement("td"); shareTd.className = "num-col";
+        const shareWrap = document.createElement("div"); shareWrap.className = "share-bar-wrap";
+        const pct = Math.max(0, Math.min(100, (g.usd / total) * 100));
+        const bar = document.createElement("div"); bar.className = "share-bar";
+        const fill = document.createElement("span"); fill.style.width = pct + "%"; bar.appendChild(fill);
+        const pctText = document.createElement("span"); pctText.className = "num"; pctText.style.fontSize = "12px";
+        pctText.textContent = pct.toFixed(1) + "%";
+        shareWrap.appendChild(bar); shareWrap.appendChild(pctText);
+        shareTd.appendChild(shareWrap);
+        tr.appendChild(shareTd);
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById("table-count").textContent =
+        groups.length > 300 ? ("İlk 300 satır gösteriliyor · toplam " + groups.length.toLocaleString("tr-TR") + " satır")
+                             : (groups.length.toLocaleString("tr-TR") + " satır");
+      document.getElementById("table-total").textContent = "Toplam: " + fmtUsdFull(total);
+    }
+
+    document.getElementById("table-search").addEventListener("input", (e) => {
+      state.tableSearch = e.target.value.trim();
+      renderTable();
     });
+
+    function renderAll() {
+      renderCountrySelected();
+      renderKpis();
+      renderTopChart();
+      renderTrendChart();
+      renderTable();
+    }
+
+
+    buildYearSelect();
+    buildFlowFilter();
+    buildProductChips();
+    buildCountrySearch();
+    buildGroupControls();
+    renderAll();
+    renderReport(report);
   }
 
-  wireControls();
-  loadData().catch((err) => {
-    console.error(err);
-    setStatus(false, 0);
-  });
+  fetchAllRows()
+    .then(({ rows, report }) => {
+      setStatus(`Canlı — ${rows.length.toLocaleString("tr-TR")} kayıt yüklendi — ${new Date().toLocaleString("tr-TR")}`, true);
+      init(rows, report);
+    })
+    .catch(err => {
+      console.error(err);
+      setStatus("Veri çekilemedi — Supabase bağlantısını kontrol edin", false);
+    });
 })();

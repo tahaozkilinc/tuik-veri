@@ -4,43 +4,86 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>TÜİK Dış Ticaret Dashboard</title>
+<meta name="description" content="TÜİK dış ticaret verilerini ürün, ülke, yıl ve yön kırılımında serbestçe birleştirip inceleyebileceğiniz canlı panel.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <div class="page">
-  <header class="top">
-    <h1>TÜİK Dış Ticaret Dashboard</h1>
-    <div class="status">
-      <span class="dot"></span>
-      <span id="status-text">Yükleniyor…</span>
-      <button id="theme-toggle" aria-label="Tema değiştir" style="margin-left:8px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-primary);cursor:pointer;">🌓</button>
+  <header class="topbar">
+    <div class="brand">
+      <span class="eyebrow">TÜİK · Özel Ticaret Sistemi</span>
+      <h1>Dış Ticaret Raporu</h1>
+    </div>
+    <div class="meta">
+      <span class="snapshot-badge"><span class="dot" id="status-dot"></span><span id="status-text">Yükleniyor…</span></span>
+      <button class="theme-btn" id="theme-toggle" aria-label="Tema değiştir" title="Tema değiştir">◐</button>
     </div>
   </header>
 
-  <div class="filters">
-    <button class="toggle flow-toggle" data-flow="export" aria-pressed="true">İhracat</button>
-    <button class="toggle flow-toggle" data-flow="import" aria-pressed="false">İthalat</button>
-  </div>
-
-  <section class="kpi-row" id="kpi-row"></section>
-
-  <section class="card">
-    <h2>Yıllara göre ihracat / ithalat (USD)</h2>
-    <div class="legend">
-      <span class="key"><span class="swatch" style="background:var(--series-1)"></span>İhracat</span>
-      <span class="key"><span class="swatch" style="background:var(--series-2)"></span>İthalat</span>
+  <section class="filters" aria-label="Filtreler">
+    <div class="filter-group">
+      <span class="filter-label">Yön</span>
+      <div class="segmented" id="flow-filter" role="group" aria-label="Yön filtresi">
+        <button class="seg active" data-value="all">Tümü</button>
+        <button class="seg" data-value="0">İhracat</button>
+        <button class="seg" data-value="1">İthalat</button>
+      </div>
     </div>
-    <svg id="year-chart" role="img" aria-label="Yıllara göre ihracat ve ithalat"></svg>
+    <div class="filter-group">
+      <span class="filter-label">Yıl</span>
+      <select id="year-select"></select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Ürün</span>
+      <div class="chip-multi" id="product-chips"></div>
+    </div>
+    <div class="filter-group country-box">
+      <span class="filter-label">Ülke</span>
+      <input type="text" class="text-input" id="country-search" placeholder="Ülke ara ve ekle…" autocomplete="off" list="country-datalist">
+      <datalist id="country-datalist"></datalist>
+      <div class="country-selected" id="country-selected"></div>
+    </div>
+    <button class="reset-btn" id="reset-filters">Filtreleri temizle</button>
+  </section>
+
+  <section class="kpi-row" id="kpi-row" aria-label="Özet göstergeler"></section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Kırılım — istediğiniz kombinasyonu seçin</h2>
+      <div class="group-controls" id="group-controls"></div>
+    </div>
+    <div class="chart-table-split">
+      <div class="chart-pane">
+        <h3 id="top-chart-title">İlk 10</h3>
+        <svg class="chart" id="top-chart" role="img" aria-label="Seçili kırılıma göre ilk 10"></svg>
+      </div>
+      <div class="trend-pane">
+        <h3>Yıllara göre eğilim (seçili ürün/ülke/yön filtreleriyle)</h3>
+        <div class="legend" id="trend-legend"></div>
+        <svg class="chart" id="trend-chart" role="img" aria-label="Yıllara göre ihracat ve ithalat eğilimi"></svg>
+      </div>
+    </div>
   </section>
 
   <section class="card">
-    <h2>GTİP bazında ilk 5 (seçili yön ve yıl)</h2>
-    <svg id="top-gtip-chart" role="img" aria-label="GTİP bazında en yüksek 5 kalem"></svg>
-  </section>
-
-  <section class="card">
-    <h2>Ülke bazında ilk 5 (seçili yön ve yıl)</h2>
-    <svg id="top-country-chart" role="img" aria-label="Ülke bazında en yüksek 5 kalem"></svg>
+    <div class="card-head">
+      <h2>Detay tablo</h2>
+      <input type="text" class="table-search" id="table-search" placeholder="Tabloda ürün/ülke ara…" autocomplete="off">
+    </div>
+    <div class="table-scroll">
+      <table class="pivot" id="pivot-table">
+        <thead><tr id="pivot-thead"></tr></thead>
+        <tbody id="pivot-tbody"></tbody>
+      </table>
+    </div>
+    <div class="table-foot">
+      <span id="table-count"></span>
+      <span id="table-total"></span>
+    </div>
   </section>
 
   <section class="card">
@@ -48,20 +91,8 @@
     <div id="report-body"></div>
   </section>
 
-  <section class="card">
-    <details class="table-toggle">
-      <summary>Tablo görünümü (ilk 50 satır)</summary>
-      <table class="data-table">
-        <thead>
-          <tr><th>Yıl</th><th>GTİP</th><th>Ülke</th><th>Değer (USD)</th></tr>
-        </thead>
-        <tbody id="data-table-body"></tbody>
-      </table>
-    </details>
-  </section>
-
   <footer class="note">
-    Veri kaynağı: TÜİK (Türkiye İstatistik Kurumu) dış ticaret istatistikleri. Günlük olarak otomatik güncellenir.
+    Veri kaynağı: TÜİK dış ticaret istatistikleri, Qlik Engine API üzerinden doğrudan çekildi ve Supabase üzerinden bu sayfaya canlı yüklenir. Kaynak: <a href="https://github.com/tahaozkilinc/tuik-veri" target="_blank" rel="noopener">tahaozkilinc/tuik-veri</a>.
   </footer>
 </div>
 
