@@ -19,7 +19,7 @@ sorgusuyla (set analysis filtreli) çekiyoruz — DOM'a hiç dokunmuyoruz.
 Keşfedilen veri modeli (GetTablesAndKeys ile, DT_GENEL tablosu):
   ISTPOZ / ISTPOZ_ADI   -> GTİP kodu / açıklaması (12 haneli, noktasız)
   ULKE_KODU / ULKE_ADI  -> ülke kodu / adı
-  YIL                   -> yıl (aylık kırılım için AY de var, kullanmıyoruz)
+  YIL / AY              -> yıl / ay (aylık kırılım)
   IHRITH                -> "İhracat" | "İthalat"
   DOLAR / EURO / TL     -> para birimi bazlı istatistiki değer
   MIKTAR_1 / MIKTAR_2   -> miktar (MIKTAR_1 çoğunlukla kilogram)
@@ -173,6 +173,7 @@ def fetch_trade_stats(gtip_codes: list[str]) -> list[dict]:
                                 {"qDef": {"qFieldDefs": ["ULKE_KODU"]}},
                                 {"qDef": {"qFieldDefs": ["ULKE_ADI"]}},
                                 {"qDef": {"qFieldDefs": ["YIL"]}},
+                                {"qDef": {"qFieldDefs": ["AY"]}},
                                 {"qDef": {"qFieldDefs": ["IHRITH"]}},
                             ],
                             "qMeasures": [
@@ -234,9 +235,10 @@ def fetch_trade_stats(gtip_codes: list[str]) -> list[dict]:
         country_code = row[2].get("qText")
         country_name = row[3].get("qText")
         year_text = row[4].get("qText")
-        flow_text = row[5].get("qText")
-        value_usd = _to_number(row[6])
-        weight_kg = _to_number(row[7])
+        month_text = row[5].get("qText")
+        flow_text = row[6].get("qText")
+        value_usd = _to_number(row[7])
+        weight_kg = _to_number(row[8])
 
         if value_usd is None and weight_kg is None:
             continue
@@ -246,10 +248,17 @@ def fetch_trade_stats(gtip_codes: list[str]) -> list[dict]:
         except ValueError:
             year = None
 
+        try:
+            month = int(float(month_text)) if month_text else None
+        except ValueError:
+            month = None
+        if month is not None and not (1 <= month <= 12):
+            month = None
+
         records.append(
             {
                 "period_year": year,
-                "period_month": None,
+                "period_month": month,
                 "flow": "export" if flow_text == "İhracat" else "import",
                 "gtip_code": gtip_code,
                 "gtip_description": gtip_desc,

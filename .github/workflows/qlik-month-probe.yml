@@ -1,0 +1,26 @@
+name: Qlik Monthly Data Probe (debug)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install playwright==1.48.0
+          playwright install --with-deps chromium
+
+      - name: Probe monthly (AY) dimension without touching Supabase
+        run: python scripts/qlik_month_probe.py
