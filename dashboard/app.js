@@ -152,6 +152,7 @@
       groupDims: new Set(["product", "country"]),
       tableSort: { key: "usd", dir: "desc" },
       tableSearch: "",
+      trendZoom: null, // null = full range, else [startYear, endYear]
     };
 
     const DIMENSIONS = {
@@ -493,7 +494,49 @@
       });
     }
 
-    // ---------- year trend line chart ----------
+    // ---------- year trend line chart (zoomable: wheel to zoom, drag to select a range) ----------
+    const TREND_W = 560, TREND_H = 220, TREND_PADL = 60, TREND_PADR = 16, TREND_PADT = 12, TREND_PADB = 26;
+
+    function trendYearsFull() { return [...allYears].sort((a, b) => a - b); }
+
+    function trendVisibleYears() {
+      const full = trendYearsFull();
+      if (!state.trendZoom) return full;
+      const [a, b] = state.trendZoom;
+      const sliced = full.filter(y => y >= a && y <= b);
+      return sliced.length >= 2 ? sliced : full;
+    }
+
+    function trendXStep(years) {
+      return years.length > 1 ? (TREND_W - TREND_PADL - TREND_PADR) / (years.length - 1) : 0;
+    }
+
+    function svgPoint(svg, evt) {
+      const pt = svg.createSVGPoint();
+      pt.x = evt.clientX; pt.y = evt.clientY;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return { x: 0, y: 0 };
+      const loc = pt.matrixTransform(ctm.inverse());
+      return { x: loc.x, y: loc.y };
+    }
+
+    function setTrendZoom(range) {
+      const full = trendYearsFull();
+      if (full.length < 2 || !range) {
+        state.trendZoom = null;
+      } else {
+        const minYear = full[0], maxYear = full[full.length - 1];
+        let [a, b] = range;
+        if (a > b) { const t = a; a = b; b = t; }
+        if (b - a < 1) { a = Math.max(minYear, b - 1); b = a + 1; }
+        a = Math.max(minYear, Math.round(a)); b = Math.min(maxYear, Math.round(b));
+        state.trendZoom = (a <= minYear && b >= maxYear) ? null : [a, b];
+      }
+      const btn = document.getElementById("trend-zoom-reset");
+      if (btn) btn.style.display = state.trendZoom ? "inline-flex" : "none";
+      renderTrendChart();
+    }
+
     function renderTrendChart() {
       const rows = filteredRowsAllYears();
       const showBoth = state.flow === "all";
@@ -513,39 +556,38 @@
 
       const svg = document.getElementById("trend-chart");
       svg.textContent = "";
-      const width = 560, height = 220, padL = 60, padR = 16, padT = 12, padB = 26;
-      svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+      svg.setAttribute("viewBox", "0 0 " + TREND_W + " " + TREND_H);
 
       const totalsByFlow = flowsToShow.map(f => {
         const m = new Map();
         rows.filter(r => r[1] === f).forEach(r => m.set(r[0], (m.get(r[0]) || 0) + (r[5] || 0)));
         return m;
       });
-      const maxVal = Math.max(1, ...totalsByFlow.flatMap(m => [...m.values()]));
-      const xStep = allYears.length > 1 ? (width - padL - padR) / (allYears.length - 1) : 0;
-      const years = [...allYears].sort((a, b) => a - b);
-      const xScale = i => padL + i * xStep;
-      const yScale = v => height - padB - (v / maxVal) * (height - padB - padT);
+      const years = trendVisibleYears();
+      const maxVal = Math.max(1, ...flowsToShow.map((f, fi) => Math.max(0, ...years.map(y => totalsByFlow[fi].get(y) || 0))));
+      const xStep = trendXStep(years);
+      const xScale = i => TREND_PADL + i * xStep;
+      const yScale = v => TREND_H - TREND_PADB - (v / maxVal) * (TREND_H - TREND_PADB - TREND_PADT);
 
       for (let g = 0; g <= 3; g++) {
-        const y = padT + (g * (height - padB - padT)) / 3;
+        const y = TREND_PADT + (g * (TREND_H - TREND_PADB - TREND_PADT)) / 3;
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
         line.setAttribute("class", "gridline");
-        line.setAttribute("x1", padL); line.setAttribute("x2", width - padR);
+        line.setAttribute("x1", TREND_PADL); line.setAttribute("x2", TREND_W - TREND_PADR);
         line.setAttribute("y1", y); line.setAttribute("y2", y);
         svg.appendChild(line);
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("x", padL - 8); t.setAttribute("y", y + 3);
+        t.setAttribute("x", TREND_PADL - 8); t.setAttribute("y", y + 3);
         t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
         t.textContent = fmtUsd(maxVal - (g * maxVal) / 3);
         svg.appendChild(t);
       }
 
-      const tickEvery = Math.ceil(years.length / 8);
+      const tickEvery = Math.max(1, Math.ceil(years.length / 8));
       years.forEach((y, i) => {
         if (i % tickEvery !== 0 && i !== years.length - 1) return;
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("x", xScale(i)); t.setAttribute("y", height - 6);
+        t.setAttribute("x", xScale(i)); t.setAttribute("y", TREND_H - 6);
         t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
         t.textContent = String(y);
         svg.appendChild(t);
@@ -553,7 +595,7 @@
 
       const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
       hoverLine.setAttribute("class", "baseline");
-      hoverLine.setAttribute("y1", padT); hoverLine.setAttribute("y2", height - padB);
+      hoverLine.setAttribute("y1", TREND_PADT); hoverLine.setAttribute("y2", TREND_H - TREND_PADB);
       hoverLine.style.opacity = "0";
       svg.appendChild(hoverLine);
 
@@ -571,11 +613,12 @@
       years.forEach((y, i) => {
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         const hitW = Math.max(xStep, 20);
-        rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", padT);
-        rect.setAttribute("width", hitW); rect.setAttribute("height", height - padB - padT);
+        rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", TREND_PADT);
+        rect.setAttribute("width", hitW); rect.setAttribute("height", TREND_H - TREND_PADB - TREND_PADT);
         rect.setAttribute("fill", "transparent"); rect.style.cursor = "crosshair";
         rect.tabIndex = 0;
         const showFn = evt => {
+          if (trendDrag) return;
           hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
           hoverLine.style.opacity = "1";
           const wrap = document.createElement("div");
@@ -598,6 +641,87 @@
         hitLayer.appendChild(rect);
       });
       svg.appendChild(hitLayer);
+    }
+
+    // ---------- trend chart zoom interactions (wheel + drag-select) ----------
+    let trendDrag = null;
+
+    function onTrendWheel(evt) {
+      const full = trendYearsFull();
+      if (full.length < 2) return;
+      evt.preventDefault();
+      const minYear = full[0], maxYear = full[full.length - 1];
+      const [curA, curB] = state.trendZoom || [minYear, maxYear];
+      const svg = document.getElementById("trend-chart");
+      const years = trendVisibleYears();
+      const xStep = trendXStep(years);
+      const pt = svgPoint(svg, evt);
+      let idx = xStep ? Math.round((pt.x - TREND_PADL) / xStep) : 0;
+      idx = Math.max(0, Math.min(years.length - 1, idx));
+      const centerYear = years[idx] != null ? years[idx] : curA;
+
+      const factor = evt.deltaY < 0 ? 0.72 : 1 / 0.72;
+      const curWidth = Math.max(1, curB - curA);
+      const newWidth = Math.max(1, Math.min(maxYear - minYear, curWidth * factor));
+      const ratio = curWidth ? (centerYear - curA) / curWidth : 0.5;
+      const newA = Math.round(centerYear - newWidth * ratio);
+      const newB = Math.round(newA + newWidth);
+      setTrendZoom(newWidth >= maxYear - minYear ? null : [newA, newB]);
+    }
+
+    function onTrendMouseDown(evt) {
+      if (evt.button !== 0) return;
+      const svg = document.getElementById("trend-chart");
+      const pt = svgPoint(svg, evt);
+      if (pt.x < TREND_PADL || pt.x > TREND_W - TREND_PADR) return;
+      trendDrag = { startX: pt.x, rect: null };
+      hideTooltip();
+    }
+
+    function onTrendMouseMove(evt) {
+      if (!trendDrag) return;
+      const svg = document.getElementById("trend-chart");
+      const pt = svgPoint(svg, evt);
+      const x1 = Math.max(TREND_PADL, Math.min(trendDrag.startX, pt.x));
+      const x2 = Math.min(TREND_W - TREND_PADR, Math.max(trendDrag.startX, pt.x));
+      if (!trendDrag.rect) {
+        trendDrag.rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        trendDrag.rect.setAttribute("class", "trend-brush");
+        svg.appendChild(trendDrag.rect);
+      }
+      trendDrag.rect.setAttribute("x", x1);
+      trendDrag.rect.setAttribute("y", TREND_PADT);
+      trendDrag.rect.setAttribute("width", Math.max(0, x2 - x1));
+      trendDrag.rect.setAttribute("height", TREND_H - TREND_PADT - TREND_PADB);
+    }
+
+    function onTrendMouseUp(evt) {
+      if (!trendDrag) return;
+      const svg = document.getElementById("trend-chart");
+      const pt = svgPoint(svg, evt);
+      const startX = trendDrag.startX;
+      const hadRect = !!trendDrag.rect;
+      if (trendDrag.rect) trendDrag.rect.remove();
+      trendDrag = null;
+      if (!hadRect || Math.abs(pt.x - startX) < 6) return;
+      const years = trendVisibleYears();
+      const xStep = trendXStep(years);
+      if (!xStep || years.length < 2) return;
+      const idx1 = Math.round((Math.min(startX, pt.x) - TREND_PADL) / xStep);
+      const idx2 = Math.round((Math.max(startX, pt.x) - TREND_PADL) / xStep);
+      const a = years[Math.max(0, Math.min(years.length - 1, idx1))];
+      const b = years[Math.max(0, Math.min(years.length - 1, idx2))];
+      setTrendZoom([a, b]);
+    }
+
+    function setupTrendZoom() {
+      const svg = document.getElementById("trend-chart");
+      svg.addEventListener("wheel", onTrendWheel, { passive: false });
+      svg.addEventListener("mousedown", onTrendMouseDown);
+      svg.addEventListener("dblclick", () => setTrendZoom(null));
+      window.addEventListener("mousemove", onTrendMouseMove);
+      window.addEventListener("mouseup", onTrendMouseUp);
+      document.getElementById("trend-zoom-reset").addEventListener("click", () => setTrendZoom(null));
     }
 
     // ---------- pivot table ----------
@@ -709,6 +833,7 @@
     buildProductChips();
     buildCountrySearch();
     buildGroupControls();
+    setupTrendZoom();
     renderAll();
     renderReport(report);
   }

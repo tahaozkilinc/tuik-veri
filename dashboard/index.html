@@ -62,9 +62,13 @@
         <svg class="chart" id="top-chart" role="img" aria-label="Seçili kırılıma göre ilk 10"></svg>
       </div>
       <div class="trend-pane">
-        <h3>Yıllara göre eğilim (seçili ürün/ülke/yön filtreleriyle)</h3>
+        <div class="trend-head">
+          <h3>Yıllara göre eğilim (seçili ürün/ülke/yön filtreleriyle)</h3>
+          <button class="trend-zoom-reset" id="trend-zoom-reset" type="button" title="Yakınlaştırmayı sıfırla">Yakınlaştırmayı sıfırla ↺</button>
+        </div>
         <div class="legend" id="trend-legend"></div>
-        <svg class="chart" id="trend-chart" role="img" aria-label="Yıllara göre ihracat ve ithalat eğilimi"></svg>
+        <svg class="chart trend-svg" id="trend-chart" role="img" aria-label="Yıllara göre ihracat ve ithalat eğilimi — fare tekerleğiyle yakınlaştırın, sürükleyerek bir aralık seçin"></svg>
+        <div class="trend-hint">Yakınlaşmak için fare tekerleğini kullanın, bir aralık seçmek için sürükleyin, sıfırlamak için çift tıklayın.</div>
       </div>
     </div>
   </section>
