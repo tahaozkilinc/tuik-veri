@@ -185,6 +185,11 @@
       if (a >= 1) return ton.toFixed(1) + " ton";
       return v.toFixed(0) + " kg";
     }
+    // birim fiyat = toplam değer / toplam miktar ($/ton)
+    function fmtUnitPrice(v) {
+      if (v == null || isNaN(v)) return "—";
+      return "$" + v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "/ton";
+    }
 
     // ---------- filtering ----------
     function filteredRows() {
@@ -495,21 +500,38 @@
       });
     }
 
-    // ---------- year trend line chart (zoomable: wheel to zoom, drag to select a range) ----------
+    // ---------- month trend line chart (zoomable: wheel to zoom, drag to select a range) ----------
     const TREND_W = 560, TREND_H = 220, TREND_PADL = 60, TREND_PADR = 16, TREND_PADT = 12, TREND_PADB = 26;
+    const MONTH_ABBR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+    const MONTH_FULL = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
-    function trendYearsFull() { return [...allYears].sort((a, b) => a - b); }
+    // period "key" = ay çözünürlüğünde tek bir sıralanabilir tamsayı (year*12 + monthIndex0).
+    // Kaynak artık her satırda ay bilgisi veriyor (bkz. qlik_client.py); eski period_month
+    // NULL bir satır sızarsa Ocak'a düşürülür ki eksene tek bir nokta olarak girsin.
+    function periodKey(year, month) { return year * 12 + ((month || 1) - 1); }
+    function periodFromKey(key) {
+      const month = (((key % 12) + 12) % 12) + 1;
+      return { year: (key - (month - 1)) / 12, month };
+    }
+    function periodLabelShort(key) { const p = periodFromKey(key); return MONTH_ABBR[p.month - 1] + " " + String(p.year).slice(2); }
+    function periodLabelFull(key) { const p = periodFromKey(key); return MONTH_FULL[p.month - 1] + " " + p.year; }
 
-    function trendVisibleYears() {
-      const full = trendYearsFull();
+    function trendPeriodsFull() {
+      const keys = new Set();
+      RAW.forEach(r => keys.add(periodKey(r[0], r[7])));
+      return [...keys].sort((a, b) => a - b);
+    }
+
+    function trendVisiblePeriods() {
+      const full = trendPeriodsFull();
       if (!state.trendZoom) return full;
       const [a, b] = state.trendZoom;
-      const sliced = full.filter(y => y >= a && y <= b);
+      const sliced = full.filter(k => k >= a && k <= b);
       return sliced.length >= 2 ? sliced : full;
     }
 
-    function trendXStep(years) {
-      return years.length > 1 ? (TREND_W - TREND_PADL - TREND_PADR) / (years.length - 1) : 0;
+    function trendXStep(periods) {
+      return periods.length > 1 ? (TREND_W - TREND_PADL - TREND_PADR) / (periods.length - 1) : 0;
     }
 
     function svgPoint(svg, evt) {
@@ -522,16 +544,16 @@
     }
 
     function setTrendZoom(range) {
-      const full = trendYearsFull();
+      const full = trendPeriodsFull();
       if (full.length < 2 || !range) {
         state.trendZoom = null;
       } else {
-        const minYear = full[0], maxYear = full[full.length - 1];
+        const minKey = full[0], maxKey = full[full.length - 1];
         let [a, b] = range;
         if (a > b) { const t = a; a = b; b = t; }
-        if (b - a < 1) { a = Math.max(minYear, b - 1); b = a + 1; }
-        a = Math.max(minYear, Math.round(a)); b = Math.min(maxYear, Math.round(b));
-        state.trendZoom = (a <= minYear && b >= maxYear) ? null : [a, b];
+        if (b - a < 2) { a = Math.max(minKey, b - 2); b = a + 2; }
+        a = Math.max(minKey, Math.round(a)); b = Math.min(maxKey, Math.round(b));
+        state.trendZoom = (a <= minKey && b >= maxKey) ? null : [a, b];
       }
       const btn = document.getElementById("trend-zoom-reset");
       if (btn) btn.style.display = state.trendZoom ? "inline-flex" : "none";
@@ -561,12 +583,15 @@
 
       const totalsByFlow = flowsToShow.map(f => {
         const m = new Map();
-        rows.filter(r => r[1] === f).forEach(r => m.set(r[0], (m.get(r[0]) || 0) + (r[5] || 0)));
+        rows.filter(r => r[1] === f).forEach(r => {
+          const key = periodKey(r[0], r[7]);
+          m.set(key, (m.get(key) || 0) + (r[5] || 0));
+        });
         return m;
       });
-      const years = trendVisibleYears();
-      const maxVal = Math.max(1, ...flowsToShow.map((f, fi) => Math.max(0, ...years.map(y => totalsByFlow[fi].get(y) || 0))));
-      const xStep = trendXStep(years);
+      const periods = trendVisiblePeriods();
+      const maxVal = Math.max(1, ...flowsToShow.map((f, fi) => Math.max(0, ...periods.map(k => totalsByFlow[fi].get(k) || 0))));
+      const xStep = trendXStep(periods);
       const xScale = i => TREND_PADL + i * xStep;
       const yScale = v => TREND_H - TREND_PADB - (v / maxVal) * (TREND_H - TREND_PADB - TREND_PADT);
 
@@ -584,13 +609,19 @@
         svg.appendChild(t);
       }
 
-      const tickEvery = Math.max(1, Math.ceil(years.length / 8));
-      years.forEach((y, i) => {
-        if (i % tickEvery !== 0 && i !== years.length - 1) return;
+      // zoomed out (>3 yıl görünürde): sadece Ocak ayı noktalarında yıl etiketi göster
+      // (yıllık grafiğin eski, temiz görünümü); yakınlaşınca ay+yıl etiketine geçer.
+      const showMonthTicks = periods.length <= 36;
+      const tickEvery = Math.max(1, Math.ceil(periods.length / 8));
+      periods.forEach((key, i) => {
+        const p = periodFromKey(key);
+        const isLast = i === periods.length - 1;
+        const show = showMonthTicks ? (i % tickEvery === 0 || isLast) : (p.month === 1 || isLast);
+        if (!show) return;
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
         t.setAttribute("x", xScale(i)); t.setAttribute("y", TREND_H - 6);
         t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
-        t.textContent = String(y);
+        t.textContent = showMonthTicks ? periodLabelShort(key) : String(p.year);
         svg.appendChild(t);
       });
 
@@ -602,7 +633,7 @@
 
       flowsToShow.forEach((f, fi) => {
         const totals = totalsByFlow[fi];
-        const pts = years.map((y, i) => [xScale(i), yScale(totals.get(y) || 0)]);
+        const pts = periods.map((k, i) => [xScale(i), yScale(totals.get(k) || 0)]);
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
         path.setAttribute("stroke", FLOW_COLOR[f]); path.setAttribute("stroke-width", "2");
@@ -611,9 +642,9 @@
       });
 
       const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      years.forEach((y, i) => {
+      periods.forEach((key, i) => {
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        const hitW = Math.max(xStep, 20);
+        const hitW = Math.max(xStep, 6);
         rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", TREND_PADT);
         rect.setAttribute("width", hitW); rect.setAttribute("height", TREND_H - TREND_PADB - TREND_PADT);
         rect.setAttribute("fill", "transparent"); rect.style.cursor = "crosshair";
@@ -623,14 +654,14 @@
           hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
           hoverLine.style.opacity = "1";
           const wrap = document.createElement("div");
-          const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = String(y);
+          const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = periodLabelFull(key);
           wrap.appendChild(ttl);
           flowsToShow.forEach((f, fi) => {
-            const val = totalsByFlow[fi].get(y) || 0;
+            const val = totalsByFlow[fi].get(key) || 0;
             const row = document.createElement("div"); row.className = "row";
-            const key = document.createElement("span"); key.className = "key-line"; key.style.background = FLOW_COLOR[f];
+            const keyLine = document.createElement("span"); keyLine.className = "key-line"; keyLine.style.background = FLOW_COLOR[f];
             const v = document.createElement("span"); v.className = "val"; v.textContent = fmtUsdFull(val);
-            row.appendChild(key); row.appendChild(v); row.appendChild(document.createTextNode(" " + FLOW_LABEL[f]));
+            row.appendChild(keyLine); row.appendChild(v); row.appendChild(document.createTextNode(" " + FLOW_LABEL[f]));
             wrap.appendChild(row);
           });
           showTooltip(evt, wrap);
@@ -648,26 +679,26 @@
     let trendDrag = null;
 
     function onTrendWheel(evt) {
-      const full = trendYearsFull();
+      const full = trendPeriodsFull();
       if (full.length < 2) return;
       evt.preventDefault();
-      const minYear = full[0], maxYear = full[full.length - 1];
-      const [curA, curB] = state.trendZoom || [minYear, maxYear];
+      const minKey = full[0], maxKey = full[full.length - 1];
+      const [curA, curB] = state.trendZoom || [minKey, maxKey];
       const svg = document.getElementById("trend-chart");
-      const years = trendVisibleYears();
-      const xStep = trendXStep(years);
+      const periods = trendVisiblePeriods();
+      const xStep = trendXStep(periods);
       const pt = svgPoint(svg, evt);
       let idx = xStep ? Math.round((pt.x - TREND_PADL) / xStep) : 0;
-      idx = Math.max(0, Math.min(years.length - 1, idx));
-      const centerYear = years[idx] != null ? years[idx] : curA;
+      idx = Math.max(0, Math.min(periods.length - 1, idx));
+      const centerKey = periods[idx] != null ? periods[idx] : curA;
 
       const factor = evt.deltaY < 0 ? 0.72 : 1 / 0.72;
-      const curWidth = Math.max(1, curB - curA);
-      const newWidth = Math.max(1, Math.min(maxYear - minYear, curWidth * factor));
-      const ratio = curWidth ? (centerYear - curA) / curWidth : 0.5;
-      const newA = Math.round(centerYear - newWidth * ratio);
+      const curWidth = Math.max(2, curB - curA);
+      const newWidth = Math.max(2, Math.min(maxKey - minKey, curWidth * factor));
+      const ratio = curWidth ? (centerKey - curA) / curWidth : 0.5;
+      const newA = Math.round(centerKey - newWidth * ratio);
       const newB = Math.round(newA + newWidth);
-      setTrendZoom(newWidth >= maxYear - minYear ? null : [newA, newB]);
+      setTrendZoom(newWidth >= maxKey - minKey ? null : [newA, newB]);
     }
 
     function onTrendMouseDown(evt) {
@@ -705,13 +736,13 @@
       if (trendDrag.rect) trendDrag.rect.remove();
       trendDrag = null;
       if (!hadRect || Math.abs(pt.x - startX) < 6) return;
-      const years = trendVisibleYears();
-      const xStep = trendXStep(years);
-      if (!xStep || years.length < 2) return;
+      const periods = trendVisiblePeriods();
+      const xStep = trendXStep(periods);
+      if (!xStep || periods.length < 2) return;
       const idx1 = Math.round((Math.min(startX, pt.x) - TREND_PADL) / xStep);
       const idx2 = Math.round((Math.max(startX, pt.x) - TREND_PADL) / xStep);
-      const a = years[Math.max(0, Math.min(years.length - 1, idx1))];
-      const b = years[Math.max(0, Math.min(years.length - 1, idx2))];
+      const a = periods[Math.max(0, Math.min(periods.length - 1, idx1))];
+      const b = periods[Math.max(0, Math.min(periods.length - 1, idx2))];
       setTrendZoom([a, b]);
     }
 
@@ -731,6 +762,8 @@
       const dims = [...state.groupDims];
       let groups = computeGroups(rows, dims);
       const total = groups.reduce((s, g) => s + g.usd, 0) || 1;
+      // standart birim fiyat: bu satırın toplam değeri / toplam miktarı (satırlar arası ortalama değil)
+      groups.forEach(g => { g.unitPrice = g.kg ? (g.usd / g.kg) * 1000 : null; });
 
       if (state.tableSearch) {
         const q = state.tableSearch.toLowerCase();
@@ -740,7 +773,9 @@
       const sortKey = state.tableSort.key, sortDir = state.tableSort.dir;
       groups.sort((a, b) => {
         let av, bv;
-        if (sortKey === "usd" || sortKey === "kg" || sortKey === "n") { av = a[sortKey]; bv = b[sortKey]; }
+        if (sortKey === "usd" || sortKey === "kg" || sortKey === "n" || sortKey === "unitPrice") {
+          av = a[sortKey] ?? -Infinity; bv = b[sortKey] ?? -Infinity;
+        }
         else { const di = dims.indexOf(sortKey); av = DIMENSIONS[dims[di]].display(a.parts[di]); bv = DIMENSIONS[dims[di]].display(b.parts[di]); }
         if (typeof av === "string") return sortDir === "asc" ? av.localeCompare(bv, "tr") : bv.localeCompare(av, "tr");
         return sortDir === "asc" ? av - bv : bv - av;
@@ -753,6 +788,7 @@
         .concat([
           { key: "usd", label: "Toplam Değer", num: true },
           { key: "kg", label: "Toplam Miktar", num: true },
+          { key: "unitPrice", label: "Birim Fiyat", num: true },
           { key: "share", label: "Pay", num: true },
         ]);
       cols.forEach(c => {
@@ -796,6 +832,8 @@
         tr.appendChild(usdTd);
         const kgTd = document.createElement("td"); kgTd.className = "num-col num"; kgTd.textContent = fmtKg(g.kg);
         tr.appendChild(kgTd);
+        const priceTd = document.createElement("td"); priceTd.className = "num-col num"; priceTd.textContent = fmtUnitPrice(g.unitPrice);
+        tr.appendChild(priceTd);
         const shareTd = document.createElement("td"); shareTd.className = "num-col";
         const shareWrap = document.createElement("div"); shareWrap.className = "share-bar-wrap";
         const pct = Math.max(0, Math.min(100, (g.usd / total) * 100));
@@ -820,9 +858,17 @@
       renderTable();
     });
 
+    function renderUnitPriceBadge() {
+      const rows = filteredRows();
+      const usd = rows.reduce((s, r) => s + (r[5] || 0), 0);
+      const kg = rows.reduce((s, r) => s + (r[6] || 0), 0);
+      document.getElementById("unit-price-badge").textContent = fmtUnitPrice(kg ? (usd / kg) * 1000 : null);
+    }
+
     function renderAll() {
       renderCountrySelected();
       renderKpis();
+      renderUnitPriceBadge();
       renderTopChart();
       renderTrendChart();
       renderTable();
