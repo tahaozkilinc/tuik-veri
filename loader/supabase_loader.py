@@ -15,28 +15,28 @@ def get_client() -> Client:
     return create_client(url, service_key)
 
 
-def upsert_trade_stats(client: Client, records: list[dict]) -> int:
+def replace_trade_stats(client: Client, gtip_codes: list[str], records: list[dict]) -> int:
+    """Bu GTİP kodlarına ait TÜM eski satırları silip yeni veriyi ekler.
+
+    Neden upsert değil: `.upsert(..., on_conflict=...)` yalnızca o sütun
+    kümesini kapsayan bir unique constraint gerçekten DB'de kuruluysa
+    çalışır — production'da bunu doğrulamak için doğrudan SQL erişimimiz
+    yok, ve canlıda tam da bunun bozuk olduğu görüldü: her scrape
+    ON CONFLICT'i hiç eşleştirmeden aynı satırları tekrar tekrar INSERT
+    etti (8554 satır sessizce 17108'e, hepsi birebir aynı value/weight
+    ile, katlandı). Kaynak zaten bu kodların TAM geçmişini (1996-bugün)
+    her çalıştırmada döndürüyor — kısmi/artımlı değil — o yüzden
+    sil-ve-ekle hem daha basit hem DB constraint'inin doğru kurulu olup
+    olmamasından bağımsız olarak kopya birikmesini imkansız kılıyor.
+    """
+    if gtip_codes:
+        client.table("trade_stats").delete().in_("gtip_code", gtip_codes).execute()
     total = 0
     for i in range(0, len(records), BATCH_SIZE):
         batch = records[i : i + BATCH_SIZE]
-        client.table("trade_stats").upsert(
-            batch,
-            on_conflict="period_year,period_month,flow,gtip_code,port_code,country_code",
-        ).execute()
+        client.table("trade_stats").insert(batch).execute()
         total += len(batch)
     return total
-
-
-def delete_stale_annual_rows(client: Client) -> int:
-    """Kaynak artık aylık kırılım (AY) döndürüyor, eskiden yıllık toplam
-    olarak çekilmiş (period_month IS NULL) satırlar artık üretilmiyor ve
-    aylık satırlarla AYNI yıl/ülke/ürün/yön için farklı bir upsert
-    anahtarına düştüğü için üst üste yazılmıyor — silinmezlerse toplamlar
-    (yıllık satır + 12 aylık satır) iki katına çıkar. Her scrape sonunda
-    çağrılır; aylık satır kalmadıktan sonra hiçbir etkisi olmaz (idempotent).
-    """
-    resp = client.table("trade_stats").delete().is_("period_month", "null").execute()
-    return len(resp.data or [])
 
 
 def start_run(client: Client) -> int:

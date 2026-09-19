@@ -17,12 +17,11 @@ from pathlib import Path
 import yaml
 
 from loader.supabase_loader import (
-    delete_stale_annual_rows,
     finish_run,
     get_client,
+    replace_trade_stats,
     save_daily_report,
     start_run,
-    upsert_trade_stats,
 )
 from reports.daily_report import build_report
 from scraper.qlik_client import QlikClientError, fetch_trade_stats
@@ -46,24 +45,17 @@ def main() -> int:
 
     try:
         records = fetch_trade_stats(gtip_codes)
-        rows_upserted = upsert_trade_stats(client, records) if records else 0
-        print(f"{rows_upserted} satır upsert edildi.")
-
-        if rows_upserted:
-            # Kaynak artık aylık (AY) kırılım döndürüyor; period_month'u NULL
-            # olan eski yıllık-toplam satırlar artık üretilmiyor ve upsert'in
-            # ON CONFLICT'i onları güncellemiyor (farklı anahtar) — silinmezse
-            # yıllık toplamlar iki katına çıkar. Sadece yeni veri başarıyla
-            # yazıldıysa temizle.
-            deleted = delete_stale_annual_rows(client)
-            if deleted:
-                print(f"{deleted} eski yıllık-toplam (period_month IS NULL) satır silindi.")
+        # DB'deki gtip_code sütunu noktasız/rakam-only (Qlik'in ISTPOZ'u) —
+        # silme filtresi de aynı formatta olmalı.
+        digit_codes = ["".join(ch for ch in c if ch.isdigit()) for c in gtip_codes]
+        rows_written = replace_trade_stats(client, digit_codes, records) if records else 0
+        print(f"{rows_written} satır yazıldı (eski satırlar silinip yenilendi).")
 
         report_md = build_report(client, date.today().year)
         save_daily_report(client, date.today().isoformat(), report_md)
         print(report_md)
 
-        finish_run(client, run_id, status="success", rows_upserted=rows_upserted)
+        finish_run(client, run_id, status="success", rows_upserted=rows_written)
         return 0
 
     except QlikClientError as exc:
