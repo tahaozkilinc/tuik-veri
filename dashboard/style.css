@@ -103,6 +103,7 @@
     display: inline-flex; align-items: center; gap: 6px;
   }
   .snapshot-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cat-3); flex: none; }
+  .asof-badge { font-size: 12px; color: var(--text-muted); }
   .live-link {
     font-size: 12px; font-weight: 600; color: var(--focus); text-decoration: none;
     border: 1px solid var(--border-strong); border-radius: 100px; padding: 5px 12px;
@@ -144,10 +145,25 @@
   .chip:hover { background: var(--surface-2); }
   .chip.active { background: var(--focus); border-color: var(--focus); color: #fff; }
   .chip .swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .period-row { display: flex; align-items: center; gap: 6px; }
+  .period-row .text-input { min-width: 130px; }
+  .period-sep { color: var(--text-muted); font-size: 12px; }
   .country-box { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
   .country-selected { display: flex; flex-wrap: wrap; gap: 6px; max-width: 320px; }
   .country-selected .chip.active { padding-right: 6px; }
   .country-selected .chip .x { opacity: 0.85; font-weight: 700; }
+  .suggestions {
+    display: none; position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 30;
+    background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 10px;
+    box-shadow: var(--shadow); max-height: 220px; overflow-y: auto; min-width: 220px; padding: 4px;
+  }
+  .suggestions.open { display: block; }
+  .suggestions button {
+    display: block; width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--text-primary);
+    background: transparent; border: none; border-radius: 7px; padding: 7px 9px; cursor: pointer;
+  }
+  .suggestions button:hover, .suggestions button.active-option { background: var(--surface-2); }
+  .suggestions .empty { padding: 7px 9px; font-size: 12.5px; color: var(--text-muted); }
   .reset-btn {
     font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-secondary);
     background: transparent; border: 1px dashed var(--border-strong); border-radius: 9px;
@@ -199,14 +215,17 @@
     border: 1px solid var(--border); border-radius: 100px; padding: 4px 10px; font-family: "IBM Plex Mono", monospace;
   }
   .unit-price-badge::before { content: "Ort. birim fiyat: "; font-family: "IBM Plex Sans", sans-serif; font-weight: 500; color: var(--text-muted); }
-  .trend-zoom-reset {
-    display: none; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; color: var(--focus);
-    background: transparent; border: 1px solid var(--border-strong); border-radius: 100px; padding: 4px 10px; cursor: pointer;
+  .trend-nav { display: flex; align-items: center; gap: 8px; }
+  .pan-btn {
+    border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-primary);
+    border-radius: 100px; width: 26px; height: 26px; cursor: pointer; font-size: 12px;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
   }
-  .trend-zoom-reset:hover { background: var(--surface-2); }
-  .trend-hint { font-size: 11px; color: var(--text-muted); }
-  .trend-svg { cursor: crosshair; touch-action: pan-y; user-select: none; }
-  .trend-brush { fill: var(--focus); opacity: 0.12; stroke: var(--focus); stroke-width: 1; stroke-dasharray: 2 2; }
+  .pan-btn:hover { background: var(--surface-2); }
+  .pan-btn:disabled { opacity: 0.35; cursor: default; }
+  .pan-btn:disabled:hover { background: var(--surface-1); }
+  .trend-range-label { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); font-family: "IBM Plex Mono", monospace; white-space: nowrap; }
+  .price-chart-title { margin: 10px 0 0; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
 
   .bar-label { font-size: 11.5px; fill: var(--text-secondary); }
   .bar-value { font-size: 11.5px; font-weight: 600; fill: var(--text-primary); font-family: "IBM Plex Mono", monospace; }

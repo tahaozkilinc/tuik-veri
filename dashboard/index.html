@@ -19,6 +19,7 @@
     </div>
     <div class="meta">
       <span class="snapshot-badge"><span class="dot" id="status-dot"></span><span id="status-text">Yükleniyor…</span></span>
+      <span class="asof-badge" id="asof-badge"></span>
       <button class="theme-btn" id="theme-toggle" aria-label="Tema değiştir" title="Tema değiştir">◐</button>
     </div>
   </header>
@@ -33,8 +34,20 @@
       </div>
     </div>
     <div class="filter-group">
-      <span class="filter-label">Yıl</span>
-      <select id="year-select"></select>
+      <span class="filter-label">Dönem</span>
+      <div class="period-row">
+        <input type="month" class="text-input" id="period-start">
+        <span class="period-sep">–</span>
+        <input type="month" class="text-input" id="period-end">
+      </div>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Hızlı seçim</span>
+      <div class="segmented" id="period-presets" role="group" aria-label="Dönem hazır seçimleri">
+        <button class="seg active" type="button" data-preset="ytd">Bu yıl</button>
+        <button class="seg" type="button" data-preset="12m">Son 12 ay</button>
+        <button class="seg" type="button" data-preset="all">Tüm zamanlar</button>
+      </div>
     </div>
     <div class="filter-group">
       <span class="filter-label">Ürün</span>
@@ -42,8 +55,8 @@
     </div>
     <div class="filter-group country-box">
       <span class="filter-label">Ülke</span>
-      <input type="text" class="text-input" id="country-search" placeholder="Ülke ara ve ekle…" autocomplete="off" list="country-datalist">
-      <datalist id="country-datalist"></datalist>
+      <input type="text" class="text-input" id="country-search" placeholder="Ülke ara ve ekle…" autocomplete="off">
+      <div class="suggestions" id="country-suggestions"></div>
       <div class="country-selected" id="country-selected"></div>
     </div>
     <button class="reset-btn" id="reset-filters">Filtreleri temizle</button>
@@ -66,12 +79,17 @@
       </div>
       <div class="trend-pane">
         <div class="trend-head">
-          <h3>Yıllara göre eğilim (seçili ürün/ülke/yön filtreleriyle)</h3>
-          <button class="trend-zoom-reset" id="trend-zoom-reset" type="button" title="Yakınlaştırmayı sıfırla">Yakınlaştırmayı sıfırla ↺</button>
+          <h3>Zaman içinde eğilim</h3>
+          <div class="trend-nav">
+            <button class="pan-btn" id="trend-prev" type="button" title="Önceki dönem">◀</button>
+            <span class="trend-range-label" id="trend-range-label"></span>
+            <button class="pan-btn" id="trend-next" type="button" title="Sonraki dönem">▶</button>
+          </div>
         </div>
         <div class="legend" id="trend-legend"></div>
-        <svg class="chart trend-svg" id="trend-chart" role="img" aria-label="Yıllara göre ihracat ve ithalat eğilimi — fare tekerleğiyle yakınlaştırın, sürükleyerek bir aralık seçin"></svg>
-        <div class="trend-hint">Yakınlaşmak için fare tekerleğini kullanın, bir aralık seçmek için sürükleyin, sıfırlamak için çift tıklayın.</div>
+        <svg class="chart" id="trend-chart" role="img" aria-label="Seçili dönemde ihracat ve ithalat değeri"></svg>
+        <h3 class="price-chart-title">Birim fiyat eğilimi ($/ton)</h3>
+        <svg class="chart" id="price-chart" role="img" aria-label="Seçili dönemde birim fiyat"></svg>
       </div>
     </div>
   </section>

@@ -2,6 +2,7 @@
   "use strict";
 
   const cfg = window.TUIK_DASHBOARD_CONFIG;
+  // "kod AD" — sadece en üstteki ürün seçim çiplerinde gösterilir.
   const GTIP_NAMES = {
     "100590000019": "1005.90.00.00.19 MISIR",
     "120190000000": "1201.90.00.00.00 SOYA FASULYESİ",
@@ -9,9 +10,37 @@
     "230400000000": "2304.00.00.00.00 SOYA KÜSPESİ",
     "120600990019": "1206.00.99.00.19 ÇEKİRDEK",
   };
+  // sade ürün adı — grafik, tablo ve rapordaki her yerde bu kullanılır.
+  const GTIP_SHORT_NAMES = {
+    "100590000019": "MISIR",
+    "120190000000": "SOYA FASULYESİ",
+    "110430900011": "MISIR ÖZÜ",
+    "230400000000": "SOYA KÜSPESİ",
+    "120600990019": "ÇEKİRDEK",
+  };
   const FLOW_LABEL = ["İhracat", "İthalat"];
   const FLOW_COLOR = ["var(--series-export)", "var(--series-import)"];
   const CAT_COLORS = ["var(--series-export)", "var(--series-import)", "var(--cat-3)", "var(--cat-4)", "var(--cat-5)"];
+  const MONTH_ABBR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+  const MONTH_FULL = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+  // period "key" = ay çözünürlüğünde tek bir sıralanabilir tamsayı (year*12 + monthIndex0).
+  function periodKey(year, month) { return year * 12 + ((month || 1) - 1); }
+  function periodFromKey(key) {
+    const month = (((key % 12) + 12) % 12) + 1;
+    return { year: (key - (month - 1)) / 12, month };
+  }
+  function periodLabelShort(key) { const p = periodFromKey(key); return MONTH_ABBR[p.month - 1] + " " + String(p.year).slice(2); }
+  function periodLabelFull(key) { const p = periodFromKey(key); return MONTH_FULL[p.month - 1] + " " + p.year; }
+  function monthInputToKey(str) {
+    if (!str) return null;
+    const [y, m] = str.split("-").map(Number);
+    return periodKey(y, m);
+  }
+  function keyToMonthInput(key) {
+    const p = periodFromKey(key);
+    return p.year + "-" + String(p.month).padStart(2, "0");
+  }
 
   // ---------- status ----------
   function setStatus(text, ok) {
@@ -91,7 +120,7 @@
     for (const raw of report.summary_md.split("\n")) {
       // bullet lines reference bare GTİP codes ("- 100590000019: $…") — show the
       // same "kod AD" label used everywhere else in the report instead of a bare code.
-      const line = raw.replace(/\b(\d{12})\b/g, code => GTIP_NAMES[code] || code);
+      const line = raw.replace(/\b(\d{12})\b/g, code => GTIP_SHORT_NAMES[code] || code);
       let m;
       if (!line.trim()) {
         closeList();
@@ -142,22 +171,26 @@
     RAW.forEach(r => { if (!countryNames[r[3]]) countryNames[r[3]] = r[4]; });
     const allCountries = Object.keys(countryNames).sort((a, b) => countryNames[a].localeCompare(countryNames[b], "tr"));
     const allProducts = Object.keys(GTIP_NAMES);
-    const allYears = [...new Set(RAW.map(r => r[0]))].sort((a, b) => b - a);
-    const maxYear = allYears[0];
+
+    const allPeriodKeys = [...new Set(RAW.map(r => periodKey(r[0], r[7])))].sort((a, b) => a - b);
+    const minPeriodKey = allPeriodKeys[0];
+    const maxPeriodKey = allPeriodKeys[allPeriodKeys.length - 1];
+    // varsayılan: filtre konmamışsa yıl başından (Ocak) bugüne kadarki veri
+    const ytdStartKey = periodKey(periodFromKey(maxPeriodKey).year, 1);
 
     const state = {
       flow: "all",
-      year: String(maxYear),
+      periodStart: ytdStartKey,
+      periodEnd: maxPeriodKey,
       products: new Set(),
       countries: new Set(),
       groupDims: new Set(["product", "country"]),
       tableSort: { key: "usd", dir: "desc" },
       tableSearch: "",
-      trendZoom: null, // null = full range, else [startYear, endYear]
     };
 
     const DIMENSIONS = {
-      product: { label: "Ürün", get: r => r[2], display: v => GTIP_NAMES[v] || v },
+      product: { label: "Ürün", get: r => r[2], display: v => GTIP_SHORT_NAMES[v] || v },
       country: { label: "Ülke", get: r => r[3], display: v => countryNames[v] || v },
       year: { label: "Yıl", get: r => r[0], display: v => String(v) },
       flow: { label: "Yön", get: r => r[1], display: v => FLOW_LABEL[v] },
@@ -192,19 +225,13 @@
     }
 
     // ---------- filtering ----------
+    // tüm kartlar (KPI, grafikler, tablo) aynı Dönem filtresine göre çalışır —
+    // "neye göre veri alıyorsun" belirsizliği kalmasın diye tek bir kaynak.
     function filteredRows() {
       return RAW.filter(r => {
         if (state.flow !== "all" && String(r[1]) !== state.flow) return false;
-        if (state.year !== "all" && r[0] !== Number(state.year)) return false;
-        if (state.products.size && !state.products.has(r[2])) return false;
-        if (state.countries.size && !state.countries.has(r[3])) return false;
-        return true;
-      });
-    }
-    // trend chart ignores the year filter so the timeline stays visible
-    function filteredRowsAllYears() {
-      return RAW.filter(r => {
-        if (state.flow !== "all" && String(r[1]) !== state.flow) return false;
+        const key = periodKey(r[0], r[7]);
+        if (key < state.periodStart || key > state.periodEnd) return false;
         if (state.products.size && !state.products.has(r[2])) return false;
         if (state.countries.size && !state.countries.has(r[3])) return false;
         return true;
@@ -226,38 +253,45 @@
     }
 
     // ---------- KPIs ----------
+    function periodRangeLabel() {
+      return state.periodStart === state.periodEnd
+        ? periodLabelFull(state.periodStart)
+        : periodLabelShort(state.periodStart) + " – " + periodLabelShort(state.periodEnd);
+    }
+
     function renderKpis() {
       const rows = filteredRows();
       const exp = rows.filter(r => r[1] === 0).reduce((s, r) => s + (r[5] || 0), 0);
       const imp = rows.filter(r => r[1] === 1).reduce((s, r) => s + (r[5] || 0), 0);
+      const kg = rows.reduce((s, r) => s + (r[6] || 0), 0);
       const net = exp - imp;
 
-      let yoyExp = null, yoyImp = null;
-      if (state.year !== "all") {
-        const prevYear = Number(state.year) - 1;
-        const prevRows = RAW.filter(r => {
-          if (r[0] !== prevYear) return false;
-          if (state.flow !== "all" && String(r[1]) !== state.flow) return false;
-          if (state.products.size && !state.products.has(r[2])) return false;
-          if (state.countries.size && !state.countries.has(r[3])) return false;
-          return true;
-        });
-        const prevExp = prevRows.filter(r => r[1] === 0).reduce((s, r) => s + (r[5] || 0), 0);
-        const prevImp = prevRows.filter(r => r[1] === 1).reduce((s, r) => s + (r[5] || 0), 0);
-        if (prevExp) yoyExp = ((exp - prevExp) / prevExp) * 100;
-        if (prevImp) yoyImp = ((imp - prevImp) / prevImp) * 100;
-      }
+      // aynı uzunlukta bir önceki dönemle (12 ay öncesiyle) kıyasla
+      const prevStart = state.periodStart - 12, prevEnd = state.periodEnd - 12;
+      const prevRows = RAW.filter(r => {
+        const key = periodKey(r[0], r[7]);
+        if (key < prevStart || key > prevEnd) return false;
+        if (state.flow !== "all" && String(r[1]) !== state.flow) return false;
+        if (state.products.size && !state.products.has(r[2])) return false;
+        if (state.countries.size && !state.countries.has(r[3])) return false;
+        return true;
+      });
+      const prevExp = prevRows.filter(r => r[1] === 0).reduce((s, r) => s + (r[5] || 0), 0);
+      const prevImp = prevRows.filter(r => r[1] === 1).reduce((s, r) => s + (r[5] || 0), 0);
+      const yoyExp = prevExp ? ((exp - prevExp) / prevExp) * 100 : null;
+      const yoyImp = prevImp ? ((imp - prevImp) / prevImp) * 100 : null;
 
       const countries = new Set(rows.map(r => r[3])).size;
       const products = new Set(rows.map(r => r[2])).size;
+      const rangeLabel = " (" + periodRangeLabel() + ")";
 
       const tiles = [
-        { label: "Toplam İhracat" + (state.year === "all" ? " (tüm yıllar)" : " (" + state.year + ")"), value: fmtUsd(exp), delta: yoyExp },
-        { label: "Toplam İthalat" + (state.year === "all" ? " (tüm yıllar)" : " (" + state.year + ")"), value: fmtUsd(imp), delta: yoyImp },
+        { label: "Toplam İhracat" + rangeLabel, value: fmtUsd(exp), delta: yoyExp },
+        { label: "Toplam İthalat" + rangeLabel, value: fmtUsd(imp), delta: yoyImp },
         { label: "Net (İhracat − İthalat)", value: (net >= 0 ? "+" : "") + fmtUsd(net), delta: null },
         { label: "Kapsanan ülke", value: String(countries), delta: null },
         { label: "Kapsanan ürün", value: String(products), delta: null },
-        { label: "Filtrelenen kayıt", value: rows.length.toLocaleString("tr-TR"), delta: null },
+        { label: "Toplam Tonaj", value: fmtKg(kg), delta: null },
       ];
 
       const container = document.getElementById("kpi-row");
@@ -282,19 +316,44 @@
     }
 
     // ---------- filter controls ----------
-    function buildYearSelect() {
-      const sel = document.getElementById("year-select");
-      sel.textContent = "";
-      const optAll = document.createElement("option");
-      optAll.value = "all"; optAll.textContent = "Tüm Yıllar (Toplam)";
-      sel.appendChild(optAll);
-      for (const y of allYears) {
-        const opt = document.createElement("option");
-        opt.value = String(y); opt.textContent = String(y);
-        sel.appendChild(opt);
-      }
-      sel.value = state.year;
-      sel.addEventListener("change", () => { state.year = sel.value; renderAll(); });
+    function setPeriodInputs() {
+      document.getElementById("period-start").value = keyToMonthInput(state.periodStart);
+      document.getElementById("period-end").value = keyToMonthInput(state.periodEnd);
+    }
+
+    function setPeriod(startKey, endKey, presetName) {
+      if (startKey > endKey) { const t = startKey; startKey = endKey; endKey = t; }
+      state.periodStart = Math.max(minPeriodKey, startKey);
+      state.periodEnd = Math.min(maxPeriodKey, endKey);
+      setPeriodInputs();
+      document.querySelectorAll("#period-presets .seg").forEach(b => b.classList.toggle("active", b.dataset.preset === presetName));
+      renderAll();
+    }
+
+    function buildPeriodControls() {
+      const startInput = document.getElementById("period-start");
+      const endInput = document.getElementById("period-end");
+      startInput.min = endInput.min = keyToMonthInput(minPeriodKey);
+      startInput.max = endInput.max = keyToMonthInput(maxPeriodKey);
+      setPeriodInputs();
+
+      const onManualChange = () => {
+        const s = monthInputToKey(startInput.value) ?? state.periodStart;
+        const e = monthInputToKey(endInput.value) ?? state.periodEnd;
+        document.querySelectorAll("#period-presets .seg").forEach(b => b.classList.remove("active"));
+        setPeriod(s, e, null);
+      };
+      startInput.addEventListener("change", onManualChange);
+      endInput.addEventListener("change", onManualChange);
+
+      document.querySelectorAll("#period-presets .seg").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const preset = btn.dataset.preset;
+          if (preset === "ytd") setPeriod(ytdStartKey, maxPeriodKey, "ytd");
+          else if (preset === "12m") setPeriod(maxPeriodKey - 11, maxPeriodKey, "12m");
+          else if (preset === "all") setPeriod(minPeriodKey, maxPeriodKey, "all");
+        });
+      });
     }
 
     function buildFlowFilter() {
@@ -346,18 +405,62 @@
     }
 
     function buildCountrySearch() {
-      const datalist = document.getElementById("country-datalist");
-      datalist.textContent = "";
-      allCountries.forEach(code => {
-        const opt = document.createElement("option");
-        opt.value = countryNames[code];
-        datalist.appendChild(opt);
-      });
       const input = document.getElementById("country-search");
-      input.addEventListener("change", () => {
-        const val = input.value.trim();
-        const match = allCountries.find(c => countryNames[c].toLowerCase() === val.toLowerCase());
-        if (match) { state.countries.add(match); input.value = ""; renderAll(); }
+      const box = document.getElementById("country-suggestions");
+      let activeIndex = -1;
+      let currentMatches = [];
+
+      function closeSuggestions() {
+        box.classList.remove("open");
+        box.textContent = "";
+        activeIndex = -1;
+        currentMatches = [];
+      }
+
+      function pick(code) {
+        state.countries.add(code);
+        input.value = "";
+        closeSuggestions();
+        renderAll();
+        input.focus();
+      }
+
+      function renderSuggestions() {
+        const q = input.value.trim().toLowerCase();
+        box.textContent = "";
+        if (!q) { closeSuggestions(); return; }
+        currentMatches = allCountries
+          .filter(c => !state.countries.has(c) && countryNames[c].toLowerCase().includes(q))
+          .slice(0, 30);
+        if (!currentMatches.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "Eşleşen ülke yok";
+          box.appendChild(empty);
+          box.classList.add("open");
+          activeIndex = -1;
+          return;
+        }
+        currentMatches.forEach((code, i) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = countryNames[code];
+          if (i === activeIndex) btn.classList.add("active-option");
+          btn.addEventListener("mousedown", evt => { evt.preventDefault(); pick(code); });
+          box.appendChild(btn);
+        });
+        box.classList.add("open");
+      }
+
+      input.addEventListener("input", () => { activeIndex = -1; renderSuggestions(); });
+      input.addEventListener("focus", () => { if (input.value.trim()) renderSuggestions(); });
+      input.addEventListener("blur", () => { closeSuggestions(); });
+      input.addEventListener("keydown", evt => {
+        if (!currentMatches.length) return;
+        if (evt.key === "ArrowDown") { evt.preventDefault(); activeIndex = Math.min(currentMatches.length - 1, activeIndex + 1); renderSuggestions(); }
+        else if (evt.key === "ArrowUp") { evt.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); renderSuggestions(); }
+        else if (evt.key === "Enter") { evt.preventDefault(); pick(currentMatches[activeIndex >= 0 ? activeIndex : 0]); }
+        else if (evt.key === "Escape") { closeSuggestions(); }
       });
     }
 
@@ -379,12 +482,12 @@
     }
 
     document.getElementById("reset-filters").addEventListener("click", () => {
-      state.flow = "all"; state.year = String(maxYear);
+      state.flow = "all";
       state.products.clear(); state.countries.clear();
       document.querySelectorAll("#flow-filter .seg").forEach(b => b.classList.toggle("active", b.dataset.value === "all"));
-      document.getElementById("year-select").value = String(maxYear);
       document.querySelectorAll("#product-chips .chip").forEach(c => c.classList.remove("active"));
-      renderAll();
+      document.getElementById("country-search").value = "";
+      setPeriod(ytdStartKey, maxPeriodKey, "ytd");
     });
 
     // ---------- tooltip ----------
@@ -412,7 +515,7 @@
       const groups = computeGroups(rows, dims).sort((a, b) => b.usd - a.usd).slice(0, 10);
 
       document.getElementById("top-chart-title").textContent =
-        "İlk 10 — " + dims.map(d => DIMENSIONS[d].label).join(" × ") + (state.year === "all" ? " (tüm yıllar)" : " (" + state.year + ")");
+        "İlk 10 — " + dims.map(d => DIMENSIONS[d].label).join(" × ") + " (" + periodRangeLabel() + ")";
 
       const svg = document.getElementById("top-chart");
       svg.textContent = "";
@@ -500,68 +603,146 @@
       });
     }
 
-    // ---------- month trend line chart (zoomable: wheel to zoom, drag to select a range) ----------
-    const TREND_W = 560, TREND_H = 220, TREND_PADL = 60, TREND_PADR = 16, TREND_PADT = 12, TREND_PADB = 26;
-    const MONTH_ABBR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-    const MONTH_FULL = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+    // ---------- month trend charts (value + unit price) — driven by the Dönem filter ----------
+    // No separate chart-only zoom/pan math anymore: the visible window is exactly
+    // [state.periodStart, state.periodEnd], the same range the KPIs/table use, so
+    // "what basis is this data on" always has one visible, unambiguous answer.
+    // Panning moves that shared range; ◀ ▶ shift it by its own width.
+    const TREND_W = 560, TREND_H = 170, TREND_PADL = 60, TREND_PADR = 16, TREND_PADT = 10, TREND_PADB = 24;
 
-    // period "key" = ay çözünürlüğünde tek bir sıralanabilir tamsayı (year*12 + monthIndex0).
-    // Kaynak artık her satırda ay bilgisi veriyor (bkz. qlik_client.py); eski period_month
-    // NULL bir satır sızarsa Ocak'a düşürülür ki eksene tek bir nokta olarak girsin.
-    function periodKey(year, month) { return year * 12 + ((month || 1) - 1); }
-    function periodFromKey(key) {
-      const month = (((key % 12) + 12) % 12) + 1;
-      return { year: (key - (month - 1)) / 12, month };
-    }
-    function periodLabelShort(key) { const p = periodFromKey(key); return MONTH_ABBR[p.month - 1] + " " + String(p.year).slice(2); }
-    function periodLabelFull(key) { const p = periodFromKey(key); return MONTH_FULL[p.month - 1] + " " + p.year; }
-
-    function trendPeriodsFull() {
-      const keys = new Set();
-      RAW.forEach(r => keys.add(periodKey(r[0], r[7])));
-      return [...keys].sort((a, b) => a - b);
+    function trendPeriods() {
+      const periods = [];
+      for (let k = state.periodStart; k <= state.periodEnd; k++) periods.push(k);
+      return periods;
     }
 
-    function trendVisiblePeriods() {
-      const full = trendPeriodsFull();
-      if (!state.trendZoom) return full;
-      const [a, b] = state.trendZoom;
-      const sliced = full.filter(k => k >= a && k <= b);
-      return sliced.length >= 2 ? sliced : full;
+    function updateTrendNav() {
+      document.getElementById("trend-range-label").textContent = periodRangeLabel();
+      const span = state.periodEnd - state.periodStart;
+      document.getElementById("trend-prev").disabled = state.periodStart - span - 1 < minPeriodKey;
+      document.getElementById("trend-next").disabled = state.periodEnd + span + 1 > maxPeriodKey;
     }
 
-    function trendXStep(periods) {
-      return periods.length > 1 ? (TREND_W - TREND_PADL - TREND_PADR) / (periods.length - 1) : 0;
+    function panTrend(direction) {
+      const span = state.periodEnd - state.periodStart;
+      const shift = (span + 1) * direction;
+      let newStart = state.periodStart + shift;
+      let newEnd = state.periodEnd + shift;
+      if (newStart < minPeriodKey) { newStart = minPeriodKey; newEnd = newStart + span; }
+      if (newEnd > maxPeriodKey) { newEnd = maxPeriodKey; newStart = newEnd - span; }
+      setPeriod(newStart, newEnd, null);
     }
 
-    function svgPoint(svg, evt) {
-      const pt = svg.createSVGPoint();
-      pt.x = evt.clientX; pt.y = evt.clientY;
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return { x: 0, y: 0 };
-      const loc = pt.matrixTransform(ctm.inverse());
-      return { x: loc.x, y: loc.y };
-    }
-
-    function setTrendZoom(range) {
-      const full = trendPeriodsFull();
-      if (full.length < 2 || !range) {
-        state.trendZoom = null;
-      } else {
-        const minKey = full[0], maxKey = full[full.length - 1];
-        let [a, b] = range;
-        if (a > b) { const t = a; a = b; b = t; }
-        if (b - a < 2) { a = Math.max(minKey, b - 2); b = a + 2; }
-        a = Math.max(minKey, Math.round(a)); b = Math.min(maxKey, Math.round(b));
-        state.trendZoom = (a <= minKey && b >= maxKey) ? null : [a, b];
+    // ortak eksen/gridline/hover-crosshair çizici — değer ve birim fiyat grafikleri
+    // aynı ay eksenini paylaştığı için tek bir çizici fonksiyon kullanılıyor.
+    function drawSeriesChart(svgId, periods, series, valueFmt, tooltipTitle) {
+      const svg = document.getElementById(svgId);
+      svg.textContent = "";
+      svg.setAttribute("viewBox", "0 0 " + TREND_W + " " + TREND_H);
+      if (periods.length < 1) {
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", TREND_PADL); t.setAttribute("y", TREND_H / 2); t.setAttribute("class", "axis-label");
+        t.textContent = "Bu dönemde veri yok.";
+        svg.appendChild(t);
+        return;
       }
-      const btn = document.getElementById("trend-zoom-reset");
-      if (btn) btn.style.display = state.trendZoom ? "inline-flex" : "none";
-      renderTrendChart();
+
+      // tek aylık bir aralıkta çizgi çizilemez (bölme hatasına yol açar) — nokta ortalanır.
+      const xStep = periods.length > 1 ? (TREND_W - TREND_PADL - TREND_PADR) / (periods.length - 1) : 0;
+      const xScale = i => periods.length > 1 ? TREND_PADL + i * xStep : (TREND_PADL + (TREND_W - TREND_PADR)) / 2;
+      const maxVal = Math.max(1, ...series.map(s => Math.max(0, ...periods.map(k => s.totals.get(k) || 0))));
+      const yScale = v => TREND_H - TREND_PADB - (v / maxVal) * (TREND_H - TREND_PADB - TREND_PADT);
+
+      for (let g = 0; g <= 3; g++) {
+        const y = TREND_PADT + (g * (TREND_H - TREND_PADB - TREND_PADT)) / 3;
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("class", "gridline");
+        line.setAttribute("x1", TREND_PADL); line.setAttribute("x2", TREND_W - TREND_PADR);
+        line.setAttribute("y1", y); line.setAttribute("y2", y);
+        svg.appendChild(line);
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", TREND_PADL - 8); t.setAttribute("y", y + 3);
+        t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+        t.textContent = valueFmt(maxVal - (g * maxVal) / 3);
+        svg.appendChild(t);
+      }
+
+      // etiketler asla üst üste binmesin diye piksel cinsinden minimum aralık uygulanır
+      const minLabelGap = 34;
+      const tickEvery = Math.max(1, Math.ceil((minLabelGap) / Math.max(xStep, 1)));
+      periods.forEach((key, i) => {
+        const isLast = i === periods.length - 1;
+        if (i % tickEvery !== 0 && !isLast) return;
+        if (isLast && periods.length > 1 && (periods.length - 1) % tickEvery !== 0) {
+          const prevShown = Math.floor((periods.length - 1) / tickEvery) * tickEvery;
+          if ((periods.length - 1 - prevShown) * xStep < minLabelGap) return;
+        }
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", xScale(i)); t.setAttribute("y", TREND_H - 6);
+        t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+        t.textContent = periodLabelShort(key);
+        svg.appendChild(t);
+      });
+
+      const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      hoverLine.setAttribute("class", "baseline");
+      hoverLine.setAttribute("y1", TREND_PADT); hoverLine.setAttribute("y2", TREND_H - TREND_PADB);
+      hoverLine.style.opacity = "0";
+      svg.appendChild(hoverLine);
+
+      series.forEach(s => {
+        const pts = periods.map((k, i) => [xScale(i), yScale(s.totals.get(k) || 0)]);
+        if (pts.length === 1) {
+          const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          dot.setAttribute("cx", pts[0][0]); dot.setAttribute("cy", pts[0][1]); dot.setAttribute("r", "4");
+          dot.setAttribute("fill", s.color);
+          svg.appendChild(dot);
+          return;
+        }
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+        path.setAttribute("stroke", s.color); path.setAttribute("stroke-width", "2");
+        path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+        svg.appendChild(path);
+      });
+
+      const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      periods.forEach((key, i) => {
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        const hitW = Math.max(xStep, 6);
+        rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", TREND_PADT);
+        rect.setAttribute("width", hitW); rect.setAttribute("height", TREND_H - TREND_PADB - TREND_PADT);
+        rect.setAttribute("fill", "transparent"); rect.style.cursor = "pointer";
+        rect.tabIndex = 0;
+        const showFn = evt => {
+          hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
+          hoverLine.style.opacity = "1";
+          const wrap = document.createElement("div");
+          const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = tooltipTitle(key);
+          wrap.appendChild(ttl);
+          series.forEach(s => {
+            const val = s.totals.get(key);
+            if (val == null) return;
+            const row = document.createElement("div"); row.className = "row";
+            const keyLine = document.createElement("span"); keyLine.className = "key-line"; keyLine.style.background = s.color;
+            const v = document.createElement("span"); v.className = "val"; v.textContent = s.fullFmt(val);
+            row.appendChild(keyLine); row.appendChild(v); row.appendChild(document.createTextNode(" " + s.label));
+            wrap.appendChild(row);
+          });
+          showTooltip(evt, wrap);
+        };
+        rect.addEventListener("pointermove", showFn);
+        rect.addEventListener("focus", showFn);
+        rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+        rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+        hitLayer.appendChild(rect);
+      });
+      svg.appendChild(hitLayer);
     }
 
     function renderTrendChart() {
-      const rows = filteredRowsAllYears();
+      updateTrendNav();
+      const rows = filteredRows();
       const showBoth = state.flow === "all";
       const flowsToShow = showBoth ? [0, 1] : [Number(state.flow)];
 
@@ -577,11 +758,8 @@
         });
       }
 
-      const svg = document.getElementById("trend-chart");
-      svg.textContent = "";
-      svg.setAttribute("viewBox", "0 0 " + TREND_W + " " + TREND_H);
-
-      const totalsByFlow = flowsToShow.map(f => {
+      const periods = trendPeriods();
+      const valueTotals = flowsToShow.map(f => {
         const m = new Map();
         rows.filter(r => r[1] === f).forEach(r => {
           const key = periodKey(r[0], r[7]);
@@ -589,171 +767,40 @@
         });
         return m;
       });
-      const periods = trendVisiblePeriods();
-      const maxVal = Math.max(1, ...flowsToShow.map((f, fi) => Math.max(0, ...periods.map(k => totalsByFlow[fi].get(k) || 0))));
-      const xStep = trendXStep(periods);
-      const xScale = i => TREND_PADL + i * xStep;
-      const yScale = v => TREND_H - TREND_PADB - (v / maxVal) * (TREND_H - TREND_PADB - TREND_PADT);
+      drawSeriesChart(
+        "trend-chart", periods,
+        flowsToShow.map((f, fi) => ({ totals: valueTotals[fi], color: FLOW_COLOR[f], label: FLOW_LABEL[f], fullFmt: fmtUsdFull })),
+        fmtUsd, key => periodLabelFull(key)
+      );
 
-      for (let g = 0; g <= 3; g++) {
-        const y = TREND_PADT + (g * (TREND_H - TREND_PADB - TREND_PADT)) / 3;
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("class", "gridline");
-        line.setAttribute("x1", TREND_PADL); line.setAttribute("x2", TREND_W - TREND_PADR);
-        line.setAttribute("y1", y); line.setAttribute("y2", y);
-        svg.appendChild(line);
-        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("x", TREND_PADL - 8); t.setAttribute("y", y + 3);
-        t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
-        t.textContent = fmtUsd(maxVal - (g * maxVal) / 3);
-        svg.appendChild(t);
-      }
-
-      // zoomed out (>3 yıl görünürde): sadece Ocak ayı noktalarında yıl etiketi göster
-      // (yıllık grafiğin eski, temiz görünümü); yakınlaşınca ay+yıl etiketine geçer.
-      const showMonthTicks = periods.length <= 36;
-      const tickEvery = Math.max(1, Math.ceil(periods.length / 8));
-      periods.forEach((key, i) => {
-        const p = periodFromKey(key);
-        const isLast = i === periods.length - 1;
-        const show = showMonthTicks ? (i % tickEvery === 0 || isLast) : (p.month === 1 || isLast);
-        if (!show) return;
-        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("x", xScale(i)); t.setAttribute("y", TREND_H - 6);
-        t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
-        t.textContent = showMonthTicks ? periodLabelShort(key) : String(p.year);
-        svg.appendChild(t);
+      const usdTotals = flowsToShow.map(f => {
+        const m = new Map();
+        rows.filter(r => r[1] === f).forEach(r => { const k = periodKey(r[0], r[7]); m.set(k, (m.get(k) || 0) + (r[5] || 0)); });
+        return m;
       });
-
-      const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      hoverLine.setAttribute("class", "baseline");
-      hoverLine.setAttribute("y1", TREND_PADT); hoverLine.setAttribute("y2", TREND_H - TREND_PADB);
-      hoverLine.style.opacity = "0";
-      svg.appendChild(hoverLine);
-
-      flowsToShow.forEach((f, fi) => {
-        const totals = totalsByFlow[fi];
-        const pts = periods.map((k, i) => [xScale(i), yScale(totals.get(k) || 0)]);
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
-        path.setAttribute("stroke", FLOW_COLOR[f]); path.setAttribute("stroke-width", "2");
-        path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
-        svg.appendChild(path);
+      const kgTotals = flowsToShow.map(f => {
+        const m = new Map();
+        rows.filter(r => r[1] === f).forEach(r => { const k = periodKey(r[0], r[7]); m.set(k, (m.get(k) || 0) + (r[6] || 0)); });
+        return m;
       });
-
-      const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      periods.forEach((key, i) => {
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        const hitW = Math.max(xStep, 6);
-        rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", TREND_PADT);
-        rect.setAttribute("width", hitW); rect.setAttribute("height", TREND_H - TREND_PADB - TREND_PADT);
-        rect.setAttribute("fill", "transparent"); rect.style.cursor = "crosshair";
-        rect.tabIndex = 0;
-        const showFn = evt => {
-          if (trendDrag) return;
-          hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
-          hoverLine.style.opacity = "1";
-          const wrap = document.createElement("div");
-          const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = periodLabelFull(key);
-          wrap.appendChild(ttl);
-          flowsToShow.forEach((f, fi) => {
-            const val = totalsByFlow[fi].get(key) || 0;
-            const row = document.createElement("div"); row.className = "row";
-            const keyLine = document.createElement("span"); keyLine.className = "key-line"; keyLine.style.background = FLOW_COLOR[f];
-            const v = document.createElement("span"); v.className = "val"; v.textContent = fmtUsdFull(val);
-            row.appendChild(keyLine); row.appendChild(v); row.appendChild(document.createTextNode(" " + FLOW_LABEL[f]));
-            wrap.appendChild(row);
-          });
-          showTooltip(evt, wrap);
-        };
-        rect.addEventListener("pointermove", showFn);
-        rect.addEventListener("focus", showFn);
-        rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
-        rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
-        hitLayer.appendChild(rect);
+      const priceTotals = flowsToShow.map((f, fi) => {
+        const m = new Map();
+        periods.forEach(k => {
+          const kg = kgTotals[fi].get(k);
+          if (kg) m.set(k, (usdTotals[fi].get(k) / kg) * 1000);
+        });
+        return m;
       });
-      svg.appendChild(hitLayer);
+      drawSeriesChart(
+        "price-chart", periods,
+        flowsToShow.map((f, fi) => ({ totals: priceTotals[fi], color: FLOW_COLOR[f], label: FLOW_LABEL[f], fullFmt: fmtUnitPrice })),
+        v => "$" + Math.round(v), key => periodLabelFull(key)
+      );
     }
 
-    // ---------- trend chart zoom interactions (wheel + drag-select) ----------
-    let trendDrag = null;
-
-    function onTrendWheel(evt) {
-      const full = trendPeriodsFull();
-      if (full.length < 2) return;
-      evt.preventDefault();
-      const minKey = full[0], maxKey = full[full.length - 1];
-      const [curA, curB] = state.trendZoom || [minKey, maxKey];
-      const svg = document.getElementById("trend-chart");
-      const periods = trendVisiblePeriods();
-      const xStep = trendXStep(periods);
-      const pt = svgPoint(svg, evt);
-      let idx = xStep ? Math.round((pt.x - TREND_PADL) / xStep) : 0;
-      idx = Math.max(0, Math.min(periods.length - 1, idx));
-      const centerKey = periods[idx] != null ? periods[idx] : curA;
-
-      const factor = evt.deltaY < 0 ? 0.72 : 1 / 0.72;
-      const curWidth = Math.max(2, curB - curA);
-      const newWidth = Math.max(2, Math.min(maxKey - minKey, curWidth * factor));
-      const ratio = curWidth ? (centerKey - curA) / curWidth : 0.5;
-      const newA = Math.round(centerKey - newWidth * ratio);
-      const newB = Math.round(newA + newWidth);
-      setTrendZoom(newWidth >= maxKey - minKey ? null : [newA, newB]);
-    }
-
-    function onTrendMouseDown(evt) {
-      if (evt.button !== 0) return;
-      const svg = document.getElementById("trend-chart");
-      const pt = svgPoint(svg, evt);
-      if (pt.x < TREND_PADL || pt.x > TREND_W - TREND_PADR) return;
-      trendDrag = { startX: pt.x, rect: null };
-      hideTooltip();
-    }
-
-    function onTrendMouseMove(evt) {
-      if (!trendDrag) return;
-      const svg = document.getElementById("trend-chart");
-      const pt = svgPoint(svg, evt);
-      const x1 = Math.max(TREND_PADL, Math.min(trendDrag.startX, pt.x));
-      const x2 = Math.min(TREND_W - TREND_PADR, Math.max(trendDrag.startX, pt.x));
-      if (!trendDrag.rect) {
-        trendDrag.rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        trendDrag.rect.setAttribute("class", "trend-brush");
-        svg.appendChild(trendDrag.rect);
-      }
-      trendDrag.rect.setAttribute("x", x1);
-      trendDrag.rect.setAttribute("y", TREND_PADT);
-      trendDrag.rect.setAttribute("width", Math.max(0, x2 - x1));
-      trendDrag.rect.setAttribute("height", TREND_H - TREND_PADT - TREND_PADB);
-    }
-
-    function onTrendMouseUp(evt) {
-      if (!trendDrag) return;
-      const svg = document.getElementById("trend-chart");
-      const pt = svgPoint(svg, evt);
-      const startX = trendDrag.startX;
-      const hadRect = !!trendDrag.rect;
-      if (trendDrag.rect) trendDrag.rect.remove();
-      trendDrag = null;
-      if (!hadRect || Math.abs(pt.x - startX) < 6) return;
-      const periods = trendVisiblePeriods();
-      const xStep = trendXStep(periods);
-      if (!xStep || periods.length < 2) return;
-      const idx1 = Math.round((Math.min(startX, pt.x) - TREND_PADL) / xStep);
-      const idx2 = Math.round((Math.max(startX, pt.x) - TREND_PADL) / xStep);
-      const a = periods[Math.max(0, Math.min(periods.length - 1, idx1))];
-      const b = periods[Math.max(0, Math.min(periods.length - 1, idx2))];
-      setTrendZoom([a, b]);
-    }
-
-    function setupTrendZoom() {
-      const svg = document.getElementById("trend-chart");
-      svg.addEventListener("wheel", onTrendWheel, { passive: false });
-      svg.addEventListener("mousedown", onTrendMouseDown);
-      svg.addEventListener("dblclick", () => setTrendZoom(null));
-      window.addEventListener("mousemove", onTrendMouseMove);
-      window.addEventListener("mouseup", onTrendMouseUp);
-      document.getElementById("trend-zoom-reset").addEventListener("click", () => setTrendZoom(null));
+    function setupTrendNav() {
+      document.getElementById("trend-prev").addEventListener("click", () => panTrend(-1));
+      document.getElementById("trend-next").addEventListener("click", () => panTrend(1));
     }
 
     // ---------- pivot table ----------
@@ -875,12 +922,14 @@
     }
 
 
-    buildYearSelect();
+    document.getElementById("asof-badge").textContent = "Veri " + periodLabelFull(maxPeriodKey) + " dönemine kadar güncel";
+
+    buildPeriodControls();
     buildFlowFilter();
     buildProductChips();
     buildCountrySearch();
     buildGroupControls();
-    setupTrendZoom();
+    setupTrendNav();
     renderAll();
     renderReport(report);
   }
