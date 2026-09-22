@@ -69,6 +69,26 @@ def main() -> None:
         for kw in ["CORN", "SOYBEAN", "Soybean Meal", "WORLD CORN", "WORLD SOYBEAN"]:
             idx = txt_content.upper().find(kw.upper())
             print(f"{kw}: found at index {idx}" if idx >= 0 else f"{kw}: NOT FOUND")
+
+        with open("wasde_latest.txt", "w", encoding="utf-8") as f:
+            f.write(txt_content)
+        print(f"\nfull txt saved, total length {len(txt_content)}")
+
+        # dump the actual US/World Corn table and Soybean+meal table in full
+        for label, start_kw, end_kw in [
+            ("US CORN TABLE", "\nCorn", "\nSorghum"),
+            ("WORLD CORN TABLE", "WORLD CORN", "WORLD SORGHUM"),
+            ("US SOYBEAN + PRODUCTS TABLE", "\nSoybeans", "U.S. Cotton"),
+            ("WORLD SOYBEAN TABLE", "WORLD SOYBEAN", "WORLD SOYBEAN OIL"),
+            ("WORLD SOYBEAN MEAL TABLE", "WORLD SOYBEAN MEAL", "WORLD SOYBEAN OIL"),
+        ]:
+            si = txt_content.find(start_kw)
+            ei = txt_content.find(end_kw, si + 1) if si >= 0 else -1
+            print(f"\n\n===== {label} (start={si}, end={ei}) =====")
+            if si >= 0:
+                print(txt_content[si : ei if ei > si else si + 3000])
+            else:
+                print("NOT FOUND")
     else:
         print("\nNo .txt link found among matches.", file=sys.stderr)
 
