@@ -74,21 +74,19 @@ def main() -> None:
             f.write(txt_content)
         print(f"\nfull txt saved, total length {len(txt_content)}")
 
-        # dump the actual US/World Corn table and Soybean+meal table in full
-        for label, start_kw, end_kw in [
-            ("US CORN TABLE", "\nCorn", "\nSorghum"),
-            ("WORLD CORN TABLE", "WORLD CORN", "WORLD SORGHUM"),
-            ("US SOYBEAN + PRODUCTS TABLE", "\nSoybeans", "U.S. Cotton"),
-            ("WORLD SOYBEAN TABLE", "WORLD SOYBEAN", "WORLD SOYBEAN OIL"),
-            ("WORLD SOYBEAN MEAL TABLE", "WORLD SOYBEAN MEAL", "WORLD SOYBEAN OIL"),
-        ]:
-            si = txt_content.find(start_kw)
-            ei = txt_content.find(end_kw, si + 1) if si >= 0 else -1
-            print(f"\n\n===== {label} (start={si}, end={ei}) =====")
-            if si >= 0:
-                print(txt_content[si : ei if ei > si else si + 3000])
-            else:
-                print("NOT FOUND")
+        # önceki denemede tahmin edilen start/end anahtar kelimeleri eşleşmedi
+        # (hepsi NOT FOUND döndü) — gerçek başlık metnini/boşluk düzenini görmek
+        # için doğrulanmış indexlerin etrafında geniş ham dilim yazdır.
+        confirmed_indices = {
+            "CORN (first occurrence)": 16777,
+            "SOYBEAN (first occurrence)": 28337,
+            "Soybean Meal (first occurrence)": 31154,
+            "WORLD CORN (first occurrence)": 56254,
+            "WORLD SOYBEAN (first occurrence)": 83400,
+        }
+        for label, idx in confirmed_indices.items():
+            print(f"\n\n===== RAW SLICE around {label} (idx={idx}) =====")
+            print(repr(txt_content[max(0, idx - 300) : idx + 2500]))
     else:
         print("\nNo .txt link found among matches.", file=sys.stderr)
 
