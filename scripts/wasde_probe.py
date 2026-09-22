@@ -35,15 +35,6 @@ def main() -> None:
     with open("wasde_page.html", "w", encoding="utf-8") as f:
         f.write(html)
 
-    # 2020'deki eski site tasarımının class'ı (file_download) artık yok —
-    # site Drupal 11'e taşınmış. Güncel yapıyı bulmak için olası anahtar
-    # kelimelerin etrafındaki ham HTML'i dök.
-    for kw in [".pdf", ".txt", ".xls", "release-items", "download", "release_datetime", "release-date"]:
-        idx = html.find(kw)
-        print(f"\n--- first occurrence of {kw!r} at index {idx} ---")
-        if idx >= 0:
-            print(html[max(0, idx - 400) : idx + 400])
-
     # any <a> tags whose href ends in a file extension we care about
     href_re = re.compile(r'<a[^>]*href="([^"]+\.(?:pdf|txt|xls|xlsx|zip))"[^>]*>(.*?)</a>', re.I | re.S)
     matches = href_re.findall(html)
@@ -63,30 +54,18 @@ def main() -> None:
         print(f"\nDownloading latest TXT: {txt_url}", file=sys.stderr)
         txt_content = fetch(txt_url)
         print(f"txt length: {len(txt_content)}", file=sys.stderr)
-        print("\n=== FIRST 4000 CHARS OF TXT ===")
-        print(txt_content[:4000])
-        print("\n=== SEARCHING FOR 'CORN' AND 'SOYBEAN' SECTIONS ===")
-        for kw in ["CORN", "SOYBEAN", "Soybean Meal", "WORLD CORN", "WORLD SOYBEAN"]:
-            idx = txt_content.upper().find(kw.upper())
-            print(f"{kw}: found at index {idx}" if idx >= 0 else f"{kw}: NOT FOUND")
 
         with open("wasde_latest.txt", "w", encoding="utf-8") as f:
             f.write(txt_content)
         print(f"\nfull txt saved, total length {len(txt_content)}")
 
-        # önceki denemede tahmin edilen start/end anahtar kelimeleri eşleşmedi
-        # (hepsi NOT FOUND döndü) — gerçek başlık metnini/boşluk düzenini görmek
-        # için doğrulanmış indexlerin etrafında geniş ham dilim yazdır.
-        confirmed_indices = {
-            "CORN (first occurrence)": 16777,
-            "SOYBEAN (first occurrence)": 28337,
-            "Soybean Meal (first occurrence)": 31154,
-            "WORLD CORN (first occurrence)": 56254,
-            "WORLD SOYBEAN (first occurrence)": 83400,
-        }
-        for label, idx in confirmed_indices.items():
-            print(f"\n\n===== RAW SLICE around {label} (idx={idx}) =====")
-            print(repr(txt_content[max(0, idx - 300) : idx + 2500]))
+        # GitHub Actions artifact indirme egress'ten engellendiği için (sadece
+        # usda.gov değil, Azure blob depolama da bloklu) — tüm dosyayı iş
+        # kaydına (job log) düz metin olarak yazdır, buradan tail_lines ile
+        # tamamını okuyacağız.
+        print("\n=== FULL TXT START ===")
+        print(txt_content)
+        print("=== FULL TXT END ===")
     else:
         print("\nNo .txt link found among matches.", file=sys.stderr)
 

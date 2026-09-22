@@ -19,12 +19,3 @@ jobs:
 
       - name: Probe WASDE source (usda.library.cornell.edu), no writes
         run: python scripts/wasde_probe.py
-
-      - name: Upload raw WASDE files for local inspection
-        uses: actions/upload-artifact@v4
-        with:
-          name: wasde-raw
-          path: |
-            wasde_page.html
-            wasde_latest.txt
-          retention-days: 3
