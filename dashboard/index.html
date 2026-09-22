@@ -24,6 +24,12 @@
     </div>
   </header>
 
+  <div class="tab-bar" id="source-tabs" role="tablist" aria-label="Veri kaynağı">
+    <button class="tab active" id="tab-tuik" type="button" role="tab" aria-selected="true">TÜİK Dış Ticaret</button>
+    <button class="tab" id="tab-wasde" type="button" role="tab" aria-selected="false">WASDE Raporu</button>
+  </div>
+
+  <div id="tuik-panel">
   <section class="filters" aria-label="Filtreler">
     <div class="filter-group">
       <span class="filter-label">Yön</span>
@@ -115,9 +121,57 @@
     <h2>Günlük rapor</h2>
     <div id="report-body"></div>
   </section>
+  </div>
+
+  <div id="wasde-panel" hidden>
+    <div class="wasde-banner">
+      <div>
+        <strong>WASDE, TÜİK'ten tamamen ayrı bir sistem.</strong>
+        TÜİK Türkiye'nin gerçek gümrük ihracat/ithalat rakamlarını verir; WASDE ise ABD Tarım Bakanlığı'nın
+        her ay yayınladığı, Türkiye'ye özgü olmayan küresel üretim/arz/talep/stok <em>tahminidir</em>. İkisi
+        aynı birimde veya aynı kapsamda değildir, doğrudan toplanıp çıkarılamaz.
+      </div>
+      <span class="wasde-release-badge" id="wasde-release-badge">Yükleniyor…</span>
+    </div>
+
+    <section class="filters" aria-label="WASDE filtreleri">
+      <div class="filter-group">
+        <span class="filter-label">Ürün</span>
+        <div class="segmented" id="wasde-commodity" role="group" aria-label="Emtia"></div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Kapsam</span>
+        <div class="segmented" id="wasde-scope" role="group" aria-label="Kapsam">
+          <button class="seg active" data-value="us">ABD</button>
+          <button class="seg" data-value="world">Dünya</button>
+        </div>
+      </div>
+      <div class="filter-group" id="wasde-region-group">
+        <span class="filter-label">Bölge</span>
+        <div class="segmented" id="wasde-region" role="group" aria-label="Bölge"></div>
+      </div>
+    </section>
+
+    <section class="kpi-row" id="wasde-kpi-row" aria-label="WASDE özet göstergeler"></section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 id="wasde-table-title">Bilanço tablosu</h2>
+      </div>
+      <div class="table-scroll">
+        <table class="pivot" id="wasde-table">
+          <thead><tr id="wasde-thead"></tr></thead>
+          <tbody id="wasde-tbody"></tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <span>Devreden Stok satırındaki % değerler: soldan sağa "Bir önceki rapora göre" (aynı pazarlama yılının bir önceki ay tahminine göre revizyon) ve "Bir önceki pazarlama yılına göre" (yıllık eğilim) — negatif değer stokta düşüş demektir.</span>
+      </div>
+    </section>
+  </div>
 
   <footer class="note">
-    Veri kaynağı: TÜİK dış ticaret istatistikleri, Qlik Engine API üzerinden doğrudan çekildi ve Supabase üzerinden bu sayfaya canlı yüklenir. Kaynak: <a href="https://github.com/tahaozkilinc/tuik-veri" target="_blank" rel="noopener">tahaozkilinc/tuik-veri</a>.
+    Veri kaynağı: TÜİK dış ticaret istatistikleri, Qlik Engine API üzerinden doğrudan çekildi ve Supabase üzerinden bu sayfaya canlı yüklenir. WASDE verisi USDA'nın aylık yayınından çekilir. Kaynak: <a href="https://github.com/tahaozkilinc/tuik-veri" target="_blank" rel="noopener">tahaozkilinc/tuik-veri</a>.
   </footer>
 </div>
 

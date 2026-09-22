@@ -944,3 +944,322 @@
       setStatus("Veri çekilemedi — Supabase bağlantısını kontrol edin", false);
     });
 })();
+
+// ---------------------------------------------------------------------------
+// WASDE (USDA) sekmesi — TÜİK'ten tamamen ayrı bir kaynak/veri modeli olduğu
+// için kasıtlı olarak ayrı bir IIFE: kendi state'i, kendi fetch'i, kendi
+// render'ı. Yalnızca sekmeye ilk tıklandığında veri çekilir (gereksiz istek
+// yok), TÜİK panelindeki state'e hiç dokunmaz.
+(function () {
+  "use strict";
+
+  const cfg = window.TUIK_DASHBOARD_CONFIG;
+
+  const COMMODITIES = [
+    { key: "corn", label: "Mısır" },
+    { key: "soybeans", label: "Soya Fasulyesi" },
+    { key: "soybean_meal", label: "Soya Küspesi" },
+    { key: "soybean_oil", label: "Soya Yağı" },
+  ];
+  // Soya Yağı için WASDE'de sadece ABD tablosu var, Dünya tablosu yok.
+  const WORLD_AVAILABLE = { corn: true, soybeans: true, soybean_meal: true, soybean_oil: false };
+  const REGIONS = [
+    { key: "world", label: "Dünya" },
+    { key: "world_less_china", label: "Dünya (Çin Hariç)" },
+    { key: "united_states", label: "ABD" },
+    { key: "total_foreign", label: "ABD Dışı Toplam" },
+    { key: "china", label: "Çin" },
+  ];
+  const MEASURE_ORDER = [
+    "area_planted", "area_harvested", "yield_per_acre",
+    "beginning_stocks", "production", "imports", "supply_total",
+    "feed", "crush", "feed_and_residual", "food_seed_industrial", "ethanol_byproducts",
+    "domestic_disappearance", "biofuel", "food_feed_other_industrial", "domestic_total",
+    "seed", "residual", "exports", "use_total", "ending_stocks",
+    "avg_farm_price", "avg_price_cents_per_lb", "avg_price_per_short_ton",
+  ];
+  const MONTH_ORDER = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+  const FEATURED_ORDER = ["ending_stocks", "production", "exports", "avg_farm_price", "avg_price_cents_per_lb", "avg_price_per_short_ton", "domestic_total"];
+
+  function periodSortKey(label) {
+    const my = label.slice(0, 7); // "2026/27"
+    const m = /([A-Z][a-z]{2})\s*$/.exec(label);
+    const monthIdx = m && MONTH_ORDER[m[1]] != null ? MONTH_ORDER[m[1]] : -1;
+    return my + "_" + String(monthIdx + 1).padStart(2, "0");
+  }
+
+  function fmtWasdeValue(value, unitLabelTr) {
+    if (value == null || isNaN(value)) return "—";
+    const num = Math.abs(value) >= 100
+      ? value.toLocaleString("tr-TR", { maximumFractionDigits: 0 })
+      : value.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+    return num + " " + unitLabelTr;
+  }
+
+  function fmtPct(value) {
+    if (value == null || isNaN(value)) return null;
+    return (value >= 0 ? "+" : "") + value.toFixed(1) + "%";
+  }
+
+  async function fetchWasdeRows() {
+    const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
+    const pageSize = 1000;
+    let rows = [];
+    let from = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await fetch(
+        `${cfg.SUPABASE_URL}/rest/v1/wasde_stats?select=report_date,release_number,commodity,scope,region,period_label,marketing_year,measure,measure_label_tr,value,unit,unit_label_tr&order=id.asc`,
+        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
+      );
+      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
+      const page = await res.json();
+      rows = rows.concat(page);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    return rows;
+  }
+
+  function init(allRows) {
+    if (!allRows.length) {
+      document.getElementById("wasde-release-badge").textContent = "Henüz veri yok";
+      document.getElementById("wasde-table-title").textContent = "Bilanço tablosu — henüz veri yüklenmedi";
+      return;
+    }
+
+    const latestReportDate = allRows.reduce((max, r) => (r.report_date > max ? r.report_date : max), allRows[0].report_date);
+    const rows = allRows.filter(r => r.report_date === latestReportDate);
+    const latestRelease = rows[0].release_number;
+
+    const badge = document.getElementById("wasde-release-badge");
+    const d = new Date(latestReportDate + "T00:00:00");
+    badge.textContent = `WASDE-${latestRelease} · ${d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`;
+
+    const state = { commodity: "corn", scope: "us", region: "world" };
+
+    function currentRows() {
+      return rows.filter(r => {
+        if (r.commodity !== state.commodity) return false;
+        if (r.scope !== state.scope) return false;
+        if (state.scope === "world" && r.region !== state.region) return false;
+        return true;
+      });
+    }
+
+    function periodsFor(rs) {
+      const set = new Set(rs.map(r => r.period_label));
+      return [...set].sort((a, b) => periodSortKey(a).localeCompare(periodSortKey(b)));
+    }
+
+    function buildCommodityControls() {
+      const wrap = document.getElementById("wasde-commodity");
+      wrap.textContent = "";
+      COMMODITIES.forEach(c => {
+        const btn = document.createElement("button");
+        btn.className = "seg" + (state.commodity === c.key ? " active" : "");
+        btn.type = "button";
+        btn.textContent = c.label;
+        btn.addEventListener("click", () => {
+          state.commodity = c.key;
+          if (state.scope === "world" && !WORLD_AVAILABLE[c.key]) {
+            state.scope = "us";
+            document.querySelectorAll("#wasde-scope .seg").forEach(b => b.classList.toggle("active", b.dataset.value === "us"));
+          }
+          wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+          renderAll();
+        });
+        wrap.appendChild(btn);
+      });
+    }
+
+    function buildScopeControls() {
+      const wrap = document.getElementById("wasde-scope");
+      wrap.querySelectorAll(".seg").forEach(btn => {
+        btn.addEventListener("click", () => {
+          if (btn.dataset.value === "world" && !WORLD_AVAILABLE[state.commodity]) return;
+          state.scope = btn.dataset.value;
+          wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+          renderAll();
+        });
+      });
+    }
+
+    function buildRegionControls() {
+      const wrap = document.getElementById("wasde-region");
+      wrap.textContent = "";
+      REGIONS.forEach(r => {
+        const btn = document.createElement("button");
+        btn.className = "seg" + (state.region === r.key ? " active" : "");
+        btn.type = "button";
+        btn.textContent = r.label;
+        btn.addEventListener("click", () => {
+          state.region = r.key;
+          wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+          renderAll();
+        });
+        wrap.appendChild(btn);
+      });
+    }
+
+    function renderRegionVisibility() {
+      document.getElementById("wasde-region-group").style.display = state.scope === "world" ? "" : "none";
+      const worldBtn = document.querySelector('#wasde-scope .seg[data-value="world"]');
+      worldBtn.disabled = !WORLD_AVAILABLE[state.commodity];
+      worldBtn.title = WORLD_AVAILABLE[state.commodity] ? "" : "WASDE bu ürün için Dünya tablosu yayınlamıyor (sadece ABD)";
+    }
+
+    function renderKpis() {
+      const rs = currentRows();
+      const periods = periodsFor(rs);
+      const latestPeriod = periods[periods.length - 1];
+      const byMeasure = {};
+      rs.forEach(r => { (byMeasure[r.measure] = byMeasure[r.measure] || {})[r.period_label] = r; });
+
+      const featured = FEATURED_ORDER.filter(m => byMeasure[m] && byMeasure[m][latestPeriod]).slice(0, 4);
+
+      const container = document.getElementById("wasde-kpi-row");
+      container.textContent = "";
+      featured.forEach(measure => {
+        const cell = byMeasure[measure][latestPeriod];
+        const tile = document.createElement("div");
+        tile.className = "stat-tile";
+        const label = document.createElement("div");
+        label.className = "label"; label.textContent = cell.measure_label_tr + " (" + latestPeriod + ")";
+        const value = document.createElement("div");
+        value.className = "value num"; value.textContent = fmtWasdeValue(cell.value, cell.unit_label_tr);
+        tile.appendChild(label); tile.appendChild(value);
+
+        if (measure === "ending_stocks") {
+          const mom = byMeasure["ending_stocks_mom_change_pct"] && byMeasure["ending_stocks_mom_change_pct"][latestPeriod];
+          const yoy = byMeasure["ending_stocks_yoy_change_pct"] && byMeasure["ending_stocks_yoy_change_pct"][latestPeriod];
+          [["Önceki rapora göre", mom], ["Önceki yıla göre", yoy]].forEach(([suffix, r]) => {
+            if (!r) return;
+            const d2 = document.createElement("div");
+            const dir = r.value > 0.05 ? "up" : r.value < -0.05 ? "down" : "flat";
+            d2.className = "delta " + dir;
+            d2.textContent = (r.value >= 0 ? "▲ " : "▼ ") + Math.abs(r.value).toFixed(1) + "% " + suffix;
+            tile.appendChild(d2);
+          });
+        }
+        container.appendChild(tile);
+      });
+    }
+
+    function renderTable() {
+      const rs = currentRows();
+      const periods = periodsFor(rs);
+      const byMeasure = new Map();
+      rs.forEach(r => {
+        if (r.measure.endsWith("_change_pct")) return;
+        if (!byMeasure.has(r.measure)) byMeasure.set(r.measure, { label: r.measure_label_tr, unit: r.unit_label_tr, byPeriod: {} });
+        byMeasure.get(r.measure).byPeriod[r.period_label] = r.value;
+      });
+      const momByPeriod = {}, yoyByPeriod = {};
+      rs.forEach(r => {
+        if (r.measure === "ending_stocks_mom_change_pct") momByPeriod[r.period_label] = r.value;
+        if (r.measure === "ending_stocks_yoy_change_pct") yoyByPeriod[r.period_label] = r.value;
+      });
+
+      const measures = [...byMeasure.keys()].sort((a, b) => {
+        const ia = MEASURE_ORDER.indexOf(a), ib = MEASURE_ORDER.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      });
+
+      const commodityLabel = COMMODITIES.find(c => c.key === state.commodity).label;
+      const scopeLabel = state.scope === "us" ? "ABD" : REGIONS.find(r => r.key === state.region).label;
+      document.getElementById("wasde-table-title").textContent = `${commodityLabel} — ${scopeLabel} Arz-Talep Bilançosu`;
+
+      const thead = document.getElementById("wasde-thead");
+      thead.textContent = "";
+      const headCols = ["Kalem"].concat(periods).concat(["Bir Önceki Rapora Göre", "Bir Önceki Yıla Göre"]);
+      headCols.forEach(label => {
+        const th = document.createElement("th");
+        th.textContent = label;
+        if (label !== "Kalem") th.classList.add("num-col");
+        thead.appendChild(th);
+      });
+
+      const tbody = document.getElementById("wasde-tbody");
+      tbody.textContent = "";
+      if (!measures.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.textContent = "Bu kombinasyon için veri yok.";
+        td.colSpan = headCols.length;
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+
+      measures.forEach(measure => {
+        const m = byMeasure.get(measure);
+        const tr = document.createElement("tr");
+        const labelTd = document.createElement("td");
+        labelTd.textContent = m.label;
+        tr.appendChild(labelTd);
+        periods.forEach(p => {
+          const td = document.createElement("td");
+          td.className = "num-col num";
+          td.textContent = m.byPeriod[p] != null ? fmtWasdeValue(m.byPeriod[p], m.unit) : "—";
+          tr.appendChild(td);
+        });
+        [momByPeriod, yoyByPeriod].forEach(bucket => {
+          const td = document.createElement("td");
+          td.className = "num-col";
+          if (measure === "ending_stocks" && bucket[periods[periods.length - 1]] != null) {
+            const v = bucket[periods[periods.length - 1]];
+            const pill = document.createElement("span");
+            pill.className = "trend-pill " + (v > 0.05 ? "up" : v < -0.05 ? "down" : "flat");
+            pill.textContent = fmtPct(v);
+            td.appendChild(pill);
+          } else {
+            td.textContent = "—";
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderAll() {
+      renderRegionVisibility();
+      renderKpis();
+      renderTable();
+    }
+
+    buildCommodityControls();
+    buildScopeControls();
+    buildRegionControls();
+    renderAll();
+  }
+
+  let loaded = false;
+  function activate() {
+    document.getElementById("tab-tuik").classList.remove("active");
+    document.getElementById("tab-tuik").setAttribute("aria-selected", "false");
+    document.getElementById("tab-wasde").classList.add("active");
+    document.getElementById("tab-wasde").setAttribute("aria-selected", "true");
+    document.getElementById("tuik-panel").hidden = true;
+    document.getElementById("wasde-panel").hidden = false;
+    if (loaded) return;
+    loaded = true;
+    fetchWasdeRows()
+      .then(rows => init(rows))
+      .catch(err => {
+        console.error(err);
+        document.getElementById("wasde-release-badge").textContent = "Veri çekilemedi";
+        document.getElementById("wasde-table-title").textContent = "Bilanço tablosu yüklenemedi — Supabase bağlantısını kontrol edin";
+      });
+  }
+
+  document.getElementById("tab-wasde").addEventListener("click", activate);
+  document.getElementById("tab-tuik").addEventListener("click", () => {
+    document.getElementById("tab-wasde").classList.remove("active");
+    document.getElementById("tab-wasde").setAttribute("aria-selected", "false");
+    document.getElementById("tab-tuik").classList.add("active");
+    document.getElementById("tab-tuik").setAttribute("aria-selected", "true");
+    document.getElementById("wasde-panel").hidden = true;
+    document.getElementById("tuik-panel").hidden = false;
+  });
+})();
