@@ -105,6 +105,79 @@ def _world_table_to_records(
     return records
 
 
+def _pct_change(old: float, new: float) -> float | None:
+    if old == 0:
+        return None
+    return (new - old) / abs(old) * 100.0
+
+
+def _trend_record(base: dict, measure: str, measure_tr: str, value: float, period_label: str) -> dict:
+    return {
+        "report_date": base["report_date"],
+        "release_number": base["release_number"],
+        "commodity": base["commodity"],
+        "scope": base["scope"],
+        "region": base["region"],
+        "period_label": period_label,
+        "marketing_year": _marketing_year(period_label),
+        "measure": measure,
+        "measure_label_tr": measure_tr,
+        "value": round(value, 2),
+        "unit": "percent",
+        "unit_label_tr": "%",
+    }
+
+
+def compute_ending_stock_trends(records: list[dict]) -> list[dict]:
+    """Devreden stok (ending_stocks) için iki yüzdelik değişim üretir:
+      - ending_stocks_mom_change_pct: bu ayki WASDE'nin kendi Ağu->Eyl
+        revizyonu — "bir önceki rapora göre" sorusunun cevabı.
+      - ending_stocks_yoy_change_pct: 2025/26 tahmininden 2026/27
+        projeksiyonuna geçiş — stok "düşüş eğiliminde mi" sorusunun cevabı.
+    Negatif = düşüş (stok azalıyor), pozitif = artış.
+    """
+    by_series: dict[tuple, dict[str, dict]] = {}
+    for r in records:
+        if r["measure"] != "ending_stocks":
+            continue
+        key = (r["commodity"], r["scope"], r["region"])
+        by_series.setdefault(key, {})[r["period_label"]] = r
+
+    trend_records: list[dict] = []
+    for by_period in by_series.values():
+        aug = by_period.get("2026/27 Proj. Aug")
+        sep = by_period.get("2026/27 Proj. Sep")
+        est = by_period.get("2025/26 Est.")
+        base = sep or aug
+        if base is None:
+            continue
+        if aug and sep:
+            pct = _pct_change(aug["value"], sep["value"])
+            if pct is not None:
+                trend_records.append(
+                    _trend_record(
+                        base,
+                        "ending_stocks_mom_change_pct",
+                        "Devreden Stok - Bir Önceki Rapora Göre Değişim (%)",
+                        pct,
+                        "2026/27 Proj. Sep",
+                    )
+                )
+        if est and sep:
+            pct = _pct_change(est["value"], sep["value"])
+            if pct is not None:
+                trend_records.append(
+                    _trend_record(
+                        base,
+                        "ending_stocks_yoy_change_pct",
+                        "Devreden Stok - Bir Önceki Pazarlama Yılına Göre Değişim (%)",
+                        pct,
+                        "2026/27 Proj. Sep",
+                    )
+                )
+    return trend_records
+
+
 def build_records(text: str, report_date: str, release_number: int) -> list[dict]:
     records: list[dict] = []
 
@@ -124,5 +197,7 @@ def build_records(text: str, report_date: str, release_number: int) -> list[dict
 
     world_soymeal = parser.parse_world_soymeal(text)
     records += _world_table_to_records(world_soymeal, "soybean_meal", glossary.WORLD_SOYBEAN_MEAL_COLUMNS, report_date, release_number)
+
+    records += compute_ending_stock_trends(records)
 
     return records
