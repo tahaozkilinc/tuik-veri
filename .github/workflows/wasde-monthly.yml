@@ -1,0 +1,34 @@
+name: Monthly WASDE Fetch
+
+on:
+  schedule:
+    # WASDE her ay 8-12'si arasında öğlen ET (yaklaşık 16:00-17:00 UTC)
+    # yayınlanıyor. Tam gün önceden bilinemediği için o pencerede her gün
+    # kontrol ediyoruz — henüz yeni yayın çıkmadıysa script mevcut en son
+    # yayını tekrar bulup aynı report_date için sil-ve-yeniden-yükler
+    # (idempotent), veri kopyalanmaz.
+    - cron: "0 20 8-13 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install supabase==2.31.0
+
+      - name: Fetch + parse + load WASDE
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python -m wasde.run

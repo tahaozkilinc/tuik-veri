@@ -39,8 +39,24 @@ def replace_trade_stats(client: Client, gtip_codes: list[str], records: list[dic
     return total
 
 
-def start_run(client: Client) -> int:
-    resp = client.table("scrape_runs").insert({"status": "running"}).execute()
+def replace_wasde_report(client: Client, report_date: str, records: list[dict]) -> int:
+    """Sadece bu `report_date`'e (WASDE'nin kendi yayın tarihi) ait eski
+    satırları silip yeni veriyi ekler — trade_stats'taki sil-ve-ekle deseniyle
+    aynı mantık, ama kapsam SADECE bu aya sınırlı: önceki ayların rakamları
+    hiç dokunulmadan kalır, böylece "bu ay geçen aya göre nasıl revize
+    edildi" karşılaştırması zaman içinde DB'de birikir.
+    """
+    client.table("wasde_stats").delete().eq("report_date", report_date).execute()
+    total = 0
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i : i + BATCH_SIZE]
+        client.table("wasde_stats").insert(batch).execute()
+        total += len(batch)
+    return total
+
+
+def start_run(client: Client, source: str = "tuik") -> int:
+    resp = client.table("scrape_runs").insert({"status": "running", "source": source}).execute()
     return resp.data[0]["id"]
 
 
