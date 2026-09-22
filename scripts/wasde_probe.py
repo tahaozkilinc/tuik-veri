@@ -32,41 +32,30 @@ def main() -> None:
     html = fetch(PUB_URL)
     print(f"html length: {len(html)}", file=sys.stderr)
 
-    # data-release-date + href + dosya türü (btn içindeki div metni) taşıyan
-    # <a class="... file_download" ...> etiketlerini bul.
-    link_re = re.compile(
-        r'<a[^>]*class="[^"]*file_download[^"]*"[^>]*href="([^"]+)"[^>]*data-release-date="([^"]+)"[^>]*>(.*?)</a>',
-        re.S,
-    )
-    matches = link_re.findall(html)
-    print(f"regex (href first) match count: {len(matches)}", file=sys.stderr)
+    with open("wasde_page.html", "w", encoding="utf-8") as f:
+        f.write(html)
+
+    # 2020'deki eski site tasarımının class'ı (file_download) artık yok —
+    # site Drupal 11'e taşınmış. Güncel yapıyı bulmak için olası anahtar
+    # kelimelerin etrafındaki ham HTML'i dök.
+    for kw in [".pdf", ".txt", ".xls", "release-items", "download", "release_datetime", "release-date"]:
+        idx = html.find(kw)
+        print(f"\n--- first occurrence of {kw!r} at index {idx} ---")
+        if idx >= 0:
+            print(html[max(0, idx - 400) : idx + 400])
+
+    # any <a> tags whose href ends in a file extension we care about
+    href_re = re.compile(r'<a[^>]*href="([^"]+\.(?:pdf|txt|xls|xlsx|zip))"[^>]*>(.*?)</a>', re.I | re.S)
+    matches = href_re.findall(html)
+    print(f"\n\nfile-extension href match count: {len(matches)}")
+    for href, inner in matches[:20]:
+        print(href, "|", re.sub(r"\s+", " ", inner).strip()[:80])
 
     if not matches:
-        # attribute order might differ; try href-agnostic pass
-        link_re2 = re.compile(
-            r'<a[^>]*class="[^"]*file_download[^"]*"([^>]*)>(.*?)</a>', re.S
-        )
-        alt = link_re2.findall(html)
-        print(f"alt match count: {len(alt)}", file=sys.stderr)
-        for attrs, inner in alt[:10]:
-            href_m = re.search(r'href="([^"]+)"', attrs)
-            date_m = re.search(r'data-release-date="([^"]+)"', attrs)
-            print("---")
-            print("href:", href_m.group(1) if href_m else None)
-            print("date:", date_m.group(1) if date_m else None)
-            print("inner:", re.sub(r"\s+", " ", inner).strip()[:120])
-        # dump a slice of raw html around first "file_download" occurrence for inspection
-        idx = html.find("file_download")
-        print("\n--- raw html slice around first file_download ---", file=sys.stderr)
-        print(html[max(0, idx - 300) : idx + 1200], file=sys.stderr)
         return
 
-    for href, date, inner in matches[:15]:
-        label = re.sub(r"\s+", " ", inner).strip()
-        print(f"{date}  {label!r:30s}  {href}")
-
     # try downloading the first (most recent) txt file
-    txt_links = [h for h, d, i in matches if h.lower().endswith(".txt")]
+    txt_links = [h for h, i in matches if h.lower().endswith(".txt")]
     if txt_links:
         txt_url = txt_links[0]
         if txt_url.startswith("/"):
