@@ -25,3 +25,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python scripts/wasde_debug_query.py
+
+      - name: Debug-build records in this runner (no writes)
+        run: python scripts/wasde_debug_build.py
