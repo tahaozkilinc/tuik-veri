@@ -49,7 +49,12 @@ RELEASE_HEADER_RE = re.compile(r"WASDE\s*-\s*(\d+)\s*-\s*\d+\s+(\w+)\s+(\d{4})")
 def fetch(url: str) -> str:
     req = urllib.request.Request(url, headers=HEADERS)
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+        text = resp.read().decode("utf-8", errors="replace")
+    # WASDE TXT dosyaları Windows tarzı \r\n satır sonu kullanıyor; aşağıdaki
+    # tablo sınırlama mantığı ("\nCORN\n" gibi) çıplak \n arıyor ve \r\n ile
+    # hiç eşleşmiyor (bu da parse_us_corn/parse_us_soy'un sessizce 0 satır
+    # döndürmesine yol açıyordu) — tek noktadan normalize ediyoruz.
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def find_latest_release() -> tuple[str, str]:
