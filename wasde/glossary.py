@@ -94,15 +94,10 @@ COMMODITY_LABELS_TR: dict[str, str] = {
 }
 
 UNIT_LABELS_TR: dict[str, str] = {
-    "million_bushels": "Milyon Bushel",
     "million_acres": "Milyon Acre",
-    "bushels_per_acre": "Bushel / Acre",
-    "dollars_per_bushel": "$ / Bushel",
-    "million_pounds": "Milyon Pound",
-    "cents_per_pound": "Sent / Pound",
-    "thousand_short_tons": "Bin Kısa Ton",
-    "dollars_per_short_ton": "$ / Kısa Ton",
     "million_metric_tons": "Milyon Metrik Ton",
+    "metric_tons_per_hectare": "Ton / Hektar",
+    "dollars_per_ton": "$ / Ton",
 }
 
 

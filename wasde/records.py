@@ -17,23 +17,49 @@ def _marketing_year(period_label: str) -> str:
     return m.group(0) if m else period_label
 
 
-def _us_row_unit(measure_key: str, table: str) -> str:
-    if table == "corn" or table == "soybeans":
-        if measure_key in ("area_planted", "area_harvested"):
-            return "million_acres"
+# Türkiye'de (TÜİK dahil) bushel/pound/kısa ton kullanılmıyor — WASDE'nin ABD
+# tabloları ham haliyle bushel/pound/kısa ton veriyor, biz bunları Dünya
+# tablolarıyla aynı birime (Milyon Metrik Ton, $/Ton) çeviriyoruz ki dashboard
+# hiçbir yerde bushel göstermesin. Katsayılar resmi USDA dönüşüm ağırlıkları:
+# mısır 56 lb/bushel, soya fasulyesi 60 lb/bushel.
+KG_PER_BUSHEL = {"corn": 25.40117, "soybeans": 27.2155}
+LB_PER_METRIC_TON = 2204.622622
+SHORT_TON_PER_METRIC_TON = 1.102311
+
+PRICE_MEASURES = {"avg_farm_price", "avg_price_cents_per_lb", "avg_price_per_short_ton"}
+
+
+def _us_row_convert(measure_key: str, table: str, value: float) -> tuple[float, str]:
+    """(çevrilmiş değer, birim anahtarı) döndürür. Alan (acre) toprak ölçüsü
+    olduğu için tona çevrilmiyor, olduğu gibi bırakılıyor."""
+    if measure_key in ("area_planted", "area_harvested"):
+        return value, "million_acres"
+
+    if table in ("corn", "soybeans"):
+        kg_per_bu = KG_PER_BUSHEL[table]
         if measure_key == "yield_per_acre":
-            return "bushels_per_acre"
+            # bushel/acre -> metrik ton/hektar (1 acre = 0.404686 hektar)
+            return value * kg_per_bu / 1000 / 0.404686, "metric_tons_per_hectare"
         if measure_key == "avg_farm_price":
-            return "dollars_per_bushel"
-        return "million_bushels"
+            # $/bushel -> $/metrik ton
+            return value * (1000 / kg_per_bu), "dollars_per_ton"
+        # Milyon Bushel -> Milyon Metrik Ton
+        return value * kg_per_bu / 1000, "million_metric_tons"
+
     if table == "soybean_oil":
         if measure_key == "avg_price_cents_per_lb":
-            return "cents_per_pound"
-        return "million_pounds"
+            # sent/pound -> $/metrik ton
+            return value / 100 * LB_PER_METRIC_TON, "dollars_per_ton"
+        # Milyon Pound -> Milyon Metrik Ton
+        return value / LB_PER_METRIC_TON, "million_metric_tons"
+
     if table == "soybean_meal":
         if measure_key == "avg_price_per_short_ton":
-            return "dollars_per_short_ton"
-        return "thousand_short_tons"
+            # $/kısa ton -> $/metrik ton
+            return value * SHORT_TON_PER_METRIC_TON, "dollars_per_ton"
+        # Bin Kısa Ton -> Milyon Metrik Ton
+        return value / SHORT_TON_PER_METRIC_TON / 1000, "million_metric_tons"
+
     raise ValueError(f"bilinmeyen tablo: {table}")
 
 
@@ -48,9 +74,14 @@ def _us_rows_to_records(
     records = []
     for raw_label, vals in rows.items():
         measure_key, measure_tr = glossary.us_measure(raw_label)
-        unit_key = _us_row_unit(measure_key, table)
-        unit_tr = glossary.UNIT_LABELS_TR[unit_key]
         for period_label, value in zip(period_labels, vals):
+            converted_value, unit_key = _us_row_convert(measure_key, table, value)
+            unit_tr = glossary.UNIT_LABELS_TR[unit_key]
+            # üç tablonun kendi para birimi ölçüsünü ("$/bushel", "sent/pound",
+            # "$/kısa ton") DEĞER çevrildikten SONRA tek bir "avg_price"
+            # ($/ton) ölçüsünde birleştiriyoruz — etiket (measure_label_tr)
+            # tablo bazlı ayrımı zaten koruyor.
+            stored_measure = "avg_price" if measure_key in PRICE_MEASURES else measure_key
             records.append(
                 {
                     "report_date": report_date,
@@ -60,9 +91,9 @@ def _us_rows_to_records(
                     "region": None,
                     "period_label": period_label,
                     "marketing_year": _marketing_year(period_label),
-                    "measure": measure_key,
+                    "measure": stored_measure,
                     "measure_label_tr": measure_tr,
-                    "value": value,
+                    "value": round(converted_value, 4),
                     "unit": unit_key,
                     "unit_label_tr": unit_tr,
                 }

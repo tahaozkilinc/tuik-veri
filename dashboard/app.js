@@ -976,10 +976,10 @@
     "feed", "crush", "feed_and_residual", "food_seed_industrial", "ethanol_byproducts",
     "domestic_disappearance", "biofuel", "food_feed_other_industrial", "domestic_total",
     "seed", "residual", "exports", "use_total", "ending_stocks",
-    "avg_farm_price", "avg_price_cents_per_lb", "avg_price_per_short_ton",
+    "avg_price",
   ];
   const MONTH_ORDER = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
-  const FEATURED_ORDER = ["ending_stocks", "production", "exports", "avg_farm_price", "avg_price_cents_per_lb", "avg_price_per_short_ton", "domestic_total"];
+  const FEATURED_ORDER = ["ending_stocks", "production", "exports", "avg_price", "domestic_total"];
 
   function periodSortKey(label) {
     const my = label.slice(0, 7); // "2026/27"
