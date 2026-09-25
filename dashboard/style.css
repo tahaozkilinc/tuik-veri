@@ -259,6 +259,7 @@
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); }
   .legend .key { display: inline-flex; align-items: center; gap: 6px; }
   .legend .swatch-line { width: 14px; height: 2px; border-radius: 2px; }
+  .legend .swatch-line.dashed { height: 0; border-top: 2px dashed; border-radius: 0; }
 
   .trend-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .unit-price-badge {
@@ -318,6 +319,7 @@
   .tooltip .row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
   .tooltip .row + .row { margin-top: 3px; }
   .tooltip .key-line { width: 10px; height: 2px; border-radius: 2px; flex: none; }
+  .tooltip .key-line.dashed { height: 0; border-top: 2px dashed; border-radius: 0; }
   .tooltip .val { font-weight: 700; font-family: "IBM Plex Mono", monospace; }
   .tooltip .ttl { font-weight: 600; margin-bottom: 4px; opacity: 0.85; }
 
