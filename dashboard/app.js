@@ -740,28 +740,35 @@
       svg.appendChild(hitLayer);
     }
 
+    // ürün bazlı: her seçili GTİP kendi çizgisi — seçilmeyenler grafikten
+    // çıkar, hiçbiri seçilmemişse (varsayılan) hepsi ayrı ayrı gösterilir.
+    // Renkler ürün çiplerindeki renklerle birebir aynı (CAT_COLORS, aynı sıra).
+    function trendProducts() {
+      return allProducts.filter(code => !state.products.size || state.products.has(code));
+    }
+    function productColor(code) {
+      return CAT_COLORS[allProducts.indexOf(code) % CAT_COLORS.length];
+    }
+
     function renderTrendChart() {
       updateTrendNav();
       const rows = filteredRows();
-      const showBoth = state.flow === "all";
-      const flowsToShow = showBoth ? [0, 1] : [Number(state.flow)];
+      const products = trendProducts();
 
       const legend = document.getElementById("trend-legend");
       legend.textContent = "";
-      if (showBoth) {
-        flowsToShow.forEach(f => {
-          const key = document.createElement("span"); key.className = "key";
-          const sw = document.createElement("span"); sw.className = "swatch-line";
-          sw.style.background = FLOW_COLOR[f];
-          key.appendChild(sw); key.appendChild(document.createTextNode(FLOW_LABEL[f]));
-          legend.appendChild(key);
-        });
-      }
+      products.forEach(code => {
+        const key = document.createElement("span"); key.className = "key";
+        const sw = document.createElement("span"); sw.className = "swatch-line";
+        sw.style.background = productColor(code);
+        key.appendChild(sw); key.appendChild(document.createTextNode(GTIP_SHORT_NAMES[code] || code));
+        legend.appendChild(key);
+      });
 
       const periods = trendPeriods();
-      const valueTotals = flowsToShow.map(f => {
+      const usdTotals = products.map(code => {
         const m = new Map();
-        rows.filter(r => r[1] === f).forEach(r => {
+        rows.filter(r => r[2] === code).forEach(r => {
           const key = periodKey(r[0], r[7]);
           m.set(key, (m.get(key) || 0) + (r[5] || 0));
         });
@@ -769,31 +776,26 @@
       });
       drawSeriesChart(
         "trend-chart", periods,
-        flowsToShow.map((f, fi) => ({ totals: valueTotals[fi], color: FLOW_COLOR[f], label: FLOW_LABEL[f], fullFmt: fmtUsdFull })),
+        products.map((code, i) => ({ totals: usdTotals[i], color: productColor(code), label: GTIP_SHORT_NAMES[code] || code, fullFmt: fmtUsdFull })),
         fmtUsd, key => periodLabelFull(key)
       );
 
-      const usdTotals = flowsToShow.map(f => {
+      const kgTotals = products.map(code => {
         const m = new Map();
-        rows.filter(r => r[1] === f).forEach(r => { const k = periodKey(r[0], r[7]); m.set(k, (m.get(k) || 0) + (r[5] || 0)); });
+        rows.filter(r => r[2] === code).forEach(r => { const k = periodKey(r[0], r[7]); m.set(k, (m.get(k) || 0) + (r[6] || 0)); });
         return m;
       });
-      const kgTotals = flowsToShow.map(f => {
-        const m = new Map();
-        rows.filter(r => r[1] === f).forEach(r => { const k = periodKey(r[0], r[7]); m.set(k, (m.get(k) || 0) + (r[6] || 0)); });
-        return m;
-      });
-      const priceTotals = flowsToShow.map((f, fi) => {
+      const priceTotals = products.map((code, i) => {
         const m = new Map();
         periods.forEach(k => {
-          const kg = kgTotals[fi].get(k);
-          if (kg) m.set(k, (usdTotals[fi].get(k) / kg) * 1000);
+          const kg = kgTotals[i].get(k);
+          if (kg) m.set(k, (usdTotals[i].get(k) / kg) * 1000);
         });
         return m;
       });
       drawSeriesChart(
         "price-chart", periods,
-        flowsToShow.map((f, fi) => ({ totals: priceTotals[fi], color: FLOW_COLOR[f], label: FLOW_LABEL[f], fullFmt: fmtUnitPrice })),
+        products.map((code, i) => ({ totals: priceTotals[i], color: productColor(code), label: GTIP_SHORT_NAMES[code] || code, fullFmt: fmtUnitPrice })),
         v => "$" + Math.round(v), key => periodLabelFull(key)
       );
     }
