@@ -17,8 +17,11 @@ from scraper.qlik_client import QlikClientError, fetch_trade_stats
 CANDIDATE_CODES = {
     "151211910000": "AYÇİÇEK HAM",
     "151219900011": "AYÇİÇEK RAFİNE",
-    "150710900019": "SOYA HAM",
-    "150790900019": "SOYA RAFİNE",
+    # Kullanıcının verdiği 150710900019 / 150790900019 TÜİK'te bulunamadı —
+    # 1507 başlığı prefix-search ile tarandı, gerçek kodların son eki "19"
+    # değil "00" imiş; doğrulanmış kodlar aşağıda.
+    "150710900000": "SOYA HAM",
+    "150790900000": "SOYA RAFİNE",
     "151521900000": "MISIR HAM",
     "151529900000": "MISIR RAFİNE",
 }
