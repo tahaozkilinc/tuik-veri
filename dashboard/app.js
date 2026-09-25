@@ -9,6 +9,12 @@
     "110430900011": "1104.30.90.00.11 MISIR ÖZÜ",
     "230400000000": "2304.00.00.00.00 SOYA KÜSPESİ",
     "120600990019": "1206.00.99.00.19 ÇEKİRDEK",
+    "151211910000": "1512.11.91.00.00 AYÇİÇEK HAM",
+    "151219900011": "1512.19.90.00.11 AYÇİÇEK RAFİNE",
+    "150710900000": "1507.10.90.00.00 SOYA HAM",
+    "150790900000": "1507.90.90.00.00 SOYA RAFİNE",
+    "151521900000": "1515.21.90.00.00 MISIR HAM",
+    "151529900000": "1515.29.90.00.00 MISIR RAFİNE",
   };
   // sade ürün adı — grafik, tablo ve rapordaki her yerde bu kullanılır.
   const GTIP_SHORT_NAMES = {
@@ -17,10 +23,19 @@
     "110430900011": "MISIR ÖZÜ",
     "230400000000": "SOYA KÜSPESİ",
     "120600990019": "ÇEKİRDEK",
+    "151211910000": "AYÇİÇEK HAM",
+    "151219900011": "AYÇİÇEK RAFİNE",
+    "150710900000": "SOYA HAM",
+    "150790900000": "SOYA RAFİNE",
+    "151521900000": "MISIR HAM",
+    "151529900000": "MISIR RAFİNE",
   };
   const FLOW_LABEL = ["İhracat", "İthalat"];
   const FLOW_COLOR = ["var(--series-export)", "var(--series-import)"];
-  const CAT_COLORS = ["var(--series-export)", "var(--series-import)", "var(--cat-3)", "var(--cat-4)", "var(--cat-5)"];
+  const CAT_COLORS = [
+    "var(--series-export)", "var(--series-import)", "var(--cat-3)", "var(--cat-4)", "var(--cat-5)",
+    "var(--cat-6)", "var(--cat-7)", "var(--cat-8)", "var(--cat-9)", "var(--cat-10)", "var(--cat-11)",
+  ];
   const MONTH_ABBR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
   const MONTH_FULL = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
