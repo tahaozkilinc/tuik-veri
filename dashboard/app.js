@@ -980,6 +980,29 @@
 })();
 
 // ---------------------------------------------------------------------------
+// Sekme yöneticisi — TÜİK / WASDE / Ticaret Borsası arasında geçişi tek yerden
+// yönetir. Her sekme kendi IIFE'sinde register() ile kaydolur; sekmeye ilk
+// tıklandığında onActivate çağrılır (lazy-fetch için kullanılıyor).
+window.__tabManager = (function () {
+  const tabs = [];
+  function show(activeTabId) {
+    tabs.forEach(t => {
+      const isActive = t.tabId === activeTabId;
+      document.getElementById(t.tabId).classList.toggle("active", isActive);
+      document.getElementById(t.tabId).setAttribute("aria-selected", isActive ? "true" : "false");
+      document.getElementById(t.panelId).hidden = !isActive;
+      if (isActive && t.onActivate) t.onActivate();
+    });
+  }
+  function register(tabId, panelId, onActivate) {
+    tabs.push({ tabId, panelId, onActivate });
+    document.getElementById(tabId).addEventListener("click", () => show(tabId));
+  }
+  register("tab-tuik", "tuik-panel");
+  return { register };
+})();
+
+// ---------------------------------------------------------------------------
 // WASDE (USDA) sekmesi — TÜİK'ten tamamen ayrı bir kaynak/veri modeli olduğu
 // için kasıtlı olarak ayrı bir IIFE: kendi state'i, kendi fetch'i, kendi
 // render'ı. Yalnızca sekmeye ilk tıklandığında veri çekilir (gereksiz istek
@@ -1269,13 +1292,7 @@
   }
 
   let loaded = false;
-  function activate() {
-    document.getElementById("tab-tuik").classList.remove("active");
-    document.getElementById("tab-tuik").setAttribute("aria-selected", "false");
-    document.getElementById("tab-wasde").classList.add("active");
-    document.getElementById("tab-wasde").setAttribute("aria-selected", "true");
-    document.getElementById("tuik-panel").hidden = true;
-    document.getElementById("wasde-panel").hidden = false;
+  window.__tabManager.register("tab-wasde", "wasde-panel", () => {
     if (loaded) return;
     loaded = true;
     fetchWasdeRows()
@@ -1285,15 +1302,291 @@
         document.getElementById("wasde-release-badge").textContent = "Veri çekilemedi";
         document.getElementById("wasde-table-title").textContent = "Bilanço tablosu yüklenemedi — Supabase bağlantısını kontrol edin";
       });
+  });
+})();
+
+// ---------------------------------------------------------------------------
+// Ticaret Borsası sekmesi — 3-4 emtia borsasından 15 dakikada bir çekilen
+// anlık fiyatlar. Kaynak (hangi borsa/API) henüz tanımlanmadı; bu yüzden
+// exchange_prices tablosu şimdilik boş olabilir — sayfa buna göre net bir
+// boş-durum gösteriyor, veri geldiğinde hiçbir kod değişikliği gerekmeden
+// otomatik dolacak (borsa adları koda gömülü değil, veriden türetiliyor).
+(function () {
+  "use strict";
+
+  const cfg = window.TUIK_DASHBOARD_CONFIG;
+  const CAT_COLORS = [
+    "var(--series-export)", "var(--series-import)", "var(--cat-3)", "var(--cat-4)", "var(--cat-5)",
+    "var(--cat-6)", "var(--cat-7)", "var(--cat-8)", "var(--cat-9)", "var(--cat-10)", "var(--cat-11)",
+  ];
+  const CHART_W = 560, CHART_H = 150, PADL = 56, PADR = 14, PADT = 10, PADB = 22;
+
+  function fmtPrice(value, currency, unit) {
+    if (value == null || isNaN(value)) return "—";
+    const num = Math.abs(value) >= 100
+      ? value.toLocaleString("tr-TR", { maximumFractionDigits: 1 })
+      : value.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+    return num + " " + unit;
   }
 
-  document.getElementById("tab-wasde").addEventListener("click", activate);
-  document.getElementById("tab-tuik").addEventListener("click", () => {
-    document.getElementById("tab-wasde").classList.remove("active");
-    document.getElementById("tab-wasde").setAttribute("aria-selected", "false");
-    document.getElementById("tab-tuik").classList.add("active");
-    document.getElementById("tab-tuik").setAttribute("aria-selected", "true");
-    document.getElementById("wasde-panel").hidden = true;
-    document.getElementById("tuik-panel").hidden = false;
+  function fmtDateTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function fetchExchangeRows() {
+    const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
+    const pageSize = 1000;
+    let rows = [];
+    let from = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await fetch(
+        `${cfg.SUPABASE_URL}/rest/v1/exchange_prices?select=exchange,exchange_label_tr,symbol,commodity_label_tr,price,currency,unit,change_pct,recorded_at,fetched_at&order=recorded_at.asc`,
+        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
+      );
+      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
+      const page = await res.json();
+      rows = rows.concat(page);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    return rows;
+  }
+
+  function groupRows(rows) {
+    const map = new Map();
+    rows.forEach(r => {
+      const key = r.exchange + "§" + r.symbol;
+      if (!map.has(key)) {
+        map.set(key, {
+          exchange: r.exchange, symbol: r.symbol,
+          exchangeLabel: r.exchange_label_tr, commodityLabel: r.commodity_label_tr,
+          currency: r.currency, unit: r.unit, points: [],
+        });
+      }
+      map.get(key).points.push({ price: r.price, changePct: r.change_pct, recordedAt: r.recorded_at, fetchedAt: r.fetched_at });
+    });
+    return [...map.values()];
+  }
+
+  function exportCsv(rows) {
+    const cols = ["exchange", "exchange_label_tr", "symbol", "commodity_label_tr", "price", "currency", "unit", "change_pct", "recorded_at"];
+    const esc = v => {
+      const s = v == null ? "" : String(v);
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [cols.join(";")].concat(rows.map(r => cols.map(c => esc(r[c])).join(";")));
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ticaret-borsasi-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- küçük tooltip (WASDE/TÜİK panelleriyle aynı görünüm) ----------
+  function makeTooltip() {
+    let el = document.querySelector(".tooltip");
+    if (!el) { el = document.createElement("div"); el.className = "tooltip"; document.body.appendChild(el); }
+    return el;
+  }
+  function showTooltip(evt, node) {
+    const tip = makeTooltip();
+    tip.textContent = ""; tip.appendChild(node);
+    tip.style.opacity = "1";
+    let x = evt.clientX + 14, y = evt.clientY + 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+    const rect = tip.getBoundingClientRect();
+    if (rect.right > window.innerWidth) tip.style.left = (evt.clientX - rect.width - 14) + "px";
+    if (rect.bottom > window.innerHeight) tip.style.top = (evt.clientY - rect.height - 14) + "px";
+  }
+  function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
+
+  // tek seri, zaman damgalı basit çizgi grafiği — nokta sayısı kadar eşit
+  // aralıklı x ekseni (borsa kapalıyken veri olmadığı için gerçek takvim
+  // aralığı yerine ardışık gözlem bazlı, tipik bir işlem-seansı grafiği gibi).
+  function drawPriceChart(svg, points, color) {
+    svg.textContent = "";
+    svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
+    if (!points.length) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
+      t.textContent = "Henüz veri yok.";
+      svg.appendChild(t);
+      return;
+    }
+    const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
+    const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+    const values = points.map(p => p.price);
+    const minVal = Math.min(...values), maxVal = Math.max(...values);
+    const span = maxVal - minVal || Math.abs(maxVal) || 1;
+    const yPad = span * 0.1;
+    const yScale = v => CHART_H - PADB - ((v - minVal + yPad) / (span + 2 * yPad)) * (CHART_H - PADB - PADT);
+
+    for (let g = 0; g <= 3; g++) {
+      const y = PADT + (g * (CHART_H - PADB - PADT)) / 3;
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "gridline");
+      line.setAttribute("x1", PADL); line.setAttribute("x2", CHART_W - PADR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      svg.appendChild(line);
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
+      t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+      t.textContent = (maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString("tr-TR", { maximumFractionDigits: 1 });
+      svg.appendChild(t);
+    }
+
+    const minLabelGap = 56;
+    const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
+    points.forEach((p, i) => {
+      const isLast = i === points.length - 1;
+      if (i % tickEvery !== 0 && !isLast) return;
+      if (isLast && points.length > 1 && (points.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((points.length - 1) / tickEvery) * tickEvery;
+        if ((points.length - 1 - prevShown) * xStep < minLabelGap) return;
+      }
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", xScale(i)); t.setAttribute("y", CHART_H - 5);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+      t.textContent = fmtDateTime(p.recordedAt).split(" ").slice(-1)[0];
+      svg.appendChild(t);
+    });
+
+    const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    hoverLine.setAttribute("class", "baseline");
+    hoverLine.setAttribute("y1", PADT); hoverLine.setAttribute("y2", CHART_H - PADB);
+    hoverLine.style.opacity = "0";
+    svg.appendChild(hoverLine);
+
+    const pts = points.map((p, i) => [xScale(i), yScale(p.price)]);
+    if (pts.length === 1) {
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", pts[0][0]); dot.setAttribute("cy", pts[0][1]); dot.setAttribute("r", "4");
+      dot.setAttribute("fill", color);
+      svg.appendChild(dot);
+    } else {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+      path.setAttribute("stroke", color); path.setAttribute("stroke-width", "2");
+      path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+      svg.appendChild(path);
+    }
+
+    const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    points.forEach((p, i) => {
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const hitW = Math.max(xStep, 6);
+      rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", PADT);
+      rect.setAttribute("width", hitW); rect.setAttribute("height", CHART_H - PADB - PADT);
+      rect.setAttribute("fill", "transparent"); rect.style.cursor = "pointer";
+      rect.tabIndex = 0;
+      const showFn = evt => {
+        hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
+        hoverLine.style.opacity = "1";
+        const wrap = document.createElement("div");
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateTime(p.recordedAt);
+        wrap.appendChild(ttl);
+        const row = document.createElement("div"); row.className = "row";
+        const v = document.createElement("span"); v.className = "val"; v.textContent = p.price.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+        row.appendChild(v);
+        wrap.appendChild(row);
+        showTooltip(evt, wrap);
+      };
+      rect.addEventListener("pointermove", showFn);
+      rect.addEventListener("focus", showFn);
+      rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      hitLayer.appendChild(rect);
+    });
+    svg.appendChild(hitLayer);
+  }
+
+  function render(allRows) {
+    const badge = document.getElementById("exchange-asof-badge");
+    const sectionsEl = document.getElementById("exchange-sections");
+    const kpiEl = document.getElementById("exchange-kpi-row");
+    sectionsEl.textContent = "";
+    kpiEl.textContent = "";
+
+    if (!allRows.length) {
+      badge.textContent = "Veri yok";
+      const empty = document.createElement("p");
+      empty.style.color = "var(--text-muted)";
+      empty.style.fontSize = "13px";
+      empty.textContent = "Borsa kaynağı henüz tanımlanmadı — veri bekleniyor. Kaynaklar eklendiğinde bu sayfa otomatik dolacak, hiçbir ekran değişikliği gerekmeyecek.";
+      sectionsEl.appendChild(empty);
+      return;
+    }
+
+    const groups = groupRows(allRows);
+    const latestFetch = allRows.reduce((max, r) => (r.fetched_at > max ? r.fetched_at : max), allRows[0].fetched_at);
+    badge.textContent = "Son güncelleme: " + fmtDateTime(latestFetch);
+
+    groups.forEach((g, i) => {
+      const color = CAT_COLORS[i % CAT_COLORS.length];
+      const last = g.points[g.points.length - 1];
+
+      const tile = document.createElement("div");
+      tile.className = "stat-tile";
+      const label = document.createElement("div");
+      label.className = "label"; label.textContent = g.exchangeLabel + " · " + g.commodityLabel;
+      const value = document.createElement("div");
+      value.className = "value num"; value.textContent = fmtPrice(last.price, g.currency, g.unit);
+      tile.appendChild(label); tile.appendChild(value);
+      if (last.changePct != null) {
+        const d = document.createElement("div");
+        const dir = last.changePct > 0.05 ? "up" : last.changePct < -0.05 ? "down" : "flat";
+        d.className = "delta " + dir;
+        d.textContent = (last.changePct >= 0 ? "▲ " : "▼ ") + Math.abs(last.changePct).toFixed(2) + "%";
+        tile.appendChild(d);
+      }
+      kpiEl.appendChild(tile);
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.marginTop = "14px";
+      const head = document.createElement("div");
+      head.className = "card-head";
+      const h3 = document.createElement("h2");
+      h3.textContent = g.exchangeLabel + " — " + g.commodityLabel + " (" + g.symbol + ")";
+      head.appendChild(h3);
+      const upd = document.createElement("span");
+      upd.className = "trend-range-label";
+      upd.textContent = fmtDateTime(last.recordedAt);
+      head.appendChild(upd);
+      card.appendChild(head);
+
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "chart");
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", g.commodityLabel + " fiyat eğilimi");
+      card.appendChild(svg);
+      drawPriceChart(svg, g.points, color);
+
+      sectionsEl.appendChild(card);
+    });
+  }
+
+  let loaded = false;
+  let cachedRows = [];
+  window.__tabManager.register("tab-exchange", "exchange-panel", () => {
+    if (loaded) return;
+    loaded = true;
+    fetchExchangeRows()
+      .then(rows => { cachedRows = rows; render(rows); })
+      .catch(err => {
+        console.error(err);
+        document.getElementById("exchange-asof-badge").textContent = "Veri çekilemedi";
+      });
+  });
+
+  document.getElementById("exchange-export-btn").addEventListener("click", () => {
+    if (!cachedRows.length) return;
+    exportCsv(cachedRows);
   });
 })();

@@ -109,6 +109,33 @@ revoke insert, update, delete, truncate on wasde_stats from anon, authenticated;
 -- scrape_runs'ı hem TÜİK hem WASDE çalıştırmaları için ortak kullanıyoruz.
 alter table scrape_runs add column if not exists source text not null default 'tuik';
 
+-- Ticaret Borsası — 3-4 emtia borsasından 15 dakikada bir çekilen anlık
+-- fiyatlar. Kaynak (hangi borsa, hangi API) henüz tanımlanmadı — bu tablo
+-- şimdilik boş, sayfa canlıda veri bekleyen bir boş-durum gösteriyor.
+-- Her (exchange, symbol) çifti için zaman serisi recorded_at ile tutuluyor,
+-- hiçbir satır silinmiyor — geçmiş fiyat grafiği/Excel dışa aktarımı için.
+create table if not exists exchange_prices (
+    id                 bigint generated always as identity primary key,
+    exchange           text not null,          -- 'CBOT', 'MATIF' gibi kısa kod
+    exchange_label_tr  text not null,           -- "Chicago Ticaret Borsası" gibi
+    symbol             text not null,           -- kontrat/sembol kodu
+    commodity_label_tr text not null,           -- "Mısır", "Soya Fasulyesi" gibi
+    price              numeric not null,
+    currency           text not null,           -- 'USD', 'EUR' vb.
+    unit               text not null,           -- "$/bushel", "€/ton" vb.
+    change_pct         numeric,                 -- günlük değişim % (varsa)
+    recorded_at        timestamptz not null,    -- borsadaki fiyatın zaman damgası
+    fetched_at         timestamptz not null default now(),
+    unique (exchange, symbol, recorded_at)
+);
+
+create index if not exists idx_exchange_prices_lookup on exchange_prices (exchange, symbol, recorded_at desc);
+
+alter table exchange_prices enable row level security;
+drop policy if exists "public read exchange_prices" on exchange_prices;
+create policy "public read exchange_prices" on exchange_prices for select using (true);
+revoke insert, update, delete, truncate on exchange_prices from anon, authenticated;
+
 -- MİGRASYON: bu şemayı daha önce (NULLS NOT DISTINCT olmadan) çalıştırdıysanız
 -- — yani trade_stats tablosu zaten varsa — aşağıdaki blok eski unique
 -- constraint'i bulup NULLS NOT DISTINCT olanla değiştirir. Script hem sıfırdan
