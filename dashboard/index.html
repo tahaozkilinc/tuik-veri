@@ -86,27 +86,17 @@
       </div>
       <div class="trend-pane">
         <div class="trend-head">
-          <h3>Zaman içinde eğilim</h3>
+          <h3>Zaman içinde eğilim (ton)</h3>
           <div class="trend-nav">
             <button class="pan-btn" id="trend-prev" type="button" title="Önceki dönem">◀</button>
             <span class="trend-range-label" id="trend-range-label"></span>
             <button class="pan-btn" id="trend-next" type="button" title="Sonraki dönem">▶</button>
           </div>
         </div>
-        <div class="trend-view-row">
-          <span class="filter-label">Görünüm</span>
-          <div class="segmented" id="trend-view-mode" role="group" aria-label="Grafik görünümü">
-            <button class="seg active" type="button" data-value="auto">Otomatik</button>
-            <button class="seg" type="button" data-value="combined">Birleşik</button>
-            <button class="seg" type="button" data-value="separate">Ayrı grafikler</button>
-          </div>
-        </div>
         <div class="legend" id="trend-legend"></div>
-        <svg class="chart" id="trend-chart" role="img" aria-label="Seçili dönemde ihracat ve ithalat değeri"></svg>
-        <div class="trend-grid" id="trend-chart-grid"></div>
+        <svg class="chart" id="trend-chart" role="img" aria-label="Seçili dönemde ihracat ve ithalat tonajı"></svg>
         <h3 class="price-chart-title">Birim fiyat eğilimi ($/ton)</h3>
         <svg class="chart" id="price-chart" role="img" aria-label="Seçili dönemde birim fiyat"></svg>
-        <div class="trend-grid" id="price-chart-grid"></div>
       </div>
     </div>
   </section>

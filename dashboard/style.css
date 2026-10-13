@@ -262,19 +262,9 @@
   .legend .swatch-line { width: 14px; height: 2px; border-radius: 2px; }
   .legend .swatch-line.dashed { height: 0; border-top: 2px dashed; border-radius: 0; }
 
-  .trend-view-row { display: flex; align-items: center; gap: 8px; }
-  .trend-view-row .seg { font-size: 11px; padding: 4px 9px; }
-
   svg.chart .series-line { transition: opacity 0.12s, stroke-width 0.12s; }
   svg.chart .series-line.dim { opacity: 0.15; }
   svg.chart .series-line.focus { stroke-width: 3; }
-
-  .trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 14px; }
-  .chart-cell { min-width: 0; }
-  .chart-cell-head { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
-  .chart-cell-head .swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-  .chart-cell-title { font-size: 11px; font-weight: 600; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  svg.chart.small { overflow: visible; }
 
   .trend-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .unit-price-badge {
