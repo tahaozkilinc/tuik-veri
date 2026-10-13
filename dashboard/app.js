@@ -973,6 +973,7 @@
       const usd = rows.reduce((s, r) => s + (r[5] || 0), 0);
       const kg = rows.reduce((s, r) => s + (r[6] || 0), 0);
       document.getElementById("unit-price-badge").textContent = fmtUnitPrice(kg ? (usd / kg) * 1000 : null);
+      document.getElementById("tonnage-badge").textContent = fmtKg(kg);
     }
 
     function renderAll() {

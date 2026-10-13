@@ -272,6 +272,8 @@
     border: 1px solid var(--border); border-radius: 100px; padding: 4px 10px; font-family: "IBM Plex Mono", monospace;
   }
   .unit-price-badge::before { content: "Ort. birim fiyat: "; font-family: "IBM Plex Sans", sans-serif; font-weight: 500; color: var(--text-muted); }
+  .badge-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tonnage-badge::before { content: "Toplam tonaj: "; }
   .trend-nav { display: flex; align-items: center; gap: 8px; }
   .pan-btn {
     border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-primary);
