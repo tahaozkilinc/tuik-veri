@@ -202,6 +202,7 @@
       groupDims: new Set(["product", "country"]),
       tableSort: { key: "kg", dir: "desc" },
       tableSearch: "",
+      trendViewMode: "auto",
     };
 
     const DIMENSIONS = {
@@ -625,6 +626,10 @@
     // "what basis is this data on" always has one visible, unambiguous answer.
     // Panning moves that shared range; ◀ ▶ shift it by its own width.
     const TREND_W = 560, TREND_H = 170, TREND_PADL = 60, TREND_PADR = 16, TREND_PADT = 10, TREND_PADB = 24;
+    const TREND_DIMS = { w: TREND_W, h: TREND_H, padL: TREND_PADL, padR: TREND_PADR, padT: TREND_PADT, padB: TREND_PADB };
+    // çok ürünlü "Ayrı grafikler" görünümünde her ürün kendi küçük grafiğini alır —
+    // tek grafikte 10+ çizgi üst üste binip okunmaz hale geldiğinde kullanılır.
+    const SMALL_DIMS = { w: 260, h: 118, padL: 42, padR: 8, padT: 8, padB: 18 };
 
     function trendPeriods() {
       const periods = [];
@@ -651,33 +656,34 @@
 
     // ortak eksen/gridline/hover-crosshair çizici — değer ve birim fiyat grafikleri
     // aynı ay eksenini paylaştığı için tek bir çizici fonksiyon kullanılıyor.
-    function drawSeriesChart(svgId, periods, series, valueFmt, tooltipTitle) {
+    function drawSeriesChart(svgId, periods, series, valueFmt, tooltipTitle, dims) {
+      const D = dims || TREND_DIMS;
       const svg = document.getElementById(svgId);
       svg.textContent = "";
-      svg.setAttribute("viewBox", "0 0 " + TREND_W + " " + TREND_H);
+      svg.setAttribute("viewBox", "0 0 " + D.w + " " + D.h);
       if (periods.length < 1) {
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("x", TREND_PADL); t.setAttribute("y", TREND_H / 2); t.setAttribute("class", "axis-label");
+        t.setAttribute("x", D.padL); t.setAttribute("y", D.h / 2); t.setAttribute("class", "axis-label");
         t.textContent = "Bu dönemde veri yok.";
         svg.appendChild(t);
         return;
       }
 
       // tek aylık bir aralıkta çizgi çizilemez (bölme hatasına yol açar) — nokta ortalanır.
-      const xStep = periods.length > 1 ? (TREND_W - TREND_PADL - TREND_PADR) / (periods.length - 1) : 0;
-      const xScale = i => periods.length > 1 ? TREND_PADL + i * xStep : (TREND_PADL + (TREND_W - TREND_PADR)) / 2;
+      const xStep = periods.length > 1 ? (D.w - D.padL - D.padR) / (periods.length - 1) : 0;
+      const xScale = i => periods.length > 1 ? D.padL + i * xStep : (D.padL + (D.w - D.padR)) / 2;
       const maxVal = Math.max(1, ...series.map(s => Math.max(0, ...periods.map(k => s.totals.get(k) || 0))));
-      const yScale = v => TREND_H - TREND_PADB - (v / maxVal) * (TREND_H - TREND_PADB - TREND_PADT);
+      const yScale = v => D.h - D.padB - (v / maxVal) * (D.h - D.padB - D.padT);
 
       for (let g = 0; g <= 3; g++) {
-        const y = TREND_PADT + (g * (TREND_H - TREND_PADB - TREND_PADT)) / 3;
+        const y = D.padT + (g * (D.h - D.padB - D.padT)) / 3;
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
         line.setAttribute("class", "gridline");
-        line.setAttribute("x1", TREND_PADL); line.setAttribute("x2", TREND_W - TREND_PADR);
+        line.setAttribute("x1", D.padL); line.setAttribute("x2", D.w - D.padR);
         line.setAttribute("y1", y); line.setAttribute("y2", y);
         svg.appendChild(line);
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("x", TREND_PADL - 8); t.setAttribute("y", y + 3);
+        t.setAttribute("x", D.padL - 8); t.setAttribute("y", y + 3);
         t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
         t.textContent = valueFmt(maxVal - (g * maxVal) / 3);
         svg.appendChild(t);
@@ -694,7 +700,7 @@
           if ((periods.length - 1 - prevShown) * xStep < minLabelGap) return;
         }
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("x", xScale(i)); t.setAttribute("y", TREND_H - 6);
+        t.setAttribute("x", xScale(i)); t.setAttribute("y", D.h - 6);
         t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
         t.textContent = periodLabelShort(key);
         svg.appendChild(t);
@@ -702,7 +708,7 @@
 
       const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
       hoverLine.setAttribute("class", "baseline");
-      hoverLine.setAttribute("y1", TREND_PADT); hoverLine.setAttribute("y2", TREND_H - TREND_PADB);
+      hoverLine.setAttribute("y1", D.padT); hoverLine.setAttribute("y2", D.h - D.padB);
       hoverLine.style.opacity = "0";
       svg.appendChild(hoverLine);
 
@@ -712,6 +718,7 @@
           const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
           dot.setAttribute("cx", pts[0][0]); dot.setAttribute("cy", pts[0][1]); dot.setAttribute("r", "4");
           dot.setAttribute("fill", s.color);
+          if (s.skey) { dot.setAttribute("class", "series-line"); dot.dataset.skey = s.skey; dot.dataset.flow = String(s.flow); }
           svg.appendChild(dot);
           return;
         }
@@ -720,6 +727,8 @@
         path.setAttribute("stroke", s.color); path.setAttribute("stroke-width", "2");
         path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
         if (s.dashed) path.setAttribute("stroke-dasharray", "5,4");
+        path.setAttribute("class", "series-line");
+        if (s.skey) { path.dataset.skey = s.skey; path.dataset.flow = String(s.flow); }
         svg.appendChild(path);
       });
 
@@ -727,8 +736,8 @@
       periods.forEach((key, i) => {
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         const hitW = Math.max(xStep, 6);
-        rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", TREND_PADT);
-        rect.setAttribute("width", hitW); rect.setAttribute("height", TREND_H - TREND_PADB - TREND_PADT);
+        rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", D.padT);
+        rect.setAttribute("width", hitW); rect.setAttribute("height", D.h - D.padB - D.padT);
         rect.setAttribute("fill", "transparent"); rect.style.cursor = "pointer";
         rect.tabIndex = 0;
         const showFn = evt => {
@@ -775,25 +784,90 @@
       return state.flow === "all" ? [0, 1] : [Number(state.flow)];
     }
 
+    // tek grafikte ürün × yön kombinasyonu arttıkça (10+ çizgi) çizgiler üst üste
+    // binip okunmaz hale geliyor — "Otomatik" bu eşiğin üstünde küçük, ürün başına
+    // ayrı grafiklere geçer. Kullanıcı isterse Birleşik/Ayrı'yı elle de sabitleyebilir.
+    const SMALL_MULTIPLE_THRESHOLD = 6;
+    function effectiveTrendViewMode(lineCount) {
+      if (state.trendViewMode === "auto") return lineCount > SMALL_MULTIPLE_THRESHOLD ? "separate" : "combined";
+      return state.trendViewMode;
+    }
+
+    function renderSeriesPane(combinedId, gridId, mode, periods, products, flows, totalsOf, valueFmt, fullFmt, tooltipTitle, showFlowSuffix) {
+      const combinedEl = document.getElementById(combinedId);
+      const gridEl = document.getElementById(gridId);
+      if (mode === "separate" && products.length > 1) {
+        // svg öğelerinde `.hidden` IDL özelliği güvenilir biçimde yansımıyor
+        // (bazı tarayıcılarda sadece expando olarak kalıp attribute'u hiç
+        // oluşturmuyor) — bu yüzden görünürlük doğrudan style.display ile kontrol edilir.
+        combinedEl.style.display = "none";
+        gridEl.style.display = "";
+        gridEl.textContent = "";
+        products.forEach((code, pi) => {
+          const cell = document.createElement("div"); cell.className = "chart-cell";
+          const head = document.createElement("div"); head.className = "chart-cell-head";
+          const sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = productColor(code);
+          const title = document.createElement("span"); title.className = "chart-cell-title"; title.textContent = GTIP_SHORT_NAMES[code] || code;
+          head.appendChild(sw); head.appendChild(title);
+          cell.appendChild(head);
+          const svgId = gridId + "-" + pi;
+          const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          svgEl.setAttribute("class", "chart small"); svgEl.id = svgId; svgEl.setAttribute("role", "img");
+          cell.appendChild(svgEl);
+          gridEl.appendChild(cell);
+          const series = flows.map(f => ({
+            totals: totalsOf(pi, f), color: productColor(code), dashed: f === 1, skey: code + "::" + f, flow: f,
+            label: (GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : ""), fullFmt,
+          }));
+          drawSeriesChart(svgId, periods, series, valueFmt, tooltipTitle, SMALL_DIMS);
+        });
+      } else {
+        gridEl.style.display = "none";
+        combinedEl.style.display = "";
+        const series = [];
+        products.forEach((code, pi) => flows.forEach(f => {
+          series.push({
+            totals: totalsOf(pi, f), color: productColor(code), dashed: f === 1, skey: code + "::" + f, flow: f,
+            label: (GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : ""), fullFmt,
+          });
+        }));
+        drawSeriesChart(combinedId, periods, series, valueFmt, tooltipTitle, TREND_DIMS);
+      }
+    }
+
     function renderTrendChart() {
       updateTrendNav();
       const rows = filteredRows();
       const products = trendProducts();
       const flows = trendFlows();
       const showFlowSuffix = flows.length > 1;
+      const mode = effectiveTrendViewMode(products.length * flows.length);
 
       const legend = document.getElementById("trend-legend");
       legend.textContent = "";
-      products.forEach(code => {
+      if (mode === "separate" && products.length > 1) {
+        // her ürün kendi grafiğinde kendi rengiyle gösterildiğinden burada sadece
+        // ihracat/ithalat çizgi stilini (düz/kesikli) açıklamak yeterli.
         flows.forEach(f => {
-          const key = document.createElement("span"); key.className = "key";
+          const key = document.createElement("span"); key.className = "key"; key.dataset.flow = String(f);
           const sw = document.createElement("span"); sw.className = "swatch-line" + (f === 1 ? " dashed" : "");
-          if (f === 1) sw.style.borderColor = productColor(code); else sw.style.background = productColor(code);
+          if (f === 1) sw.style.borderColor = "var(--text-secondary)"; else sw.style.background = "var(--text-secondary)";
           key.appendChild(sw);
-          key.appendChild(document.createTextNode((GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : "")));
+          key.appendChild(document.createTextNode(FLOW_LABEL[f]));
           legend.appendChild(key);
         });
-      });
+      } else {
+        products.forEach(code => {
+          flows.forEach(f => {
+            const key = document.createElement("span"); key.className = "key"; key.dataset.skey = code + "::" + f;
+            const sw = document.createElement("span"); sw.className = "swatch-line" + (f === 1 ? " dashed" : "");
+            if (f === 1) sw.style.borderColor = productColor(code); else sw.style.background = productColor(code);
+            key.appendChild(sw);
+            key.appendChild(document.createTextNode((GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : "")));
+            legend.appendChild(key);
+          });
+        });
+      }
 
       const periods = trendPeriods();
       const usdTotals = products.map(code => flows.map(f => {
@@ -804,38 +878,65 @@
         });
         return m;
       }));
-      const valueSeries = [];
-      products.forEach((code, pi) => flows.forEach((f, fi) => {
-        valueSeries.push({
-          totals: usdTotals[pi][fi], color: productColor(code), dashed: f === 1,
-          label: (GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : ""), fullFmt: fmtUsdFull,
-        });
-      }));
-      drawSeriesChart("trend-chart", periods, valueSeries, fmtUsd, key => periodLabelFull(key));
+      renderSeriesPane("trend-chart", "trend-chart-grid", mode, periods, products, flows,
+        (pi, f) => usdTotals[pi][flows.indexOf(f)], fmtUsd, fmtUsdFull, key => periodLabelFull(key), showFlowSuffix);
 
       const kgTotals = products.map(code => flows.map(f => {
         const m = new Map();
         rows.filter(r => r[2] === code && r[1] === f).forEach(r => { const k = periodKey(r[0], r[7]); m.set(k, (m.get(k) || 0) + (r[6] || 0)); });
         return m;
       }));
-      const priceSeries = [];
-      products.forEach((code, pi) => flows.forEach((f, fi) => {
+      const priceTotals = products.map((code, pi) => flows.map((f, fi) => {
         const m = new Map();
         periods.forEach(k => {
           const kg = kgTotals[pi][fi].get(k);
           if (kg) m.set(k, (usdTotals[pi][fi].get(k) / kg) * 1000);
         });
-        priceSeries.push({
-          totals: m, color: productColor(code), dashed: f === 1,
-          label: (GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : ""), fullFmt: fmtUnitPrice,
-        });
+        return m;
       }));
-      drawSeriesChart("price-chart", periods, priceSeries, v => "$" + Math.round(v), key => periodLabelFull(key));
+      renderSeriesPane("price-chart", "price-chart-grid", mode, periods, products, flows,
+        (pi, f) => priceTotals[pi][flows.indexOf(f)], v => "$" + Math.round(v), fmtUnitPrice, key => periodLabelFull(key), showFlowSuffix);
     }
 
     function setupTrendNav() {
       document.getElementById("trend-prev").addEventListener("click", () => panTrend(-1));
       document.getElementById("trend-next").addEventListener("click", () => panTrend(1));
+    }
+
+    function setupTrendViewMode() {
+      const wrap = document.getElementById("trend-view-mode");
+      wrap.querySelectorAll(".seg").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.trendViewMode = btn.dataset.value;
+          wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+          renderTrendChart();
+        });
+      });
+    }
+
+    // legend'daki bir seriye gelince ilgili çizgiyi (veya o yöndeki tüm çizgileri,
+    // "Ayrı grafikler" görünümünde) öne çıkarıp diğerlerini soldurur — çok çizgili
+    // grafiklerde tek bir seriyi takip etmeyi kolaylaştırır.
+    function setupTrendHighlight() {
+      function apply(attr, value) {
+        document.querySelectorAll(".legend .key").forEach(k => k.classList.toggle("dim", k.dataset[attr] !== value));
+        document.querySelectorAll("svg.chart .series-line").forEach(el => {
+          const match = el.dataset[attr] === value;
+          el.classList.toggle("dim", !match);
+          el.classList.toggle("focus", match);
+        });
+      }
+      function clear() {
+        document.querySelectorAll(".legend .key, svg.chart .series-line").forEach(el => el.classList.remove("dim", "focus"));
+      }
+      const legend = document.getElementById("trend-legend");
+      legend.addEventListener("pointerover", e => {
+        const key = e.target.closest(".key");
+        if (!key) return;
+        if (key.dataset.skey) apply("skey", key.dataset.skey);
+        else if (key.dataset.flow) apply("flow", key.dataset.flow);
+      });
+      legend.addEventListener("pointerout", e => { if (e.target.closest(".key")) clear(); });
     }
 
     // ---------- pivot table ----------
@@ -965,6 +1066,8 @@
     buildCountrySearch();
     buildGroupControls();
     setupTrendNav();
+    setupTrendViewMode();
+    setupTrendHighlight();
     renderAll();
     renderReport(report);
   }
