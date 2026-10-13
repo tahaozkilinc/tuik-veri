@@ -200,7 +200,7 @@
       products: new Set(),
       countries: new Set(),
       groupDims: new Set(["product", "country"]),
-      tableSort: { key: "usd", dir: "desc" },
+      tableSort: { key: "kg", dir: "desc" },
       tableSearch: "",
     };
 
@@ -208,9 +208,10 @@
       product: { label: "Ürün", get: r => r[2], display: v => GTIP_SHORT_NAMES[v] || v },
       country: { label: "Ülke", get: r => r[3], display: v => countryNames[v] || v },
       year: { label: "Yıl", get: r => r[0], display: v => String(v) },
+      month: { label: "Ay", get: r => periodKey(r[0], r[7]), display: v => periodLabelFull(v) },
       flow: { label: "Yön", get: r => r[1], display: v => FLOW_LABEL[v] },
     };
-    const DIM_ORDER = ["product", "country", "year", "flow"];
+    const DIM_ORDER = ["product", "country", "year", "month", "flow"];
 
     function fmtUsd(v) {
       if (v == null || isNaN(v)) return "—";
@@ -867,8 +868,8 @@
       const cols = [{ key: "rank", label: "#", num: false }]
         .concat(dims.map(d => ({ key: d, label: DIMENSIONS[d].label, num: false })))
         .concat([
-          { key: "usd", label: "Toplam Değer", num: true },
           { key: "kg", label: "Toplam Miktar", num: true },
+          { key: "usd", label: "Toplam Değer", num: true },
           { key: "unitPrice", label: "Birim Fiyat", num: true },
           { key: "share", label: "Pay", num: true },
         ]);
@@ -909,10 +910,10 @@
           }
           tr.appendChild(td);
         });
-        const usdTd = document.createElement("td"); usdTd.className = "num-col num"; usdTd.textContent = fmtUsdFull(g.usd);
-        tr.appendChild(usdTd);
         const kgTd = document.createElement("td"); kgTd.className = "num-col num"; kgTd.textContent = fmtKg(g.kg);
         tr.appendChild(kgTd);
+        const usdTd = document.createElement("td"); usdTd.className = "num-col num"; usdTd.textContent = fmtUsdFull(g.usd);
+        tr.appendChild(usdTd);
         const priceTd = document.createElement("td"); priceTd.className = "num-col num"; priceTd.textContent = fmtUnitPrice(g.unitPrice);
         tr.appendChild(priceTd);
         const shareTd = document.createElement("td"); shareTd.className = "num-col";
