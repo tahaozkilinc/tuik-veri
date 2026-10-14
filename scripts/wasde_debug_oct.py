@@ -1,23 +1,25 @@
-"""Geçici teşhis scripti #2 — Dünya Mısır tablosunun ham başlık/satır
-yapısını doğrudan dump eder (önceki script, "2026/27 Proj." string'i
-bulunamayınca sessizce boş slice döndürmüştü)."""
+"""Geçici teşhis scripti #3 — parse_world_corn() ile BİREBİR aynı slice'ı
+kullanarak (ti'den find_block'un kendi rule3'ü değil, Contd. sayfasının
+sonu olan end2'ye kadar) gerçek 2026/27 Proj. bölümünü bulmaya çalışır."""
 from wasde import parser
 
 report_date, txt_url = parser.find_latest_release()
 print("release:", report_date, txt_url)
 text = parser.fetch(txt_url)
 
-ti, end2 = parser.find_block(text, "World Corn Supply and Use")
+ti, _ = parser.find_block(text, "World Corn Supply and Use")
+_, end2 = parser.find_block(text, "World Corn Supply and Use  1/  (Contd.)")
 block = text[ti:end2]
-print("block length:", len(block))
-print("\n--- World Corn block, first 2200 chars ---")
-print(block[:2200])
+print("full block length:", len(block))
 
-print("\ncontains literal '2026/27 Proj.':", "2026/27 Proj." in block)
-print("contains literal '2025/26 Est.':", "2025/26 Est." in block)
-print("contains literal '2024/25':", "2024/25" in block)
-
-# hangi biçimde "2026/27" geçiyor gerçekten?
-import re
-for m in re.finditer(r"2026/27[^\n]{0,40}", block):
-    print("match:", repr(m.group(0)))
+iproj = block.find("2026/27 Proj.")
+print("iproj index:", iproj)
+if iproj >= 0:
+    print("\n--- Proj. section, 1500 chars ---")
+    print(block[iproj:iproj+1500])
+else:
+    print("literal '2026/27 Proj.' not found in full block either")
+    # 2025/26 Est. nerede bitiyor, ne geliyor sonra?
+    iest = block.find("2025/26 Est.")
+    print("\n--- after 2025/26 Est. marker, next 3000 chars ---")
+    print(block[iest:iest+3000])
