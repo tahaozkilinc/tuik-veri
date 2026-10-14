@@ -21,29 +21,39 @@ def main() -> None:
     print(f"WASDE-{release_number}, txt uzunluğu: {len(text)}", file=sys.stderr)
 
     print("\n=== U.S. CORN (Million Bushels, fiyat $/bu) ===")
-    for label, vals in parser.parse_us_corn(text).items():
+    corn_periods, corn_rows = parser.parse_us_corn(text)
+    print(f"dönemler: {corn_periods}")
+    for label, vals in corn_rows.items():
         print(f"{label:35s} {vals}")
 
     print("\n=== U.S. SOYBEANS / OIL / MEAL ===")
-    for sub, rows in parser.parse_us_soy(text).items():
+    soy_periods, soy_tables = parser.parse_us_soy(text)
+    print(f"dönemler: {soy_periods}")
+    for sub, rows in soy_tables.items():
         print(f"--- {sub} ---")
         for label, vals in rows.items():
             print(f"{label:35s} {vals}")
 
     print("\n=== WORLD CORN (Million Metric Tons: BegStocks,Prod,Imports,Feed,DomTotal,Exports,EndStocks) ===")
-    for region, series in parser.parse_world_corn(text).items():
+    world_corn, world_corn_slots = parser.parse_world_corn(text)
+    print(f"dönem etiketleri: {world_corn_slots}")
+    for region, series in world_corn.items():
         print(f"-- {region} --")
         for period, vals in series.items():
             print(f"  {period:20s} {vals}")
 
     print("\n=== WORLD SOYBEAN (Million Metric Tons: BegStocks,Prod,Imports,Crush,DomTotal,Exports,EndStocks) ===")
-    for region, series in parser.parse_world_soy(text).items():
+    world_soy, world_soy_slots = parser.parse_world_soy(text)
+    print(f"dönem etiketleri: {world_soy_slots}")
+    for region, series in world_soy.items():
         print(f"-- {region} --")
         for period, vals in series.items():
             print(f"  {period:20s} {vals}")
 
     print("\n=== WORLD SOYBEAN MEAL (Million Metric Tons: BegStocks,Prod,Imports,DomTotal,Exports,EndStocks) ===")
-    for region, series in parser.parse_world_soymeal(text).items():
+    world_soymeal, world_soymeal_slots = parser.parse_world_soymeal(text)
+    print(f"dönem etiketleri: {world_soymeal_slots}")
+    for region, series in world_soymeal.items():
         print(f"-- {region} --")
         for period, vals in series.items():
             print(f"  {period:20s} {vals}")

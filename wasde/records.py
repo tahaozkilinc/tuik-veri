@@ -63,6 +63,16 @@ def _us_row_convert(measure_key: str, table: str, value: float) -> tuple[float, 
     raise ValueError(f"bilinmeyen tablo: {table}")
 
 
+# ABD ve Dünya tablolarının 4 dönemi her zaman aynı SIRADA üretiliyor: [iki
+# yıl önce, önceki pazarlama yılı tahmini, bu pazarlama yılının önceki ay
+# projeksiyonu, bu pazarlama yılının bu ay projeksiyonu]. Metindeki gerçek
+# etiketler (ay kısaltmaları, yıl numaraları) ay be ay değiştiği için
+# compute_ending_stock_trends bu SIRA etiketine (_period_slot) güveniyor,
+# metin içeriğine değil — "önceki rapora göre" = proj_prev vs proj_latest,
+# "önceki pazarlama yılına göre" = est vs proj_latest.
+PERIOD_SLOTS = ["flat", "est", "proj_prev", "proj_latest"]
+
+
 def _us_rows_to_records(
     rows: dict[str, list[float]],
     commodity: str,
@@ -74,7 +84,7 @@ def _us_rows_to_records(
     records = []
     for raw_label, vals in rows.items():
         measure_key, measure_tr = glossary.us_measure(raw_label)
-        for period_label, value in zip(period_labels, vals):
+        for slot, period_label, value in zip(PERIOD_SLOTS, period_labels, vals):
             converted_value, unit_key = _us_row_convert(measure_key, table, value)
             unit_tr = glossary.UNIT_LABELS_TR[unit_key]
             # üç tablonun kendi para birimi ölçüsünü ("$/bushel", "sent/pound",
@@ -96,16 +106,15 @@ def _us_rows_to_records(
                     "value": round(converted_value, 4),
                     "unit": unit_key,
                     "unit_label_tr": unit_tr,
+                    "_period_slot": slot,
                 }
             )
     return records
 
 
-US_PERIOD_LABELS = ["2024/25", "2025/26 Est.", "2026/27 Proj. Aug", "2026/27 Proj. Sep"]
-
-
 def _world_table_to_records(
     world_data: dict[str, dict[str, list[float]]],
+    period_slots: dict[str, str],
     commodity: str,
     columns: list[tuple[str, str]],
     report_date: str,
@@ -114,6 +123,7 @@ def _world_table_to_records(
     records = []
     unit_key = "million_metric_tons"
     unit_tr = glossary.UNIT_LABELS_TR[unit_key]
+    label_to_slot = {label: slot for slot, label in period_slots.items()}
     for region_key, series in world_data.items():
         for period_label, vals in series.items():
             for (measure_key, measure_tr), value in zip(columns, vals):
@@ -131,6 +141,7 @@ def _world_table_to_records(
                         "value": value,
                         "unit": unit_key,
                         "unit_label_tr": unit_tr,
+                        "_period_slot": label_to_slot.get(period_label),
                     }
                 )
     return records
@@ -161,49 +172,52 @@ def _trend_record(base: dict, measure: str, measure_tr: str, value: float, perio
 
 def compute_ending_stock_trends(records: list[dict]) -> list[dict]:
     """Devreden stok (ending_stocks) için iki yüzdelik değişim üretir:
-      - ending_stocks_mom_change_pct: bu ayki WASDE'nin kendi Ağu->Eyl
-        revizyonu — "bir önceki rapora göre" sorusunun cevabı.
-      - ending_stocks_yoy_change_pct: 2025/26 tahmininden 2026/27
-        projeksiyonuna geçiş — stok "düşüş eğiliminde mi" sorusunun cevabı.
-    Negatif = düşüş (stok azalıyor), pozitif = artış.
+      - ending_stocks_mom_change_pct: bu ayki WASDE'nin kendi önceki ay ->
+        bu ay revizyonu — "bir önceki rapora göre" sorusunun cevabı.
+      - ending_stocks_yoy_change_pct: önceki pazarlama yılı tahmininden bu
+        yılın projeksiyonuna geçiş — stok "düşüş eğiliminde mi" sorusunun
+        cevabı.
+    Hangi ayların/yılların karşılaştırıldığı metinden değil, her kaydın
+    _period_slot etiketinden (flat/est/proj_prev/proj_latest) okunuyor —
+    ay kısaltmaları ve pazarlama yılı numaraları her ay değiştiği için
+    metne güvenmek kırılgan olurdu. Negatif = düşüş (stok azalıyor).
     """
     by_series: dict[tuple, dict[str, dict]] = {}
     for r in records:
-        if r["measure"] != "ending_stocks":
+        if r["measure"] != "ending_stocks" or not r.get("_period_slot"):
             continue
         key = (r["commodity"], r["scope"], r["region"])
-        by_series.setdefault(key, {})[r["period_label"]] = r
+        by_series.setdefault(key, {})[r["_period_slot"]] = r
 
     trend_records: list[dict] = []
-    for by_period in by_series.values():
-        aug = by_period.get("2026/27 Proj. Aug")
-        sep = by_period.get("2026/27 Proj. Sep")
-        est = by_period.get("2025/26 Est.")
-        base = sep or aug
-        if base is None:
+    for by_slot in by_series.values():
+        prev_month = by_slot.get("proj_prev")
+        latest = by_slot.get("proj_latest")
+        est = by_slot.get("est")
+        if latest is None:
             continue
-        if aug and sep:
-            pct = _pct_change(aug["value"], sep["value"])
+        if prev_month is not None:
+            pct = _pct_change(prev_month["value"], latest["value"])
             if pct is not None:
                 trend_records.append(
                     _trend_record(
-                        base,
+                        latest,
                         "ending_stocks_mom_change_pct",
                         "Devreden Stok - Bir Önceki Rapora Göre Değişim (%)",
                         pct,
-                        "2026/27 Proj. Sep",
+                        latest["period_label"],
                     )
                 )
-        if est and sep:
-            pct = _pct_change(est["value"], sep["value"])
+        if est is not None:
+            pct = _pct_change(est["value"], latest["value"])
             if pct is not None:
                 trend_records.append(
                     _trend_record(
-                        base,
+                        latest,
                         "ending_stocks_yoy_change_pct",
                         "Devreden Stok - Bir Önceki Pazarlama Yılına Göre Değişim (%)",
                         pct,
-                        "2026/27 Proj. Sep",
+                        latest["period_label"],
                     )
                 )
     return trend_records
@@ -212,23 +226,29 @@ def compute_ending_stock_trends(records: list[dict]) -> list[dict]:
 def build_records(text: str, report_date: str, release_number: int) -> list[dict]:
     records: list[dict] = []
 
-    corn_rows = parser.parse_us_corn(text)
-    records += _us_rows_to_records(corn_rows, "corn", "corn", US_PERIOD_LABELS, report_date, release_number)
+    corn_periods, corn_rows = parser.parse_us_corn(text)
+    records += _us_rows_to_records(corn_rows, "corn", "corn", corn_periods, report_date, release_number)
 
-    soy = parser.parse_us_soy(text)
-    records += _us_rows_to_records(soy["SOYBEANS"], "soybeans", "soybeans", US_PERIOD_LABELS, report_date, release_number)
-    records += _us_rows_to_records(soy["SOYBEAN OIL"], "soybean_oil", "soybean_oil", US_PERIOD_LABELS, report_date, release_number)
-    records += _us_rows_to_records(soy["SOYBEAN MEAL"], "soybean_meal", "soybean_meal", US_PERIOD_LABELS, report_date, release_number)
+    soy_periods, soy = parser.parse_us_soy(text)
+    records += _us_rows_to_records(soy["SOYBEANS"], "soybeans", "soybeans", soy_periods, report_date, release_number)
+    records += _us_rows_to_records(soy["SOYBEAN OIL"], "soybean_oil", "soybean_oil", soy_periods, report_date, release_number)
+    records += _us_rows_to_records(soy["SOYBEAN MEAL"], "soybean_meal", "soybean_meal", soy_periods, report_date, release_number)
 
-    world_corn = parser.parse_world_corn(text)
-    records += _world_table_to_records(world_corn, "corn", glossary.WORLD_CORN_COLUMNS, report_date, release_number)
+    world_corn, world_corn_slots = parser.parse_world_corn(text)
+    records += _world_table_to_records(world_corn, world_corn_slots, "corn", glossary.WORLD_CORN_COLUMNS, report_date, release_number)
 
-    world_soy = parser.parse_world_soy(text)
-    records += _world_table_to_records(world_soy, "soybeans", glossary.WORLD_SOYBEAN_COLUMNS, report_date, release_number)
+    world_soy, world_soy_slots = parser.parse_world_soy(text)
+    records += _world_table_to_records(world_soy, world_soy_slots, "soybeans", glossary.WORLD_SOYBEAN_COLUMNS, report_date, release_number)
 
-    world_soymeal = parser.parse_world_soymeal(text)
-    records += _world_table_to_records(world_soymeal, "soybean_meal", glossary.WORLD_SOYBEAN_MEAL_COLUMNS, report_date, release_number)
+    world_soymeal, world_soymeal_slots = parser.parse_world_soymeal(text)
+    records += _world_table_to_records(world_soymeal, world_soymeal_slots, "soybean_meal", glossary.WORLD_SOYBEAN_MEAL_COLUMNS, report_date, release_number)
 
     records += compute_ending_stock_trends(records)
+
+    # _period_slot sadece bu ay içinde "önceki rapora göre" hesaplaması için
+    # ara veri — wasde_stats şemasında böyle bir sütun yok, DB'ye yazılmadan
+    # önce atılıyor.
+    for r in records:
+        r.pop("_period_slot", None)
 
     return records
