@@ -16,4 +16,4 @@ jobs:
         with:
           python-version: "3.11"
       - name: Run diagnostic
-        run: python scripts/wasde_debug_oct.py
+        run: PYTHONPATH=. python scripts/wasde_debug_oct.py
