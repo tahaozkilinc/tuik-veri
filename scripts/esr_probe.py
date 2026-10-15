@@ -1,12 +1,18 @@
+import re
 import urllib.request
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; tuik-veri-research/1.0)"}
-for url in ["https://api.fas.usda.gov", "https://api.fas.usda.gov/", "https://apps.fas.usda.gov/opendatawebV2/"]:
-    print("=" * 60, url)
-    try:
-        req = urllib.request.Request(url, headers=HEADERS)
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            print("status:", resp.status, "final url:", resp.geturl())
-            print(body[:2000])
-    except Exception as e:
-        print("ERROR:", type(e).__name__, e)
+
+def fetch(url):
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        return resp.read().decode("utf-8", errors="replace")
+
+url = "https://apps.fas.usda.gov/esrqs/main-WLKZ33AV.js"
+js = fetch(url)
+print("len:", len(js))
+
+for needle in ["api.fas.usda.gov", "/api/esr", "esrqs/api", "apiUrl", "baseUrl", "X-Api-Key", "proxy"]:
+    idxs = [m.start() for m in re.finditer(re.escape(needle), js)]
+    print(f"'{needle}': {len(idxs)} hits")
+    for i in idxs[:3]:
+        print("   ...", js[max(0,i-80):i+120].replace("\n"," "))
