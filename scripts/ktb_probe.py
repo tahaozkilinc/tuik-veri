@@ -1,11 +1,13 @@
-"""temp: KTB - explore GetGunlukBulten param, GrupSinifUrunSelect, and historical date-range endpoint."""
+"""temp: KTB - get full real group id list, then try historical endpoints with real ids + ISO dates."""
+import json
 import urllib.request
 import urllib.error
 
 BASE = "https://www.ktb.org.tr"
+P = "/api/v1/Alpha.WebPanel/OnlineKullaniciBulten"
 
 
-def try_get(path):
+def try_get(path, show=1500):
     url = BASE + path
     h = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
     req = urllib.request.Request(url, headers=h)
@@ -13,7 +15,8 @@ def try_get(path):
         with urllib.request.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8", errors="replace")
             print(f"GET {path} -> {resp.status} (len {len(body)})")
-            print(body[:1200])
+            print(body[:show])
+            return body
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         print(f"GET {path} -> HTTP {e.code}")
@@ -21,28 +24,24 @@ def try_get(path):
     except Exception as e:
         print(f"GET {path} -> ERROR {e}")
     print()
+    return None
 
 
-P = "/api/v1/Alpha.WebPanel/OnlineKullaniciBulten"
+body = try_get(f"{P}/GetGrupSinifUrunSelectler/1", show=100000)
+print("\n==== parsed real group ids ====")
+try:
+    data = json.loads(body)
+    for g in data.get("Gruplar", []):
+        print(g["Id"], g["GrupKodu"], g["GrupAdi"])
+except Exception as e:
+    print("parse error", e)
 
-# GetBultenGrupSinifUrunSelect(oe) - try group id 1 (Arpa)
-try_get(f"{P}/GetBultenGrupSinifUrunSelect/1")
-try_get(f"{P}/GetGrupSinifUrunSelectler/1")
+print("\n==== try real id 937 (Kirmizi Sert Bugday, had 23 trades today) ====")
+try_get(f"{P}/GetBultenKartModel/937/0/0")
+try_get(f"{P}/GetBultenGecmisIslemFiyatTarihli/937/2026-10-15/0")
+try_get(f"{P}/GetBultenGecmisIslemFiyatTarihAraligi/937/0/0/2026-09-01/2026-10-15")
+try_get(f"{P}/GetBultenGecmisIslemUrunListesi/937/0/2026-09-01/2026-10-15")
 
-# GetGunlukBulten with group id guesses
-for gid in [1, 9]:
-    try_get(f"{P}/GetGunlukBulten/{gid}")
-
-# GetBultenKartModel(oe,se,ve) - guess (grupId, sinifId, urunId)
+print("\n==== try group id 1 (Arpa, had 31 trades today) ====")
 try_get(f"{P}/GetBultenKartModel/1/0/0")
-
-# GetBultenGecmisIslemFiyatTarihli(oe,se,ve) - guess (urunId or grupId, date, ?)
-try_get(f"{P}/GetBultenGecmisIslemFiyatTarihli/1/2026-10-01/0")
-try_get(f"{P}/GetBultenGecmisIslemFiyatTarihli/9/2026-10-01/0")
-
-# GetBultenGecmisIslemFiyatTarihAraligi(oe,se,ve,ze,Ce) - guess (grupId,sinifId,urunId,start,end)
-try_get(f"{P}/GetBultenGecmisIslemFiyatTarihAraligi/9/0/0/2026-09-01/2026-10-15")
-try_get(f"{P}/GetBultenGecmisIslemFiyatTarihAraligi/9/0/0/01.09.2026/15.10.2026")
-
-# GetBultenGecmisIslemUrunListesi(oe,se,ve,ze)
-try_get(f"{P}/GetBultenGecmisIslemUrunListesi/9/0/2026-09-01/2026-10-15")
+try_get(f"{P}/GetBultenGecmisIslemFiyatTarihAraligi/1/0/0/2026-09-01/2026-10-15")
