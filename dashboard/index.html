@@ -176,23 +176,76 @@
   </div>
 
   <div id="exchange-panel" hidden>
-    <div class="wasde-banner">
-      <div>
-        <strong>Ticaret Borsası fiyatları</strong> 15 dakikada bir güncellenir, sadece ilgili borsanın
-        Türkiye saatiyle açık olduğu saatler arasında. Borsa kapalıyken son kapanış fiyatı gösterilir.
-      </div>
-      <span class="wasde-release-badge" id="exchange-asof-badge">Yükleniyor…</span>
+    <div class="tab-bar subtab-bar" id="exchange-subtabs" role="tablist" aria-label="Ticaret Borsası alt sekmesi">
+      <button class="tab active" id="subtab-live" type="button" role="tab" aria-selected="true">Canlı Kurlar</button>
+      <button class="tab" id="subtab-turib" type="button" role="tab" aria-selected="false">TÜRİB</button>
     </div>
 
-    <section class="kpi-row" id="exchange-kpi-row" aria-label="Borsa özet göstergeler"></section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>Borsalar</h2>
-        <button class="reset-btn" id="exchange-export-btn" type="button">Excel'e aktar (CSV)</button>
+    <div id="exchange-live-section">
+      <div class="wasde-banner">
+        <div>
+          <strong>Ticaret Borsası fiyatları</strong> 15 dakikada bir güncellenir, sadece ilgili borsanın
+          Türkiye saatiyle açık olduğu saatler arasında. Borsa kapalıyken son kapanış fiyatı gösterilir.
+        </div>
+        <span class="wasde-release-badge" id="exchange-asof-badge">Yükleniyor…</span>
       </div>
-      <div id="exchange-sections"></div>
-    </section>
+
+      <section class="kpi-row" id="exchange-kpi-row" aria-label="Borsa özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Borsalar</h2>
+          <button class="reset-btn" id="exchange-export-btn" type="button">Excel'e aktar (CSV)</button>
+        </div>
+        <div id="exchange-sections"></div>
+      </section>
+    </div>
+
+    <div id="turib-section" hidden>
+      <div class="wasde-banner">
+        <div>
+          <strong>TÜRİB (Türkiye Ürün İhtisas Borsası) günlük bülteni</strong> — Normal Seans elektronik
+          ürün senedi (ELÜS) işlemleri, her iş günü 18:00'da o günün bülteni çekilir. Ağırlıklı ortalama
+          fiyat, aynı gün içindeki tüm işlemlerin miktar-ağırlıklı ortalamasıdır.
+        </div>
+        <span class="wasde-release-badge" id="turib-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="TÜRİB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label">Ürün</span>
+          <div class="segmented" id="turib-product" role="group" aria-label="Ürün"></div>
+        </div>
+        <div class="filter-group country-box">
+          <span class="filter-label">LİDAŞ</span>
+          <input type="text" class="text-input" id="turib-lidas-search" placeholder="Tümü — LİDAŞ aramak için yazın…" autocomplete="off">
+          <div class="suggestions" id="turib-lidas-suggestions"></div>
+          <div class="country-selected" id="turib-lidas-selected"></div>
+        </div>
+      </section>
+
+      <section class="kpi-row" id="turib-kpi-row" aria-label="TÜRİB özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="turib-chart-title">Ağırlıklı ortalama fiyat eğilimi</h2>
+        </div>
+        <svg class="chart" id="turib-chart" role="img" aria-label="Ağırlıklı ortalama fiyat eğilimi"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="turib-table-title">Günlük işlemler</h2>
+          <button class="reset-btn" id="turib-export-btn" type="button">Excel'e aktar (CSV)</button>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="turib-table">
+            <thead><tr id="turib-thead"></tr></thead>
+            <tbody id="turib-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </div>
 
   <div id="esr-panel" hidden>
@@ -256,7 +309,7 @@
   </div>
 
   <footer class="note">
-    Veri kaynağı: TÜİK dış ticaret istatistikleri, Qlik Engine API üzerinden doğrudan çekildi ve Supabase üzerinden bu sayfaya canlı yüklenir. WASDE verisi USDA'nın aylık yayınından, İhracat Satışları verisi USDA ESR API'sinden (haftalık) çekilir. Kaynak: <a href="https://github.com/tahaozkilinc/tuik-veri" target="_blank" rel="noopener">tahaozkilinc/tuik-veri</a>.
+    Veri kaynağı: TÜİK dış ticaret istatistikleri, Qlik Engine API üzerinden doğrudan çekildi ve Supabase üzerinden bu sayfaya canlı yüklenir. WASDE verisi USDA'nın aylık yayınından, İhracat Satışları verisi USDA ESR API'sinden (haftalık) çekilir. TÜRİB verisi www.turib.com.tr günlük bülteninden (her iş günü 18:00) çekilir. Kaynak: <a href="https://github.com/tahaozkilinc/tuik-veri" target="_blank" rel="noopener">tahaozkilinc/tuik-veri</a>.
   </footer>
 </div>
 

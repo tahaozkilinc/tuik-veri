@@ -1669,6 +1669,406 @@ window.__tabManager = (function () {
     if (!cachedRows.length) return;
     exportCsv(cachedRows);
   });
+
+  // ---------- Ticaret Borsası alt sekmesi: Canlı Kurlar / TÜRİB ----------
+  document.getElementById("subtab-live").addEventListener("click", () => showExchangeSubtab("live"));
+  document.getElementById("subtab-turib").addEventListener("click", () => showExchangeSubtab("turib"));
+  function showExchangeSubtab(which) {
+    const isTurib = which === "turib";
+    document.getElementById("subtab-live").classList.toggle("active", !isTurib);
+    document.getElementById("subtab-live").setAttribute("aria-selected", String(!isTurib));
+    document.getElementById("subtab-turib").classList.toggle("active", isTurib);
+    document.getElementById("subtab-turib").setAttribute("aria-selected", String(isTurib));
+    document.getElementById("exchange-live-section").hidden = isTurib;
+    document.getElementById("turib-section").hidden = !isTurib;
+    if (isTurib && window.__turibTab) window.__turibTab.onActivate();
+  }
+})();
+
+// ---------------------------------------------------------------------------
+// TÜRİB (Türkiye Ürün İhtisas Borsası) alt sekmesi — Ticaret Borsası
+// sekmesinin içinde ikinci bir kaynak: TÜİK/WASDE/ESR'den tamamen ayrı,
+// günlük bülten kazınarak elde edilen GERÇEK elektronik ürün senedi (ELÜS)
+// işlemleri (sadece Normal Seans). Varsayılan ürün filtresi "MISIR 1.SINIF".
+(function () {
+  "use strict";
+
+  const cfg = window.TUIK_DASHBOARD_CONFIG;
+  const LINE_COLOR = "var(--series-export)";
+  const CHART_W = 640, CHART_H = 190, PADL = 64, PADR = 16, PADT = 10, PADB = 24;
+  const DEFAULT_PRODUCT = "MISIR 1.SINIF";
+
+  function fmtKg(v) {
+    if (v == null || isNaN(v)) return "—";
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(2) + "M kg";
+    if (a >= 1e3) return (v / 1e3).toFixed(1) + "K kg";
+    return (Math.round(v) || 0) + " kg";
+  }
+  function fmtTl(v) {
+    if (v == null || isNaN(v)) return "—";
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(2) + "M TL";
+    if (a >= 1e3) return (v / 1e3).toFixed(1) + "K TL";
+    return (Math.round(v) || 0) + " TL";
+  }
+  function fmtPriceKg(v) {
+    if (v == null || isNaN(v)) return "—";
+    return v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " TL/kg";
+  }
+  function fmtDateShort(iso) {
+    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+  }
+  function fmtDateFull(iso) {
+    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  }
+
+  const CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3 saat — veri günde bir (18:00) güncelleniyor
+
+  async function fetchTuribRows() {
+    const cached = window.__supaCache.get("turib", CACHE_TTL_MS);
+    if (cached) return cached;
+
+    const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
+    const pageSize = 1000;
+    let rows = [];
+    let from = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await fetch(
+        `${cfg.SUPABASE_URL}/rest/v1/turib_bulletin?select=trade_date,isin_kodu,enstruman_sinifi,agirlikli_ortalama_fiyat,islem_adedi,islem_miktari_kg,islem_hacmi_tl,lidas_adi,il,ilce&order=trade_date.asc`,
+        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
+      );
+      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
+      const page = await res.json();
+      rows = rows.concat(page);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    window.__supaCache.set("turib", rows);
+    return rows;
+  }
+
+  // ---------- tooltip (diğer panellerle aynı görünüm) ----------
+  function makeTooltip() {
+    let el = document.querySelector(".tooltip");
+    if (!el) { el = document.createElement("div"); el.className = "tooltip"; document.body.appendChild(el); }
+    return el;
+  }
+  function showTooltip(evt, node) {
+    const tip = makeTooltip();
+    tip.textContent = ""; tip.appendChild(node);
+    tip.style.opacity = "1";
+    let x = evt.clientX + 14, y = evt.clientY + 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+    const rect = tip.getBoundingClientRect();
+    if (rect.right > window.innerWidth) tip.style.left = (evt.clientX - rect.width - 14) + "px";
+    if (rect.bottom > window.innerHeight) tip.style.top = (evt.clientY - rect.height - 14) + "px";
+  }
+  function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
+
+  let allRows = [];
+  const state = { product: null, lidas: null };
+
+  function productRows() {
+    return allRows.filter(r => r.enstruman_sinifi === state.product);
+  }
+  function currentRows() {
+    return productRows().filter(r => !state.lidas || r.lidas_adi === state.lidas);
+  }
+
+  // tarihe göre hacim-ağırlıklı ortalama fiyat: her satırın kendi
+  // ağırlıklı ortalama fiyatını, o satırın işlem miktarıyla tartarak
+  // birleştiriyoruz (tek bir ISIN'in günlük fiyatı zaten kendi içinde
+  // ağırlıklı — burada sadece aynı güne ait birden çok ISIN/LİDAŞ'ı
+  // doğru şekilde tek bir günlük fiyata indiriyoruz).
+  function dailyWeightedSeries(rows) {
+    const byDate = new Map();
+    rows.forEach(r => {
+      if (r.agirlikli_ortalama_fiyat == null || r.islem_miktari_kg == null) return;
+      const e = byDate.get(r.trade_date) || { sumPriceKg: 0, sumKg: 0 };
+      e.sumPriceKg += r.agirlikli_ortalama_fiyat * r.islem_miktari_kg;
+      e.sumKg += r.islem_miktari_kg;
+      byDate.set(r.trade_date, e);
+    });
+    return [...byDate.entries()]
+      .map(([date, e]) => ({ date, price: e.sumKg > 0 ? e.sumPriceKg / e.sumKg : null, kg: e.sumKg }))
+      .filter(p => p.price != null)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function overallWeightedAvg(rows) {
+    let sumPriceKg = 0, sumKg = 0;
+    rows.forEach(r => {
+      if (r.agirlikli_ortalama_fiyat == null || r.islem_miktari_kg == null) return;
+      sumPriceKg += r.agirlikli_ortalama_fiyat * r.islem_miktari_kg;
+      sumKg += r.islem_miktari_kg;
+    });
+    return sumKg > 0 ? sumPriceKg / sumKg : null;
+  }
+
+  function drawChart(points) {
+    const svg = document.getElementById("turib-chart");
+    svg.textContent = "";
+    svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
+    if (!points.length) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
+      t.textContent = "Bu filtrede veri yok.";
+      svg.appendChild(t);
+      return;
+    }
+    const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
+    const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+    const values = points.map(p => p.price);
+    const minVal = Math.min(...values), maxVal = Math.max(...values);
+    const span = maxVal - minVal || Math.abs(maxVal) || 1;
+    const yPad = span * 0.1;
+    const yScale = v => CHART_H - PADB - ((v - minVal + yPad) / (span + 2 * yPad)) * (CHART_H - PADB - PADT);
+
+    for (let g = 0; g <= 3; g++) {
+      const y = PADT + (g * (CHART_H - PADB - PADT)) / 3;
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "gridline");
+      line.setAttribute("x1", PADL); line.setAttribute("x2", CHART_W - PADR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      svg.appendChild(line);
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
+      t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+      t.textContent = (maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+      svg.appendChild(t);
+    }
+
+    const minLabelGap = 56;
+    const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
+    points.forEach((p, i) => {
+      const isLast = i === points.length - 1;
+      if (i % tickEvery !== 0 && !isLast) return;
+      if (isLast && points.length > 1 && (points.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((points.length - 1) / tickEvery) * tickEvery;
+        if ((points.length - 1 - prevShown) * xStep < minLabelGap) return;
+      }
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", xScale(i)); t.setAttribute("y", CHART_H - 5);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+      t.textContent = fmtDateShort(p.date);
+      svg.appendChild(t);
+    });
+
+    const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    hoverLine.setAttribute("class", "baseline");
+    hoverLine.setAttribute("y1", PADT); hoverLine.setAttribute("y2", CHART_H - PADB);
+    hoverLine.style.opacity = "0";
+    svg.appendChild(hoverLine);
+
+    const pts = points.map((p, i) => [xScale(i), yScale(p.price)]);
+    if (pts.length === 1) {
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", pts[0][0]); dot.setAttribute("cy", pts[0][1]); dot.setAttribute("r", "4");
+      dot.setAttribute("fill", LINE_COLOR);
+      svg.appendChild(dot);
+    } else {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+      path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "2");
+      path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+      svg.appendChild(path);
+    }
+
+    const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    points.forEach((p, i) => {
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const hitW = Math.max(xStep, 6);
+      rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", PADT);
+      rect.setAttribute("width", hitW); rect.setAttribute("height", CHART_H - PADB - PADT);
+      rect.setAttribute("fill", "transparent"); rect.style.cursor = "pointer";
+      rect.tabIndex = 0;
+      const showFn = evt => {
+        hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
+        hoverLine.style.opacity = "1";
+        const wrap = document.createElement("div");
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
+        wrap.appendChild(ttl);
+        const row = document.createElement("div"); row.className = "row";
+        const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceKg(p.price);
+        row.appendChild(v);
+        wrap.appendChild(row);
+        showTooltip(evt, wrap);
+      };
+      rect.addEventListener("pointermove", showFn);
+      rect.addEventListener("focus", showFn);
+      rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      hitLayer.appendChild(rect);
+    });
+    svg.appendChild(hitLayer);
+  }
+
+  function renderKpis(rows, series) {
+    const el = document.getElementById("turib-kpi-row");
+    el.textContent = "";
+    const tiles = [
+      ["Ağırlıklı ortalama fiyat (seçili dönem)", fmtPriceKg(overallWeightedAvg(rows))],
+      ["Son fiyat", series.length ? fmtPriceKg(series[series.length - 1].price) : "—"],
+      ["Toplam işlem hacmi", fmtKg(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0))],
+      ["Toplam işlem değeri", fmtTl(rows.reduce((s, r) => s + (r.islem_hacmi_tl || 0), 0))],
+      ["İşlem günü sayısı", String(series.length)],
+    ];
+    tiles.forEach(([label, value]) => {
+      const tile = document.createElement("div");
+      tile.className = "stat-tile";
+      const l = document.createElement("div"); l.className = "label"; l.textContent = label;
+      const v = document.createElement("div"); v.className = "value num"; v.textContent = value;
+      tile.appendChild(l); tile.appendChild(v);
+      el.appendChild(tile);
+    });
+  }
+
+  function renderTable(rows) {
+    const thead = document.getElementById("turib-thead");
+    const tbody = document.getElementById("turib-tbody");
+    thead.textContent = ""; tbody.textContent = "";
+    const cols = ["Tarih", "LİDAŞ Adı", "İl", "İlçe", "Ağ. Ort. Fiyat", "İşlem Miktarı", "İşlem Hacmi", "İşlem Adedi"];
+    cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
+
+    const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.lidas_adi || "").localeCompare(b.lidas_adi || "", "tr"));
+    document.getElementById("turib-table-title").textContent = "Günlük işlemler (" + sorted.length + " satır)";
+    sorted.forEach(r => {
+      const tr = document.createElement("tr");
+      const cells = [
+        fmtDateFull(r.trade_date), r.lidas_adi || "—", r.il || "—", r.ilce || "—",
+        fmtPriceKg(r.agirlikli_ortalama_fiyat), fmtKg(r.islem_miktari_kg), fmtTl(r.islem_hacmi_tl), String(r.islem_adedi ?? "—"),
+      ];
+      cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function exportTuribCsv(rows) {
+    const cols = ["trade_date", "isin_kodu", "enstruman_sinifi", "agirlikli_ortalama_fiyat", "islem_adedi", "islem_miktari_kg", "islem_hacmi_tl", "lidas_adi", "il", "ilce"];
+    const esc = v => {
+      const s = v == null ? "" : String(v);
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [cols.join(";")].concat(rows.map(r => cols.map(c => esc(r[c])).join(";")));
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "turib-bulten-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderAll() {
+    const rows = currentRows();
+    const series = dailyWeightedSeries(rows);
+    document.getElementById("turib-chart-title").textContent = "Ağırlıklı ortalama fiyat eğilimi — " + state.product + (state.lidas ? " · " + state.lidas : "");
+    drawChart(series);
+    renderKpis(rows, series);
+    renderTable(rows);
+  }
+
+  function buildProductControls() {
+    const wrap = document.getElementById("turib-product");
+    wrap.textContent = "";
+    const products = [...new Set(allRows.map(r => r.enstruman_sinifi))].sort((a, b) => a.localeCompare(b, "tr"));
+    if (!state.product || !products.includes(state.product)) {
+      state.product = products.includes(DEFAULT_PRODUCT) ? DEFAULT_PRODUCT : (products[0] || null);
+    }
+    products.forEach(p => {
+      const btn = document.createElement("button");
+      btn.className = "seg" + (p === state.product ? " active" : "");
+      btn.type = "button"; btn.textContent = p;
+      btn.addEventListener("click", () => {
+        state.product = p;
+        wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+        renderAll();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function renderLidasSelected() {
+    const wrap = document.getElementById("turib-lidas-selected");
+    wrap.textContent = "";
+    if (!state.lidas) return;
+    const chip = document.createElement("button");
+    chip.className = "chip active";
+    chip.type = "button";
+    chip.appendChild(document.createTextNode(state.lidas));
+    const x = document.createElement("span");
+    x.className = "x"; x.textContent = " ✕";
+    chip.appendChild(x);
+    chip.addEventListener("click", () => { state.lidas = null; renderLidasSelected(); renderAll(); });
+    wrap.appendChild(chip);
+  }
+
+  function buildLidasSearch() {
+    const input = document.getElementById("turib-lidas-search");
+    const box = document.getElementById("turib-lidas-suggestions");
+    function closeBox() { box.classList.remove("open"); box.textContent = ""; }
+    function renderSuggestions() {
+      const q = input.value.trim().toLocaleLowerCase("tr");
+      if (!q) { closeBox(); return; }
+      const names = [...new Set(productRows().map(r => r.lidas_adi))].filter(n => n && n.toLocaleLowerCase("tr").includes(q)).sort((a, b) => a.localeCompare(b, "tr")).slice(0, 10);
+      box.textContent = "";
+      if (!names.length) {
+        const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = "Sonuç yok";
+        box.appendChild(empty);
+      } else {
+        names.forEach(name => {
+          const btn = document.createElement("button");
+          btn.type = "button"; btn.textContent = name;
+          btn.addEventListener("mousedown", evt => {
+            evt.preventDefault();
+            input.value = "";
+            closeBox();
+            state.lidas = name;
+            renderLidasSelected();
+            renderAll();
+          });
+          box.appendChild(btn);
+        });
+      }
+      box.classList.add("open");
+    }
+    input.addEventListener("input", renderSuggestions);
+    input.addEventListener("focus", () => { if (input.value.trim()) renderSuggestions(); });
+    input.addEventListener("blur", () => setTimeout(closeBox, 120));
+  }
+
+  let loaded = false;
+  window.__turibTab = {
+    onActivate() {
+      if (loaded) return;
+      loaded = true;
+      fetchTuribRows()
+        .then(rows => {
+          allRows = rows;
+          document.getElementById("turib-asof-badge").textContent = rows.length
+            ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
+            : "Veri yok";
+          buildProductControls();
+          renderAll();
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById("turib-asof-badge").textContent = "Veri çekilemedi";
+        });
+    },
+  };
+
+  buildLidasSearch();
+
+  document.getElementById("turib-export-btn").addEventListener("click", () => {
+    const rows = currentRows();
+    if (!rows.length) return;
+    exportTuribCsv(rows);
+  });
 })();
 
 // ---------------------------------------------------------------------------
