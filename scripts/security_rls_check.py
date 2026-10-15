@@ -32,8 +32,10 @@ def attempt(method, table, body=None, query=""):
     print()
 
 
-for t in TABLES:
-    attempt("POST", t, body={"trade_date": "1900-01-01", "test": "security-probe-should-fail"})
+attempt("POST", "turib_bulletin", body={
+    "trade_date": "1900-01-01", "isin_kodu": "SECURITY-PROBE", "enstruman_sinifi": "TEST",
+    "lidas_adi": "TEST", "agirlikli_ortalama_fiyat": 1.0,
+})
 
 attempt("PATCH", "turib_bulletin", body={"agirlikli_ortalama_fiyat": 0}, query="?trade_date=eq.1900-01-01")
 attempt("DELETE", "turib_bulletin", query="?trade_date=eq.1900-01-01")
