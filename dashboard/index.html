@@ -177,6 +177,7 @@
     <div class="tab-bar subtab-bar" id="exchange-subtabs" role="tablist" aria-label="Ticaret Borsası alt sekmesi">
       <button class="tab active" id="subtab-live" type="button" role="tab" aria-selected="true">Canlı Kurlar</button>
       <button class="tab" id="subtab-turib" type="button" role="tab" aria-selected="false">TÜRİB</button>
+      <button class="tab" id="subtab-uztb" type="button" role="tab" aria-selected="false">UZTB</button>
     </div>
 
     <div id="exchange-live-section">
@@ -263,6 +264,63 @@
           </table>
         </div>
         <div class="table-foot" id="turib-table-foot"></div>
+      </section>
+    </div>
+
+    <div id="uztb-section" hidden>
+      <div class="wasde-banner">
+        <div>
+          <strong>UZTB (Uzunköprü Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong> — her iş günü
+          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
+          toplam miktar, ortalama rutubet) çekilir. Kaynakta tarih parametreli bir geçmiş API bulunmadığı
+          için geçmiş veri sadece kaynağın kendi tuttuğu son birkaç haftayla sınırlı — rutubet geçmişi
+          günlük veri birikmeye başladığı andan itibaren gerçek.
+        </div>
+        <span class="wasde-release-badge" id="uztb-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="UZTB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="uztb-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="uztb-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Hızlı seçim</span>
+          <div class="segmented" id="uztb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg active" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-row" id="uztb-kpi-row" aria-label="UZTB özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="uztb-chart-title">Fiyat eğilimi (TL/ton)</h2>
+        </div>
+        <div class="legend" id="uztb-price-legend"></div>
+        <svg class="chart" id="uztb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
+        <h3 class="price-chart-title">Günlük işlem hacmi (ton)</h3>
+        <svg class="chart" id="uztb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="uztb-table-title">Günlük özet</h2>
+          <button class="reset-btn" id="uztb-export-btn" type="button">Excel'e aktar (CSV)</button>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="uztb-table">
+            <thead><tr id="uztb-thead"></tr></thead>
+            <tbody id="uztb-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-foot" id="uztb-table-foot"></div>
       </section>
     </div>
   </div>
