@@ -1,0 +1,42 @@
+name: Daily UZTB Price Fetch
+
+on:
+  schedule:
+    # 15:00 UTC = 18:00 Türkiye saati (TR daimi UTC+3, DST yok).
+    # Hafta sonu işlem yapılmıyor, bu yüzden sadece Pzt-Cuma çalışıyor.
+    - cron: "0 15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: "Kaynağın elindeki ~1 aylık geçmiş özeti çek (rutubet hariç)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install supabase==2.31.0
+
+      - name: Fetch + load UZTB daily price summary
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          UZTB_BACKFILL: ${{ github.event.inputs.backfill }}
+        run: |
+          if [ "$UZTB_BACKFILL" = "true" ]; then
+            python -m uztb.run --backfill
+          else
+            python -m uztb.run
+          fi
