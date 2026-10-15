@@ -1,50 +1,35 @@
-"""temp: KTB - find login/auth endpoint, homeService call sites, interceptor."""
-import re
+"""temp: try calling KTB API endpoints directly, no auth, see what happens."""
+import json
 import urllib.request
+import urllib.error
 
 BASE = "https://www.ktb.org.tr"
 
 
-def get(path):
+def try_get(path, headers=None):
     url = BASE + path
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+    h = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    if headers:
+        h.update(headers)
+    req = urllib.request.Request(url, headers=h)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+            print(f"GET {path} -> {resp.status}")
+            print(body[:1500])
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        print(f"GET {path} -> HTTP {e.code}")
+        print(body[:1500])
+    except Exception as e:
+        print(f"GET {path} -> ERROR {e}")
+    print()
 
 
-main = get("/main.222ebc54c3aab9f5.js")
-print("main.js length:", len(main))
+try_get("/api/v1/Alpha.WebPanel/OnlineKullaniciBulten/GetBultenUrunGruplarGruplar")
+try_get("/api/v1/Alpha.WebPanel/OnlineKullaniciBulten/GetGunlukBulten/40081")
+try_get("/api/v1/Alpha.WebPanel/OnlineKullaniciBulten/GetAnlikBulten/40081")
 
-print("\n==== default login context (wider) ====")
-i = main.find("window.environment.IsletmeId")
-print(main[max(0, i - 600):i + 600])
-
-print("\n==== Login/login/Auth endpoint search ====")
-for pat in [r'/api/v1/[A-Za-z\.]+/Login', r'/api/v1/[A-Za-z\.]+/Auth[A-Za-z]*', r'"Login"', r'Authorization']:
-    print(f"--- pattern {pat} ---")
-    seen = set()
-    for m in re.finditer(pat, main):
-        if m.group(0) not in seen:
-            seen.add(m.group(0))
-    print(list(seen)[:10])
-
-print("\n==== homeService.getGunlukBulten( call sites ====")
-for m in re.finditer(r'homeService\.getGunlukBulten\(', main):
-    s = max(0, m.start() - 300)
-    e = min(len(main), m.end() + 150)
-    print("---")
-    print(main[s:e])
-
-print("\n==== homeService.getBultenUrunGruplarGruplar( call sites ====")
-for m in re.finditer(r'homeService\.getBultenUrunGruplarGruplar\(', main):
-    s = max(0, m.start() - 300)
-    e = min(len(main), m.end() + 150)
-    print("---")
-    print(main[s:e])
-
-print("\n==== homeService.getBultenGecmisIslemFiyatTarihAraligi( call sites ====")
-for m in re.finditer(r'homeService\.getBultenGecmisIslemFiyatTarihAraligi\(', main):
-    s = max(0, m.start() - 400)
-    e = min(len(main), m.end() + 200)
-    print("---")
-    print(main[s:e])
+# with uygulamaId header guess
+try_get("/api/v1/Alpha.WebPanel/OnlineKullaniciBulten/GetBultenUrunGruplarGruplar",
+        headers={"uygulamaId": "e578abbb-54ff-4690-ade4-9d105f156e96"})
