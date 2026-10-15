@@ -1,4 +1,4 @@
-"""temp: KTB main bundle - find CALL SITES (not service method defs) to learn param meaning."""
+"""temp: KTB - find login/auth endpoint, homeService call sites, interceptor."""
 import re
 import urllib.request
 
@@ -15,37 +15,36 @@ def get(path):
 main = get("/main.222ebc54c3aab9f5.js")
 print("main.js length:", len(main))
 
-# find call sites like ".getBultenGecmisIslemFiyatTarihAraligi(" with actual args (not "this.httpClient.get")
-call_targets = [
-    "getBultenGecmisIslemFiyatTarihAraligi(",
-    "getBultenUrunGruplarGruplar(",
-    "getGunlukBulten(",
-    "getBultenGrupSinifUrunSelect(",
-    "getGrupSinifUrunSelectler(",
-    "getSatilanUrunDetay(",
-]
+print("\n==== default login context (wider) ====")
+i = main.find("window.environment.IsletmeId")
+print(main[max(0, i - 600):i + 600])
 
-for t in call_targets:
-    print(f"\n==== call sites for {t} ====")
-    count = 0
-    for m in re.finditer(re.escape(t), main):
-        # skip the definition site (has "return this.httpClient.get" right after)
-        after = main[m.end():m.end() + 40]
-        if "return this.httpClient" in after or after.startswith(")"):
-            continue
-        start = max(0, m.start() - 300)
-        end = min(len(main), m.end() + 150)
-        print("---")
-        print(main[start:end])
-        count += 1
-        if count >= 5:
-            break
-    if count == 0:
-        print("(no non-definition call sites found with this heuristic)")
+print("\n==== Login/login/Auth endpoint search ====")
+for pat in [r'/api/v1/[A-Za-z\.]+/Login', r'/api/v1/[A-Za-z\.]+/Auth[A-Za-z]*', r'"Login"', r'Authorization']:
+    print(f"--- pattern {pat} ---")
+    seen = set()
+    for m in re.finditer(pat, main):
+        if m.group(0) not in seen:
+            seen.add(m.group(0))
+    print(list(seen)[:10])
 
-print("\n==== IsletmeId / FirmaId / SubeId usage ====")
-for key in ["IsletmeId", "FirmaId", "SubeId", "environment.IsletmeId", "environment[\"IsletmeId\"]"]:
-    idxs = [m.start() for m in re.finditer(re.escape(key), main)]
-    print(key, "-> count:", len(idxs))
-    for i in idxs[:3]:
-        print("   ctx:", main[max(0,i-100):i+100])
+print("\n==== homeService.getGunlukBulten( call sites ====")
+for m in re.finditer(r'homeService\.getGunlukBulten\(', main):
+    s = max(0, m.start() - 300)
+    e = min(len(main), m.end() + 150)
+    print("---")
+    print(main[s:e])
+
+print("\n==== homeService.getBultenUrunGruplarGruplar( call sites ====")
+for m in re.finditer(r'homeService\.getBultenUrunGruplarGruplar\(', main):
+    s = max(0, m.start() - 300)
+    e = min(len(main), m.end() + 150)
+    print("---")
+    print(main[s:e])
+
+print("\n==== homeService.getBultenGecmisIslemFiyatTarihAraligi( call sites ====")
+for m in re.finditer(r'homeService\.getBultenGecmisIslemFiyatTarihAraligi\(', main):
+    s = max(0, m.start() - 400)
+    e = min(len(main), m.end() + 200)
+    print("---")
+    print(main[s:e])
