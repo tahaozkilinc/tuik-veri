@@ -1,5 +1,5 @@
-"""Geçici keşif scripti — Uzunköprü Ticaret Borsası günlük çekirdek fiyat
-sayfasının yapısını inceler (form, tablo, AJAX ipuçları)."""
+"""Geçici keşif scripti #2 — ssdetay (ürün detay) sayfasının AJAX çağrısını,
+tarih/filtre formunu ve tablo yapısını bulur."""
 import re
 import urllib.request
 
@@ -10,31 +10,36 @@ URL = "https://www.uzunkoprutb.org.tr/sayfa.asp?tur=ssdetay&urun=99992"
 def fetch(url, headers=None):
     req = urllib.request.Request(url, headers=headers or HEADERS)
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return resp.read().decode("windows-1254", errors="replace")
+        return resp.read().decode("iso-8859-9", errors="replace")
 
 
 html = fetch(URL)
 print("total length:", len(html))
-print("\n--- first 3000 chars ---")
-print(html[:3000])
 
-print("\n--- all <form ...> tags ---")
-for m in re.finditer(r'<form[^>]*>', html):
+print("\n--- all $.ajax( blocks (800 chars each) ---")
+count = 0
+for m in re.finditer(r'\$\.ajax\(\s*\{.{0,900}?\}\s*\)\s*;', html, re.S):
     print(m.group(0))
+    print("=====")
+    count += 1
+if count == 0:
+    # fallback: find $.ajax( and print 1000 chars after
+    for m in re.finditer(r'\$\.ajax\(', html):
+        start = m.start()
+        print(html[start:start+1000])
+        print("=====")
 
-print("\n--- all <select ...>...</select> blocks (first 800 chars each) ---")
-for m in re.finditer(r'<select[^>]*>.{0,900}?</select>', html, re.S):
-    print(m.group(0)[:900])
-    print("---")
+print("\n--- context around table-list ss (2000 chars before/after) ---")
+idx = html.find("table-list ss")
+if idx >= 0:
+    print(html[max(0, idx-1500):idx+2000])
 
-print("\n--- all <input ...> tags ---")
-for m in re.finditer(r'<input[^>]*>', html):
-    print(m.group(0))
+print("\n--- all <script src=...> local (non-cdn) files ---")
+for m in re.finditer(r'<script[^>]*\bsrc="([^"]+)"', html):
+    src = m.group(1)
+    if src.startswith("scripts/") or src.startswith("/scripts/"):
+        print(src)
 
-print("\n--- all <table ...> tag attrs ---")
-for m in re.finditer(r'<table[^>]{0,200}>', html):
-    print(m.group(0))
-
-print("\n--- ajax hints ---")
-for m in re.finditer(r'.{0,60}(\.asp\?|XMLHttpRequest|\$\.ajax|\$\.post|\$\.get).{0,120}', html):
-    print(m.group(0).replace("\n", " "))
+print("\n--- occurrences of 'cekirdek' or 'rutubet' or 'miktar' (context) ---")
+for m in re.finditer(r'.{0,60}(cekirdek|çekirdek|rutubet|miktar|tarih).{0,60}', html, re.I):
+    print(repr(m.group(0)))
