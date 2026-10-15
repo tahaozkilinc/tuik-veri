@@ -1,43 +1,62 @@
-"""temp: KTB - try singular GetBultenGrupSinifUrunSelect with real ids, and self-referencing triples."""
-import urllib.request
-import urllib.error
+"""temp: use Playwright to load the real KTB gunlukfiyat page and capture ALL network API calls it makes."""
+import json
+from playwright.sync_api import sync_playwright
 
-BASE = "https://www.ktb.org.tr"
-P = "/api/v1/Alpha.WebPanel/OnlineKullaniciBulten"
+calls = []
 
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
 
-def try_get(path, show=600):
-    url = BASE + path
-    h = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
-    req = urllib.request.Request(url, headers=h)
+    def on_request(req):
+        if "/api/" in req.url:
+            calls.append({"method": req.method, "url": req.url, "postData": req.post_data})
+
+    def on_response(resp):
+        if "/api/" in resp.url:
+            try:
+                body = resp.text()
+            except Exception:
+                body = None
+            for c in calls:
+                if c["url"] == resp.url and "status" not in c:
+                    c["status"] = resp.status
+                    c["body"] = (body or "")[:800]
+                    break
+
+    page.on("request", on_request)
+    page.on("response", on_response)
+
+    page.goto("https://www.ktb.org.tr/gunlukfiyat", wait_until="networkidle", timeout=30000)
+    page.wait_for_timeout(3000)
+
+    # try to find and click any "geçmiş" / date range / history-related UI
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            print(f"GET {path} -> {resp.status} (len {len(body)})")
-            print(body[:show])
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        print(f"GET {path} -> HTTP {e.code}")
-        print(body[:400])
+        # look for buttons/links containing history-related Turkish text
+        for text in ["Geçmiş", "Tarih", "geçmiş işlem", "Arşiv"]:
+            loc = page.get_by_text(text, exact=False)
+            if loc.count() > 0:
+                print(f"Found clickable text matching '{text}': {loc.count()} matches")
     except Exception as e:
-        print(f"GET {path} -> ERROR {e}")
-    print()
+        print("UI probe error:", e)
 
+    # click on first product group row if present, to trigger a detail/history call
+    try:
+        rows = page.locator("table tr, .grup-item, .urun-item")
+        print("candidate rows:", rows.count())
+        if rows.count() > 1:
+            rows.nth(1).click(timeout=3000)
+            page.wait_for_timeout(2000)
+    except Exception as e:
+        print("row click error:", e)
 
-# singular endpoint, real group ids
-for gid in [937, 1281, 1, 10]:
-    try_get(f"{P}/GetBultenGrupSinifUrunSelect/{gid}")
+    browser.close()
 
-# KartModel self-referencing (grupId as all three)
-for gid in [937, 1281, 1]:
-    try_get(f"{P}/GetBultenKartModel/{gid}/{gid}/{gid}")
-
-# GetBultenFiyatTarihli(oe,se,ve,ze) - 4 params, maybe (grup,sinif,urun,tarih)
-try_get(f"{P}/GetBultenFiyatTarihli/937/937/937/2026-10-15")
-try_get(f"{P}/GetBultenFiyatTarihli/1281/1281/1281/2026-10-15")
-
-# GetBultenGecmisIslemFiyatTarihli(oe,se,ve) maybe (grup,sinif,tarih) not (grup,tarih,urun)
-try_get(f"{P}/GetBultenGecmisIslemFiyatTarihli/937/937/2026-10-15")
-
-# try GetStokListesi which takes single id
-try_get(f"{P}/GetStokListesi/937")
+print(f"\nTotal API calls captured: {len(calls)}\n")
+for c in calls:
+    print("---")
+    print(c.get("method"), c.get("url"))
+    if c.get("postData"):
+        print("POST DATA:", c["postData"][:300])
+    print("STATUS:", c.get("status"))
+    print("BODY:", c.get("body"))
