@@ -178,6 +178,7 @@
       <button class="tab active" id="subtab-live" type="button" role="tab" aria-selected="true">Canlı Kurlar</button>
       <button class="tab" id="subtab-turib" type="button" role="tab" aria-selected="false">TÜRİB</button>
       <button class="tab" id="subtab-uztb" type="button" role="tab" aria-selected="false">UZTB</button>
+      <button class="tab" id="subtab-ktb" type="button" role="tab" aria-selected="false">KTB</button>
     </div>
 
     <div id="exchange-live-section">
@@ -321,6 +322,67 @@
           </table>
         </div>
         <div class="table-foot" id="uztb-table-foot"></div>
+      </section>
+    </div>
+
+    <div id="ktb-section" hidden>
+      <div class="wasde-banner">
+        <div>
+          <strong>KTB (Konya Ticaret Borsası) günlük Satış Salonu bülteni</strong> — her iş günü 18:00'da
+          o günün bülteni çekilir. Fiyatlar seçili ürün grubunun o günkü tüm sınıflarının (kalite
+          derecelerinin) ağırlıklı ortalaması, en düşüğü ve en yükseğidir. 1 yıl öncesine kadar geçmiş
+          veri çekildi.
+        </div>
+        <span class="wasde-release-badge" id="ktb-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="KTB filtreleri">
+        <div class="filter-group product-filter-group">
+          <span class="filter-label">Ürün Grubu</span>
+          <div class="chip-multi" id="ktb-product" role="group" aria-label="Ürün Grubu"></div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="ktb-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="ktb-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Hızlı seçim</span>
+          <div class="segmented" id="ktb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg active" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-row" id="ktb-kpi-row" aria-label="KTB özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="ktb-chart-title">Fiyat eğilimi (TL/ton)</h2>
+        </div>
+        <div class="legend" id="ktb-price-legend"></div>
+        <svg class="chart" id="ktb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
+        <h3 class="price-chart-title">Günlük işlem hacmi (ton)</h3>
+        <svg class="chart" id="ktb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="ktb-table-title">Günlük özet (sınıf bazında)</h2>
+          <button class="reset-btn" id="ktb-export-btn" type="button">Excel'e aktar (CSV)</button>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="ktb-table">
+            <thead><tr id="ktb-thead"></tr></thead>
+            <tbody id="ktb-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-foot" id="ktb-table-foot"></div>
       </section>
     </div>
   </div>

@@ -1616,6 +1616,7 @@ window.__tabManager = (function () {
     live: { tabId: "subtab-live", sectionId: "exchange-live-section" },
     turib: { tabId: "subtab-turib", sectionId: "turib-section", onActivate: () => window.__turibTab && window.__turibTab.onActivate() },
     uztb: { tabId: "subtab-uztb", sectionId: "uztb-section", onActivate: () => window.__uztbTab && window.__uztbTab.onActivate() },
+    ktb: { tabId: "subtab-ktb", sectionId: "ktb-section", onActivate: () => window.__ktbTab && window.__ktbTab.onActivate() },
   };
   Object.entries(EXCHANGE_SUBTABS).forEach(([key, cfgSub]) => {
     document.getElementById(cfgSub.tabId).addEventListener("click", () => showExchangeSubtab(key));
@@ -2758,6 +2759,563 @@ window.__tabManager = (function () {
     const rows = currentRows();
     if (!rows.length) return;
     exportUztbCsv(rows);
+  });
+})();
+
+// ---------------------------------------------------------------------------
+// KTB (Konya Ticaret Borsası) alt sekmesi — Ticaret Borsası sekmesinin
+// içinde dördüncü bir kaynak. TÜRİB gibi gerçek 1 yıllık geçmiş API'si var
+// (GetGunlukBulten/{tarih}), DB'de satırlar (tarih, ürün grubu, sınıf)
+// kırılımında — her satır o sınıfın günlük min/ort/max fiyatı + miktarı,
+// ayrıca aynı günün GRUP genelindeki (tüm sınıflar) min/ort/max fiyatı da
+// taşıyor (kaynağın kendi response şekli). Grafik bu grup-geneli alanları
+// kullanıyor (TÜRİB'deki gibi ayrıca ağırlıklı toplama gerekmiyor), KPI'daki
+// "seçili dönem ağırlıklı ortalaması" ise sınıf satırlarının miktar ile
+// tartılmasıyla hesaplanıyor (daha ince taneli, dönem bazlı doğru ortalama).
+(function () {
+  "use strict";
+
+  const cfg = window.TUIK_DASHBOARD_CONFIG;
+  const LINE_COLOR = "var(--series-export)";
+  const CHART_W = 960, CHART_H = 240, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
+  const TON_CHART_H = 110, TON_PADT = 10, TON_PADB = 24;
+  const TABLE_ROW_LIMIT = 10;
+  const DEFAULT_PRODUCT = "Mısır";
+
+  function fmtPriceTon(v) {
+    if (v == null || isNaN(v)) return "—";
+    return v.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " TL/ton";
+  }
+  function fmtTon(v) {
+    if (v == null || isNaN(v)) return "—";
+    return v.toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+  }
+  function fmtDateShort(iso) {
+    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+  }
+  function fmtDateFull(iso) {
+    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  }
+
+  const CACHE_TTL_MS = 3 * 60 * 60 * 1000;
+
+  async function fetchKtbRows() {
+    const cached = window.__supaCache.get("ktb", CACHE_TTL_MS);
+    if (cached) return cached;
+    const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
+    const pageSize = 1000;
+    let rows = [];
+    let from = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await fetch(
+        `${cfg.SUPABASE_URL}/rest/v1/ktb_bulletin?select=trade_date,grup_kodu,grup_adi,sinif_adi,min_fiyat,ort_fiyat,max_fiyat,miktar,islem_sayisi,grup_min_fiyat,grup_ort_fiyat,grup_max_fiyat&order=trade_date.asc`,
+        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
+      );
+      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
+      const page = await res.json();
+      rows = rows.concat(page);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    window.__supaCache.set("ktb", rows);
+    return rows;
+  }
+
+  function makeTooltip() {
+    let el = document.querySelector(".tooltip");
+    if (!el) { el = document.createElement("div"); el.className = "tooltip"; document.body.appendChild(el); }
+    return el;
+  }
+  function showTooltip(evt, node) {
+    const tip = makeTooltip();
+    tip.textContent = ""; tip.appendChild(node);
+    tip.style.opacity = "1";
+    let x = evt.clientX + 14, y = evt.clientY + 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+    const rect = tip.getBoundingClientRect();
+    if (rect.right > window.innerWidth) tip.style.left = (evt.clientX - rect.width - 14) + "px";
+    if (rect.bottom > window.innerHeight) tip.style.top = (evt.clientY - rect.height - 14) + "px";
+  }
+  function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
+
+  let allRows = [];
+  const state = { product: null, dateStart: null, dateEnd: null };
+
+  function productRows() {
+    return allRows.filter(r => r.grup_adi === state.product);
+  }
+  function currentRows() {
+    return productRows().filter(r => {
+      if (state.dateStart && r.trade_date < state.dateStart) return false;
+      if (state.dateEnd && r.trade_date > state.dateEnd) return false;
+      return true;
+    });
+  }
+
+  // Grafik için: aynı (tarih, grup) satırlarının hepsinde grup_min/ort/max_fiyat
+  // zaten aynı değeri taşıyor (kaynağın kendi günlük grup özeti) — burada
+  // sadece tekilleştirip TL/ton'a çeviriyoruz. Tonaj o günün tüm sınıf
+  // satırlarındaki miktarın toplamı.
+  function dailyWeightedSeries(rows) {
+    const byDate = new Map();
+    rows.forEach(r => {
+      const e = byDate.get(r.trade_date) || { kg: 0, price: null, minPrice: null, maxPrice: null };
+      e.kg += (r.miktar || 0);
+      if (r.grup_ort_fiyat != null) e.price = r.grup_ort_fiyat;
+      if (r.grup_min_fiyat != null) e.minPrice = r.grup_min_fiyat;
+      if (r.grup_max_fiyat != null) e.maxPrice = r.grup_max_fiyat;
+      byDate.set(r.trade_date, e);
+    });
+    return [...byDate.entries()]
+      .map(([date, e]) => ({
+        date,
+        price: e.price != null ? e.price * 1000 : null,
+        minPrice: e.minPrice != null ? e.minPrice * 1000 : null,
+        maxPrice: e.maxPrice != null ? e.maxPrice * 1000 : null,
+        ton: e.kg / 1000,
+      }))
+      .filter(p => p.price != null)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  // KPI'daki dönem ağırlıklı ortalaması: sınıf satırlarının kendi fiyatını
+  // kendi miktarıyla tartarak (daha ince taneli, seçili TÜM dönem için doğru
+  // hacim ağırlıklı ortalama — grup_ort_fiyat günlük bazda zaten doğru ama
+  // birden çok günü basitçe ortalamak hacmi görmezden gelir).
+  function overallWeightedAvg(rows) {
+    let sumPriceKg = 0, sumKg = 0;
+    rows.forEach(r => {
+      if (r.ort_fiyat == null || r.miktar == null) return;
+      sumPriceKg += r.ort_fiyat * r.miktar;
+      sumKg += r.miktar;
+    });
+    return sumKg > 0 ? (sumPriceKg / sumKg) * 1000 : null;
+  }
+
+  function renderPriceLegend() {
+    const el = document.getElementById("ktb-price-legend");
+    el.textContent = "";
+    [
+      ["Ağırlıklı Ortalama", false],
+      ["En Yüksek", true],
+      ["En Düşük", true],
+    ].forEach(([label, dashed]) => {
+      const key = document.createElement("span");
+      key.className = "key";
+      const sw = document.createElement("span");
+      sw.className = "swatch-line" + (dashed ? " dashed" : "");
+      sw.style.background = dashed ? "none" : LINE_COLOR;
+      sw.style.borderColor = LINE_COLOR;
+      key.appendChild(sw);
+      key.appendChild(document.createTextNode(label));
+      el.appendChild(key);
+    });
+  }
+
+  function buildGappedPath(points, field, xScale, yScale) {
+    let d = "";
+    let drawing = false;
+    points.forEach((p, i) => {
+      const v = p[field];
+      if (v == null) { drawing = false; return; }
+      d += (drawing ? "L" : "M") + xScale(i) + "," + yScale(v) + " ";
+      drawing = true;
+    });
+    return d.trim();
+  }
+
+  function drawPriceChart(points) {
+    const svg = document.getElementById("ktb-chart");
+    svg.textContent = "";
+    svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
+    if (!points.length) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
+      t.textContent = "Bu filtrede veri yok.";
+      svg.appendChild(t);
+      return;
+    }
+    const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
+    const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+    const allVals = points.flatMap(p => [p.price, p.minPrice, p.maxPrice]).filter(v => v != null);
+    const minVal = Math.min(...allVals), maxVal = Math.max(...allVals);
+    const span = maxVal - minVal || Math.abs(maxVal) || 1;
+    const yPad = span * 0.1;
+    const yScale = v => CHART_H - PADB - ((v - minVal + yPad) / (span + 2 * yPad)) * (CHART_H - PADB - PADT);
+
+    for (let g = 0; g <= 3; g++) {
+      const y = PADT + (g * (CHART_H - PADB - PADT)) / 3;
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "gridline");
+      line.setAttribute("x1", PADL); line.setAttribute("x2", CHART_W - PADR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      svg.appendChild(line);
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
+      t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+      t.textContent = Math.round(maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString("tr-TR");
+      svg.appendChild(t);
+    }
+
+    const minLabelGap = 56;
+    const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
+    points.forEach((p, i) => {
+      const isLast = i === points.length - 1;
+      if (i % tickEvery !== 0 && !isLast) return;
+      if (isLast && points.length > 1 && (points.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((points.length - 1) / tickEvery) * tickEvery;
+        if ((points.length - 1 - prevShown) * xStep < minLabelGap) return;
+      }
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", xScale(i)); t.setAttribute("y", CHART_H - 5);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+      t.textContent = fmtDateShort(p.date);
+      svg.appendChild(t);
+    });
+
+    const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    hoverLine.setAttribute("class", "baseline");
+    hoverLine.setAttribute("y1", PADT); hoverLine.setAttribute("y2", CHART_H - PADB);
+    hoverLine.style.opacity = "0";
+    svg.appendChild(hoverLine);
+
+    const avgPts = points.map((p, i) => [xScale(i), yScale(p.price)]);
+    if (avgPts.length === 1) {
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", avgPts[0][0]); dot.setAttribute("cy", avgPts[0][1]); dot.setAttribute("r", "4");
+      dot.setAttribute("fill", LINE_COLOR);
+      svg.appendChild(dot);
+    } else {
+      const gradId = "ktbAreaGradient";
+      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+      grad.setAttribute("id", gradId);
+      grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
+      const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", LINE_COLOR); stop1.setAttribute("stop-opacity", "0.18");
+      const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop2.setAttribute("offset", "100%"); stop2.setAttribute("stop-color", LINE_COLOR); stop2.setAttribute("stop-opacity", "0");
+      grad.appendChild(stop1); grad.appendChild(stop2);
+      defs.appendChild(grad);
+      svg.appendChild(defs);
+
+      const baseline = CHART_H - PADB;
+      const areaD = "M" + avgPts[0][0] + "," + baseline + " " + avgPts.map(p => "L" + p[0] + "," + p[1]).join(" ") + " L" + avgPts[avgPts.length - 1][0] + "," + baseline + " Z";
+      const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      area.setAttribute("d", areaD);
+      area.setAttribute("fill", "url(#" + gradId + ")");
+      area.setAttribute("stroke", "none");
+      svg.appendChild(area);
+
+      ["maxPrice", "minPrice"].forEach(field => {
+        const d = buildGappedPath(points, field, xScale, yScale);
+        if (!d) return;
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", d);
+        path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "1.5");
+        path.setAttribute("stroke-dasharray", "5 4"); path.setAttribute("opacity", "0.6");
+        path.setAttribute("fill", "none"); path.setAttribute("stroke-linecap", "round");
+        svg.appendChild(path);
+      });
+
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", avgPts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+      path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "3");
+      path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+      svg.appendChild(path);
+
+      const lastPt = avgPts[avgPts.length - 1];
+      const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      endDot.setAttribute("cx", lastPt[0]); endDot.setAttribute("cy", lastPt[1]); endDot.setAttribute("r", "4.5");
+      endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", LINE_COLOR); endDot.setAttribute("stroke-width", "2.5");
+      svg.appendChild(endDot);
+    }
+
+    const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    points.forEach((p, i) => {
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const hitW = Math.max(xStep, 6);
+      rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", PADT);
+      rect.setAttribute("width", hitW); rect.setAttribute("height", CHART_H - PADB - PADT);
+      rect.setAttribute("fill", "transparent"); rect.style.cursor = "pointer";
+      rect.tabIndex = 0;
+      const showFn = evt => {
+        hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
+        hoverLine.style.opacity = "1";
+        const wrap = document.createElement("div");
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
+        wrap.appendChild(ttl);
+        [["Ağırlıklı Ort.", p.price], ["En Yüksek", p.maxPrice], ["En Düşük", p.minPrice]].forEach(([label, val]) => {
+          const row = document.createElement("div"); row.className = "row";
+          const l = document.createElement("span"); l.textContent = label + ": ";
+          const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
+          row.appendChild(l); row.appendChild(v);
+          wrap.appendChild(row);
+        });
+        showTooltip(evt, wrap);
+      };
+      rect.addEventListener("pointermove", showFn);
+      rect.addEventListener("focus", showFn);
+      rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      hitLayer.appendChild(rect);
+    });
+    svg.appendChild(hitLayer);
+  }
+
+  function drawTonnageChart(points) {
+    const svg = document.getElementById("ktb-tonnage-chart");
+    svg.textContent = "";
+    svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + TON_CHART_H);
+    if (!points.length) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL); t.setAttribute("y", TON_CHART_H / 2); t.setAttribute("class", "axis-label");
+      t.textContent = "Bu filtrede veri yok.";
+      svg.appendChild(t);
+      return;
+    }
+    const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
+    const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+    const maxTon = Math.max(...points.map(p => p.ton), 1);
+    const yScale = v => TON_CHART_H - TON_PADB - (v / maxTon) * (TON_CHART_H - TON_PADB - TON_PADT);
+
+    [0, maxTon].forEach(val => {
+      const y = yScale(val);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "gridline");
+      line.setAttribute("x1", PADL); line.setAttribute("x2", CHART_W - PADR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      svg.appendChild(line);
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
+      t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+      t.textContent = val.toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+      svg.appendChild(t);
+    });
+
+    const minLabelGap = 56;
+    const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
+    points.forEach((p, i) => {
+      const isLast = i === points.length - 1;
+      if (i % tickEvery !== 0 && !isLast) return;
+      if (isLast && points.length > 1 && (points.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((points.length - 1) / tickEvery) * tickEvery;
+        if ((points.length - 1 - prevShown) * xStep < minLabelGap) return;
+      }
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", xScale(i)); t.setAttribute("y", TON_CHART_H - 5);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+      t.textContent = fmtDateShort(p.date);
+      svg.appendChild(t);
+    });
+
+    const barW = Math.max(2, Math.min(xStep * 0.6, 14));
+    const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    points.forEach((p, i) => {
+      const x = xScale(i);
+      const y = yScale(p.ton);
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("x", x - barW / 2); rect.setAttribute("y", y);
+      rect.setAttribute("width", barW); rect.setAttribute("height", Math.max(0, (TON_CHART_H - TON_PADB) - y));
+      rect.setAttribute("fill", LINE_COLOR); rect.setAttribute("opacity", "0.55"); rect.setAttribute("rx", "1.5");
+      svg.appendChild(rect);
+
+      const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const hitW = Math.max(xStep, 6);
+      hit.setAttribute("x", x - hitW / 2); hit.setAttribute("y", TON_PADT);
+      hit.setAttribute("width", hitW); hit.setAttribute("height", TON_CHART_H - TON_PADB - TON_PADT);
+      hit.setAttribute("fill", "transparent"); hit.style.cursor = "pointer";
+      hit.tabIndex = 0;
+      const showFn = evt => {
+        const wrap = document.createElement("div");
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
+        wrap.appendChild(ttl);
+        const row = document.createElement("div"); row.className = "row";
+        const v = document.createElement("span"); v.className = "val"; v.textContent = fmtTon(p.ton);
+        row.appendChild(v);
+        wrap.appendChild(row);
+        showTooltip(evt, wrap);
+      };
+      hit.addEventListener("pointermove", showFn);
+      hit.addEventListener("focus", showFn);
+      hit.addEventListener("pointerleave", hideTooltip);
+      hit.addEventListener("blur", hideTooltip);
+      hitLayer.appendChild(hit);
+    });
+    svg.appendChild(hitLayer);
+  }
+
+  function renderKpis(rows, series) {
+    const el = document.getElementById("ktb-kpi-row");
+    el.textContent = "";
+    const tiles = [
+      ["Ağırlıklı ortalama fiyat (seçili dönem)", fmtPriceTon(overallWeightedAvg(rows))],
+      ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
+      ["Toplam işlem hacmi", fmtTon(rows.reduce((s, r) => s + (r.miktar || 0) / 1000, 0))],
+      ["Toplam işlem sayısı", String(rows.reduce((s, r) => s + (r.islem_sayisi || 0), 0))],
+      ["İşlem günü sayısı", String(series.length)],
+    ];
+    tiles.forEach(([label, value]) => {
+      const tile = document.createElement("div");
+      tile.className = "stat-tile";
+      const l = document.createElement("div"); l.className = "label"; l.textContent = label;
+      const v = document.createElement("div"); v.className = "value num"; v.textContent = value;
+      tile.appendChild(l); tile.appendChild(v);
+      el.appendChild(tile);
+    });
+  }
+
+  function renderTable(rows) {
+    const thead = document.getElementById("ktb-thead");
+    const tbody = document.getElementById("ktb-tbody");
+    const foot = document.getElementById("ktb-table-foot");
+    thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
+    const cols = ["Tarih", "Sınıf", "En Düşük", "En Yüksek", "Ort. Fiyat", "Miktar", "İşlem Sayısı"];
+    cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
+
+    const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.sinif_adi || "").localeCompare(b.sinif_adi || "", "tr"));
+    sorted.slice(0, TABLE_ROW_LIMIT).forEach(r => {
+      const tr = document.createElement("tr");
+      const cells = [
+        fmtDateFull(r.trade_date), r.sinif_adi || "—",
+        fmtPriceTon(r.min_fiyat != null ? r.min_fiyat * 1000 : null),
+        fmtPriceTon(r.max_fiyat != null ? r.max_fiyat * 1000 : null),
+        fmtPriceTon(r.ort_fiyat != null ? r.ort_fiyat * 1000 : null),
+        fmtTon((r.miktar || 0) / 1000), String(r.islem_sayisi ?? "—"),
+      ];
+      cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+
+    const countEl = document.createElement("span");
+    countEl.textContent = sorted.length > TABLE_ROW_LIMIT
+      ? `İlk ${TABLE_ROW_LIMIT} satır gösteriliyor — toplam ${sorted.length} satır. Tümü için CSV olarak aktarın.`
+      : `${sorted.length} satır`;
+    foot.appendChild(countEl);
+  }
+
+  function exportKtbCsv(rows) {
+    const cols = ["trade_date", "grup_kodu", "grup_adi", "sinif_adi", "min_fiyat", "ort_fiyat", "max_fiyat", "miktar", "islem_sayisi"];
+    const esc = v => {
+      const s = v == null ? "" : String(v);
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [cols.join(";")].concat(rows.map(r => cols.map(c => esc(r[c])).join(";")));
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ktb-bulten-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderAll() {
+    const rows = currentRows();
+    const series = dailyWeightedSeries(rows);
+    document.getElementById("ktb-chart-title").textContent = "Fiyat eğilimi (TL/ton) — " + (state.product || "");
+    renderPriceLegend();
+    drawPriceChart(series);
+    drawTonnageChart(series);
+    renderKpis(rows, series);
+    renderTable(rows);
+  }
+
+  function buildDateControls() {
+    const startInput = document.getElementById("ktb-date-start");
+    const endInput = document.getElementById("ktb-date-end");
+    if (!allRows.length) return;
+    const allDates = allRows.map(r => r.trade_date).sort();
+    const minDate = allDates[0], maxDate = allDates[allDates.length - 1];
+    startInput.min = minDate; startInput.max = maxDate;
+    endInput.min = minDate; endInput.max = maxDate;
+    startInput.value = minDate; endInput.value = maxDate;
+
+    function setActivePreset(btn) {
+      document.querySelectorAll("#ktb-period-presets .seg").forEach(b => b.classList.toggle("active", b === btn));
+    }
+
+    function applyPreset(preset) {
+      if (preset === "all") {
+        state.dateStart = null; state.dateEnd = null;
+        startInput.value = minDate; endInput.value = maxDate;
+      } else {
+        const end = new Date(maxDate + "T00:00:00");
+        const start = new Date(end);
+        start.setDate(start.getDate() - Number(preset) + 1);
+        const startIso = start.toISOString().slice(0, 10);
+        state.dateStart = startIso < minDate ? minDate : startIso;
+        state.dateEnd = maxDate;
+        startInput.value = state.dateStart; endInput.value = state.dateEnd;
+      }
+      renderAll();
+    }
+
+    document.querySelectorAll("#ktb-period-presets .seg").forEach(btn => {
+      btn.addEventListener("click", () => { setActivePreset(btn); applyPreset(btn.dataset.preset); });
+    });
+    startInput.addEventListener("change", () => {
+      state.dateStart = startInput.value || null;
+      setActivePreset(null);
+      renderAll();
+    });
+    endInput.addEventListener("change", () => {
+      state.dateEnd = endInput.value || null;
+      setActivePreset(null);
+      renderAll();
+    });
+  }
+
+  function buildProductControls() {
+    const wrap = document.getElementById("ktb-product");
+    wrap.textContent = "";
+    const products = [...new Set(allRows.map(r => r.grup_adi))].sort((a, b) => a.localeCompare(b, "tr"));
+    if (!state.product || !products.includes(state.product)) {
+      state.product = products.includes(DEFAULT_PRODUCT) ? DEFAULT_PRODUCT : (products[0] || null);
+    }
+    products.forEach(p => {
+      const btn = document.createElement("button");
+      btn.className = "chip" + (p === state.product ? " active" : "");
+      btn.type = "button"; btn.textContent = p;
+      btn.addEventListener("click", () => {
+        state.product = p;
+        wrap.querySelectorAll(".chip").forEach(b => b.classList.toggle("active", b === btn));
+        buildDateControls();
+        renderAll();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  let loaded = false;
+  window.__ktbTab = {
+    onActivate() {
+      if (loaded) return;
+      loaded = true;
+      fetchKtbRows()
+        .then(rows => {
+          allRows = rows;
+          document.getElementById("ktb-asof-badge").textContent = rows.length
+            ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
+            : "Veri yok";
+          buildProductControls();
+          buildDateControls();
+          renderAll();
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById("ktb-asof-badge").textContent = "Veri çekilemedi";
+        });
+    },
+  };
+
+  document.getElementById("ktb-export-btn").addEventListener("click", () => {
+    const rows = currentRows();
+    if (!rows.length) return;
+    exportKtbCsv(rows);
   });
 })();
 
