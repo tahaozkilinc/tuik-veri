@@ -1,18 +1,32 @@
-import re
+import json
 import urllib.request
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; tuik-veri-research/1.0)"}
+import urllib.error
 
-def fetch(url):
-    req = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(req, timeout=25) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; tuik-veri-research/1.0)", "Accept": "application/json"}
+BASE = "https://apps.fas.usda.gov/esrqs/api"
 
-url = "https://apps.fas.usda.gov/esrqs/main-WLKZ33AV.js"
-js = fetch(url)
-print("len:", len(js))
+CANDIDATES = [
+    "/esr/regions",
+    "/esr/commodities",
+    "/esr/unitsOfMeasure",
+    "/esr/datareleasedates",
+]
 
-for needle in ["api.fas.usda.gov", "/api/esr", "esrqs/api", "apiUrl", "baseUrl", "X-Api-Key", "proxy"]:
-    idxs = [m.start() for m in re.finditer(re.escape(needle), js)]
-    print(f"'{needle}': {len(idxs)} hits")
-    for i in idxs[:3]:
-        print("   ...", js[max(0,i-80):i+120].replace("\n"," "))
+for path in CANDIDATES:
+    url = BASE + path
+    print("=" * 60, url)
+    try:
+        req = urllib.request.Request(url, headers=HEADERS)
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read()
+            print("status:", resp.status, "content-type:", resp.headers.get("Content-Type"), "len:", len(body))
+            print(body[:1500].decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as e:
+        print("HTTPError:", e.code, e.reason)
+        try:
+            print(e.read()[:500])
+        except Exception:
+            pass
+    except Exception as e:
+        print("ERROR:", type(e).__name__, e)
+    print()
