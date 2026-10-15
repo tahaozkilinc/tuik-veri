@@ -1770,7 +1770,7 @@ window.__tabManager = (function () {
   function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
 
   let allRows = [];
-  const state = { product: null, lidas: null, dateStart: null, dateEnd: null };
+  const state = { product: null, lidas: null, dateStart: null, dateEnd: null, tableSearch: "" };
 
   function productRows() {
     return allRows.filter(r => r.enstruman_sinifi === state.product);
@@ -1959,16 +1959,23 @@ window.__tabManager = (function () {
     });
   }
 
+  const TABLE_ROW_LIMIT = 10;
+
   function renderTable(rows) {
     const thead = document.getElementById("turib-thead");
     const tbody = document.getElementById("turib-tbody");
-    thead.textContent = ""; tbody.textContent = "";
+    const foot = document.getElementById("turib-table-foot");
+    thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
     const cols = ["Tarih", "LİDAŞ Adı", "İl", "İlçe", "Ağ. Ort. Fiyat", "İşlem Miktarı", "İşlem Hacmi", "İşlem Adedi"];
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
-    const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.lidas_adi || "").localeCompare(b.lidas_adi || "", "tr"));
-    document.getElementById("turib-table-title").textContent = "Günlük işlemler (" + sorted.length + " satır)";
-    sorted.forEach(r => {
+    const q = state.tableSearch.toLocaleLowerCase("tr");
+    const filtered = q
+      ? rows.filter(r => [r.lidas_adi, r.il, r.ilce].some(v => v && v.toLocaleLowerCase("tr").includes(q)))
+      : rows;
+    const sorted = [...filtered].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.lidas_adi || "").localeCompare(b.lidas_adi || "", "tr"));
+    document.getElementById("turib-table-title").textContent = "Günlük işlemler";
+    sorted.slice(0, TABLE_ROW_LIMIT).forEach(r => {
       const tr = document.createElement("tr");
       const cells = [
         fmtDateFull(r.trade_date), r.lidas_adi || "—", r.il || "—", r.ilce || "—",
@@ -1977,6 +1984,12 @@ window.__tabManager = (function () {
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
+
+    const countEl = document.createElement("span");
+    countEl.textContent = sorted.length > TABLE_ROW_LIMIT
+      ? `İlk ${TABLE_ROW_LIMIT} satır gösteriliyor — toplam ${sorted.length} satır. Tümü için ara/filtrele veya CSV olarak aktarın.`
+      : `${sorted.length} satır`;
+    foot.appendChild(countEl);
   }
 
   function exportTuribCsv(rows) {
@@ -2144,6 +2157,11 @@ window.__tabManager = (function () {
   };
 
   buildLidasSearch();
+
+  document.getElementById("turib-table-search").addEventListener("input", (e) => {
+    state.tableSearch = e.target.value.trim();
+    renderTable(currentRows());
+  });
 
   document.getElementById("turib-export-btn").addEventListener("click", () => {
     const rows = currentRows();
