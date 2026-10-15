@@ -235,6 +235,42 @@ drop policy if exists "public read uztb_fiyat" on uztb_fiyat;
 create policy "public read uztb_fiyat" on uztb_fiyat for select using (true);
 revoke insert, update, delete, truncate on uztb_fiyat from anon, authenticated;
 
+-- Konya Ticaret Borsası (KTB) — Satış Salonu günlük bülteni.
+-- www.ktb.org.tr/gunlukfiyat bir Angular SPA; gerçek veri kimlik doğrulama
+-- GEREKTİRMEYEN bir public REST API'den geliyor: GET /api/v1/Alpha.WebPanel/
+-- OnlineKullaniciBulten/GetGunlukBulten/{YYYY-MM-DD}. Bu endpoint "Tescil"
+-- (GetTescilGunlukBulten, kullanılmıyor — sadece Satış Salonu isteniyor)
+-- bülteninden AYRI. Tarih parametresi en az 2+ yıl geriye gidebiliyor
+-- (2024-10-15 dahil test edildi), bu yüzden tam 1 yıllık backfill mümkün.
+-- Her satır bir (tarih, ürün grubu, sınıf) kırılımı — o sınıfın günün
+-- min/ort/max fiyatı + miktarı + işlem sayısı; ayrıca aynı günün GRUP
+-- genelindeki (tüm sınıflar) min/ort/max fiyatı da her satırda tekrarlanıyor
+-- (kaynağın kendi response şekli böyle).
+create table if not exists ktb_bulletin (
+    id              bigint generated always as identity primary key,
+    trade_date      date not null,
+    grup_kodu       text not null,   -- örn '01.01.00.00'
+    grup_adi        text not null,   -- örn 'Makarnalık Buğday'
+    sinif_adi       text not null,   -- örn '2.GRUP MAKARNALIK BUĞDAYLAR'
+    min_fiyat       numeric,
+    ort_fiyat       numeric,
+    max_fiyat       numeric,
+    miktar          numeric,         -- kg
+    islem_sayisi    int,
+    grup_min_fiyat  numeric,         -- aynı günün grup geneli (tüm sınıflar) min/ort/max
+    grup_ort_fiyat  numeric,
+    grup_max_fiyat  numeric,
+    fetched_at      timestamptz not null default now(),
+    unique (trade_date, grup_kodu, sinif_adi)
+);
+
+create index if not exists idx_ktb_bulletin_lookup on ktb_bulletin (grup_kodu, trade_date desc);
+
+alter table ktb_bulletin enable row level security;
+drop policy if exists "public read ktb_bulletin" on ktb_bulletin;
+create policy "public read ktb_bulletin" on ktb_bulletin for select using (true);
+revoke insert, update, delete, truncate on ktb_bulletin from anon, authenticated;
+
 -- MİGRASYON: bu şemayı daha önce (NULLS NOT DISTINCT olmadan) çalıştırdıysanız
 -- — yani trade_stats tablosu zaten varsa — aşağıdaki blok eski unique
 -- constraint'i bulup NULLS NOT DISTINCT olanla değiştirir. Script hem sıfırdan

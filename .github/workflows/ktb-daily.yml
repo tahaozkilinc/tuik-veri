@@ -1,0 +1,50 @@
+name: Daily KTB Bulletin Fetch
+
+on:
+  schedule:
+    # KTB günlük bülteni günün seansları bittikten sonra kesinleşir.
+    # 15:00 UTC = 18:00 Türkiye saati (TR daimi UTC+3, DST yok).
+    # Hafta sonu KTB işlem yapmıyor, bu yüzden sadece Pzt-Cuma çalışıyor.
+    - cron: "0 15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Tek bir günü çek (YYYY-MM-DD), boş bırakılırsa bugün"
+        required: false
+        default: ""
+      backfill_days:
+        description: "Son N günü tek tek çek (1 yıllık geçmiş doldurmak için 365 yazın)"
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install supabase==2.31.0
+
+      - name: Fetch + parse + load KTB bulletin
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          KTB_DATE: ${{ github.event.inputs.date }}
+          KTB_BACKFILL_DAYS: ${{ github.event.inputs.backfill_days }}
+        run: |
+          if [ -n "$KTB_BACKFILL_DAYS" ] && [ "$KTB_BACKFILL_DAYS" != "0" ]; then
+            python -m ktb.run --backfill-days "$KTB_BACKFILL_DAYS"
+          elif [ -n "$KTB_DATE" ]; then
+            python -m ktb.run --date "$KTB_DATE"
+          else
+            python -m ktb.run
+          fi

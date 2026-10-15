@@ -102,6 +102,20 @@ def replace_uztb_fiyat(client: Client, trade_date: str, urun_kodu: str, record: 
     return 1
 
 
+def replace_ktb_bulletin(client: Client, trade_date: str, records: list[dict]) -> int:
+    """Bu `trade_date`'e ait eski KTB satırlarını silip yeni veriyi ekler —
+    turib_bulletin ile aynı mantık: kaynak her çağrıda o günün TAM bültenini
+    döndürüyor (artımlı değil), kapsam sadece bu güne sınırlı.
+    """
+    client.table("ktb_bulletin").delete().eq("trade_date", trade_date).execute()
+    total = 0
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i : i + BATCH_SIZE]
+        client.table("ktb_bulletin").insert(batch).execute()
+        total += len(batch)
+    return total
+
+
 def start_run(client: Client, source: str = "tuik") -> int:
     resp = client.table("scrape_runs").insert({"status": "running", "source": source}).execute()
     return resp.data[0]["id"]
