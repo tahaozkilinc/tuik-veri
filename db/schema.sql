@@ -171,6 +171,41 @@ drop policy if exists "public read export_sales_stats" on export_sales_stats;
 create policy "public read export_sales_stats" on export_sales_stats for select using (true);
 revoke insert, update, delete, truncate on export_sales_stats from anon, authenticated;
 
+-- TÜRİB (Türkiye Ürün İhtisas Borsası) günlük bülteni — Normal Seans elektronik
+-- ürün senedi (ELÜS) işlemleri. www.turib.com.tr/gunluk-bulten/ sayfasına POST
+-- edilen tarihle sunucu tarafında render edilen tabloyu kazıyoruz; "Excel'e
+-- Aktar" düğmesi istemci tarafında JS ile aynı tabloyu dışa aktarıyor, ayrı
+-- bir indirilebilir dosya yok. Her satır bir ISIN'in (LİDAŞ+ürün+konum
+-- kombinasyonu) o günkü işlem özeti; (trade_date, isin_kodu) çifti benzersiz.
+create table if not exists turib_bulletin (
+    id                       bigint generated always as identity primary key,
+    trade_date               date not null,
+    isin_kodu                text not null,
+    enstruman_sinifi         text not null,   -- ürün/sınıf, örn. "MISIR 1.SINIF"
+    onceki_kapanis           numeric,
+    en_dusuk                 numeric,
+    en_yuksek                numeric,
+    agirlikli_ortalama_fiyat numeric,
+    kapanis_fiyati           numeric,
+    islem_adedi              int,
+    islem_miktari_kg         numeric,
+    islem_hacmi_tl           numeric,
+    lidas_adi                text not null,
+    il                       text,
+    ilce                     text,
+    islem_kodu               text,
+    fetched_at               timestamptz not null default now(),
+    unique (trade_date, isin_kodu)
+);
+
+create index if not exists idx_turib_bulletin_lookup on turib_bulletin (enstruman_sinifi, trade_date desc);
+create index if not exists idx_turib_bulletin_lidas on turib_bulletin (lidas_adi);
+
+alter table turib_bulletin enable row level security;
+drop policy if exists "public read turib_bulletin" on turib_bulletin;
+create policy "public read turib_bulletin" on turib_bulletin for select using (true);
+revoke insert, update, delete, truncate on turib_bulletin from anon, authenticated;
+
 -- MİGRASYON: bu şemayı daha önce (NULLS NOT DISTINCT olmadan) çalıştırdıysanız
 -- — yani trade_stats tablosu zaten varsa — aşağıdaki blok eski unique
 -- constraint'i bulup NULLS NOT DISTINCT olanla değiştirir. Script hem sıfırdan

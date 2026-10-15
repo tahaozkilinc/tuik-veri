@@ -75,6 +75,21 @@ def replace_export_sales(client: Client, records: list[dict]) -> int:
     return total
 
 
+def replace_turib_bulletin(client: Client, trade_date: str, records: list[dict]) -> int:
+    """Bu `trade_date`'e ait eski TÜRİB satırlarını silip yeni veriyi ekler —
+    WASDE'nin report_date bazlı sil-ve-ekle'siyle aynı mantık: kaynak her
+    çalıştırmada o günün tam tablosunu döndürüyor (artımlı değil), kapsam
+    sadece bu güne sınırlı.
+    """
+    client.table("turib_bulletin").delete().eq("trade_date", trade_date).execute()
+    total = 0
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i : i + BATCH_SIZE]
+        client.table("turib_bulletin").insert(batch).execute()
+        total += len(batch)
+    return total
+
+
 def start_run(client: Client, source: str = "tuik") -> int:
     resp = client.table("scrape_runs").insert({"status": "running", "source": source}).execute()
     return resp.data[0]["id"]
