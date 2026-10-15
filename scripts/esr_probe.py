@@ -1,32 +1,23 @@
-import json
+import re
 import urllib.request
-import urllib.error
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; tuik-veri-research/1.0)", "Accept": "application/json"}
-BASE = "https://apps.fas.usda.gov/esrqs/api"
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; tuik-veri-research/1.0)"}
 
-CANDIDATES = [
-    "/esr/regions",
-    "/esr/commodities",
-    "/esr/unitsOfMeasure",
-    "/esr/datareleasedates",
-]
+def fetch(url):
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        return resp.read().decode("utf-8", errors="replace")
 
-for path in CANDIDATES:
-    url = BASE + path
-    print("=" * 60, url)
-    try:
-        req = urllib.request.Request(url, headers=HEADERS)
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            body = resp.read()
-            print("status:", resp.status, "content-type:", resp.headers.get("Content-Type"), "len:", len(body))
-            print(body[:1500].decode("utf-8", errors="replace"))
-    except urllib.error.HTTPError as e:
-        print("HTTPError:", e.code, e.reason)
-        try:
-            print(e.read()[:500])
-        except Exception:
-            pass
-    except Exception as e:
-        print("ERROR:", type(e).__name__, e)
-    print()
+js = fetch("https://apps.fas.usda.gov/esrqs/main-WLKZ33AV.js")
+print("len:", len(js))
+
+# apiEndpoint ile birlikte kullanılan string concatenation'ları bul
+for m in re.finditer(r'apiEndpoint\s*[,+]\s*"([^"]{1,60})"', js):
+    print("apiEndpoint + ->", m.group(1))
+
+# Genel olarak ESR'ye özgü kelimeleri (regions/commodities/countries/exports) içeren kısa yol parçalarını ara
+for kw in ["egions", "ommodit", "ountries", "nitsOfMeasure", "ataRelease", "/exports/"]:
+    hits = [m.start() for m in re.finditer(kw, js)]
+    print(f"'{kw}': {len(hits)} hits")
+    for i in hits[:5]:
+        print("   ...", js[max(0,i-60):i+60].replace("\n", " "))
