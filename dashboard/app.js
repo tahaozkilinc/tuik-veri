@@ -1653,9 +1653,12 @@ window.__tabManager = (function () {
     if (a >= 1e3) return (v / 1e3).toFixed(1) + "K TL";
     return (Math.round(v) || 0) + " TL";
   }
-  function fmtPriceKg(v) {
+  // v: TL/ton olarak ZATEN ölçeklenmiş değer bekler (dailyWeightedSeries/
+  // overallWeightedAvg dönüşü) — ham DB değeri (TL/kg) veriliyorsa çağıran
+  // taraf ×1000 yapmalı (bkz. tablo satırları).
+  function fmtPriceTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " TL/kg";
+    return v.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " TL/ton";
   }
   function fmtDateShort(iso) {
     return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
@@ -1677,7 +1680,7 @@ window.__tabManager = (function () {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const res = await fetch(
-        `${cfg.SUPABASE_URL}/rest/v1/turib_bulletin?select=trade_date,isin_kodu,enstruman_sinifi,agirlikli_ortalama_fiyat,islem_adedi,islem_miktari_kg,islem_hacmi_tl,lidas_adi,il,ilce&order=trade_date.asc`,
+        `${cfg.SUPABASE_URL}/rest/v1/turib_bulletin?select=trade_date,isin_kodu,enstruman_sinifi,agirlikli_ortalama_fiyat,en_dusuk,en_yuksek,islem_adedi,islem_miktari_kg,islem_hacmi_tl,lidas_adi,il,ilce&order=trade_date.asc`,
         { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
       );
       if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
@@ -1727,18 +1730,29 @@ window.__tabManager = (function () {
   // ağırlıklı ortalama fiyatını, o satırın işlem miktarıyla tartarak
   // birleştiriyoruz (tek bir ISIN'in günlük fiyatı zaten kendi içinde
   // ağırlıklı — burada sadece aynı güne ait birden çok ISIN/LİDAŞ'ı
-  // doğru şekilde tek bir günlük fiyata indiriyoruz).
+  // doğru şekilde tek bir günlük fiyata indiriyoruz). En düşük/en yüksek
+  // o günün tüm satırlarındaki en_dusuk/en_yuksek'in min/max'ı. Fiyatlar
+  // TL/ton'a çevrilerek (×1000) döndürülüyor — DB TL/kg tutuyor.
   function dailyWeightedSeries(rows) {
     const byDate = new Map();
     rows.forEach(r => {
       if (r.agirlikli_ortalama_fiyat == null || r.islem_miktari_kg == null) return;
-      const e = byDate.get(r.trade_date) || { sumPriceKg: 0, sumKg: 0 };
+      const e = byDate.get(r.trade_date) || { sumPriceKg: 0, sumKg: 0, minPrice: null, maxPrice: null };
       e.sumPriceKg += r.agirlikli_ortalama_fiyat * r.islem_miktari_kg;
       e.sumKg += r.islem_miktari_kg;
+      if (r.en_dusuk != null && r.en_dusuk > 0) e.minPrice = e.minPrice == null ? r.en_dusuk : Math.min(e.minPrice, r.en_dusuk);
+      if (r.en_yuksek != null && r.en_yuksek > 0) e.maxPrice = e.maxPrice == null ? r.en_yuksek : Math.max(e.maxPrice, r.en_yuksek);
       byDate.set(r.trade_date, e);
     });
     return [...byDate.entries()]
-      .map(([date, e]) => ({ date, price: e.sumKg > 0 ? e.sumPriceKg / e.sumKg : null, kg: e.sumKg }))
+      .map(([date, e]) => ({
+        date,
+        price: e.sumKg > 0 ? (e.sumPriceKg / e.sumKg) * 1000 : null,
+        minPrice: e.minPrice != null ? e.minPrice * 1000 : null,
+        maxPrice: e.maxPrice != null ? e.maxPrice * 1000 : null,
+        kg: e.sumKg,
+        ton: e.sumKg / 1000,
+      }))
       .filter(p => p.price != null)
       .sort((a, b) => a.date.localeCompare(b.date));
   }
@@ -1750,10 +1764,44 @@ window.__tabManager = (function () {
       sumPriceKg += r.agirlikli_ortalama_fiyat * r.islem_miktari_kg;
       sumKg += r.islem_miktari_kg;
     });
-    return sumKg > 0 ? sumPriceKg / sumKg : null;
+    return sumKg > 0 ? (sumPriceKg / sumKg) * 1000 : null;
   }
 
-  function drawChart(points) {
+  function renderPriceLegend() {
+    const el = document.getElementById("turib-price-legend");
+    el.textContent = "";
+    [
+      ["Ağırlıklı Ortalama", false],
+      ["En Yüksek", true],
+      ["En Düşük", true],
+    ].forEach(([label, dashed]) => {
+      const key = document.createElement("span");
+      key.className = "key";
+      const sw = document.createElement("span");
+      sw.className = "swatch-line" + (dashed ? " dashed" : "");
+      sw.style.background = dashed ? "none" : LINE_COLOR;
+      sw.style.borderColor = LINE_COLOR;
+      key.appendChild(sw);
+      key.appendChild(document.createTextNode(label));
+      el.appendChild(key);
+    });
+  }
+
+  // sıçramalı (null) günlerde çizgiyi koparan, birden çok alt-yol içerebilen
+  // path verisi üretir — min/max her gün dolu olmayabilir.
+  function buildGappedPath(points, field, xScale, yScale) {
+    let d = "";
+    let drawing = false;
+    points.forEach((p, i) => {
+      const v = p[field];
+      if (v == null) { drawing = false; return; }
+      d += (drawing ? "L" : "M") + xScale(i) + "," + yScale(v) + " ";
+      drawing = true;
+    });
+    return d.trim();
+  }
+
+  function drawPriceChart(points) {
     const svg = document.getElementById("turib-chart");
     svg.textContent = "";
     svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
@@ -1766,8 +1814,8 @@ window.__tabManager = (function () {
     }
     const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
     const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
-    const values = points.map(p => p.price);
-    const minVal = Math.min(...values), maxVal = Math.max(...values);
+    const allVals = points.flatMap(p => [p.price, p.minPrice, p.maxPrice]).filter(v => v != null);
+    const minVal = Math.min(...allVals), maxVal = Math.max(...allVals);
     const span = maxVal - minVal || Math.abs(maxVal) || 1;
     const yPad = span * 0.1;
     const yScale = v => CHART_H - PADB - ((v - minVal + yPad) / (span + 2 * yPad)) * (CHART_H - PADB - PADT);
@@ -1782,7 +1830,7 @@ window.__tabManager = (function () {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
       t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
-      t.textContent = (maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+      t.textContent = Math.round(maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString("tr-TR");
       svg.appendChild(t);
     }
 
@@ -1808,10 +1856,10 @@ window.__tabManager = (function () {
     hoverLine.style.opacity = "0";
     svg.appendChild(hoverLine);
 
-    const pts = points.map((p, i) => [xScale(i), yScale(p.price)]);
-    if (pts.length === 1) {
+    const avgPts = points.map((p, i) => [xScale(i), yScale(p.price)]);
+    if (avgPts.length === 1) {
       const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      dot.setAttribute("cx", pts[0][0]); dot.setAttribute("cy", pts[0][1]); dot.setAttribute("r", "4");
+      dot.setAttribute("cx", avgPts[0][0]); dot.setAttribute("cy", avgPts[0][1]); dot.setAttribute("r", "4");
       dot.setAttribute("fill", LINE_COLOR);
       svg.appendChild(dot);
     } else {
@@ -1821,7 +1869,7 @@ window.__tabManager = (function () {
       grad.setAttribute("id", gradId);
       grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
       const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-      stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", LINE_COLOR); stop1.setAttribute("stop-opacity", "0.22");
+      stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", LINE_COLOR); stop1.setAttribute("stop-opacity", "0.18");
       const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
       stop2.setAttribute("offset", "100%"); stop2.setAttribute("stop-color", LINE_COLOR); stop2.setAttribute("stop-opacity", "0");
       grad.appendChild(stop1); grad.appendChild(stop2);
@@ -1829,23 +1877,36 @@ window.__tabManager = (function () {
       svg.appendChild(defs);
 
       const baseline = CHART_H - PADB;
-      const areaD = "M" + pts[0][0] + "," + baseline + " " + pts.map(p => "L" + p[0] + "," + p[1]).join(" ") + " L" + pts[pts.length - 1][0] + "," + baseline + " Z";
+      const areaD = "M" + avgPts[0][0] + "," + baseline + " " + avgPts.map(p => "L" + p[0] + "," + p[1]).join(" ") + " L" + avgPts[avgPts.length - 1][0] + "," + baseline + " Z";
       const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
       area.setAttribute("d", areaD);
       area.setAttribute("fill", "url(#" + gradId + ")");
       area.setAttribute("stroke", "none");
       svg.appendChild(area);
 
+      // kesikli en yüksek / en düşük çizgileri — ortalamanın altında kalsın
+      ["maxPrice", "minPrice"].forEach(field => {
+        const d = buildGappedPath(points, field, xScale, yScale);
+        if (!d) return;
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", d);
+        path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "1.5");
+        path.setAttribute("stroke-dasharray", "5 4"); path.setAttribute("opacity", "0.6");
+        path.setAttribute("fill", "none"); path.setAttribute("stroke-linecap", "round");
+        svg.appendChild(path);
+      });
+
+      // kalın ağırlıklı ortalama çizgisi — en üstte, en belirgin
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
-      path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "2.25");
+      path.setAttribute("d", avgPts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+      path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "3");
       path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
       svg.appendChild(path);
 
-      const lastPt = pts[pts.length - 1];
+      const lastPt = avgPts[avgPts.length - 1];
       const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       endDot.setAttribute("cx", lastPt[0]); endDot.setAttribute("cy", lastPt[1]); endDot.setAttribute("r", "4.5");
-      endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", LINE_COLOR); endDot.setAttribute("stroke-width", "2.25");
+      endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", LINE_COLOR); endDot.setAttribute("stroke-width", "2.5");
       svg.appendChild(endDot);
     }
 
@@ -1863,10 +1924,13 @@ window.__tabManager = (function () {
         const wrap = document.createElement("div");
         const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
         wrap.appendChild(ttl);
-        const row = document.createElement("div"); row.className = "row";
-        const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceKg(p.price);
-        row.appendChild(v);
-        wrap.appendChild(row);
+        [["Ağırlıklı Ort.", p.price], ["En Yüksek", p.maxPrice], ["En Düşük", p.minPrice]].forEach(([label, val]) => {
+          const row = document.createElement("div"); row.className = "row";
+          const l = document.createElement("span"); l.textContent = label + ": ";
+          const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
+          row.appendChild(l); row.appendChild(v);
+          wrap.appendChild(row);
+        });
         showTooltip(evt, wrap);
       };
       rect.addEventListener("pointermove", showFn);
@@ -1878,12 +1942,97 @@ window.__tabManager = (function () {
     svg.appendChild(hitLayer);
   }
 
+  const TON_CHART_H = 110, TON_PADT = 10, TON_PADB = 24;
+
+  function drawTonnageChart(points) {
+    const svg = document.getElementById("turib-tonnage-chart");
+    svg.textContent = "";
+    svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + TON_CHART_H);
+    if (!points.length) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL); t.setAttribute("y", TON_CHART_H / 2); t.setAttribute("class", "axis-label");
+      t.textContent = "Bu filtrede veri yok.";
+      svg.appendChild(t);
+      return;
+    }
+    const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
+    const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+    const maxTon = Math.max(...points.map(p => p.ton), 1);
+    const yScale = v => TON_CHART_H - TON_PADB - (v / maxTon) * (TON_CHART_H - TON_PADB - TON_PADT);
+
+    [0, maxTon].forEach(val => {
+      const y = yScale(val);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "gridline");
+      line.setAttribute("x1", PADL); line.setAttribute("x2", CHART_W - PADR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      svg.appendChild(line);
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
+      t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+      t.textContent = val.toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+      svg.appendChild(t);
+    });
+
+    const minLabelGap = 56;
+    const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
+    points.forEach((p, i) => {
+      const isLast = i === points.length - 1;
+      if (i % tickEvery !== 0 && !isLast) return;
+      if (isLast && points.length > 1 && (points.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((points.length - 1) / tickEvery) * tickEvery;
+        if ((points.length - 1 - prevShown) * xStep < minLabelGap) return;
+      }
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", xScale(i)); t.setAttribute("y", TON_CHART_H - 5);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+      t.textContent = fmtDateShort(p.date);
+      svg.appendChild(t);
+    });
+
+    const barW = Math.max(2, Math.min(xStep * 0.6, 14));
+    const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    points.forEach((p, i) => {
+      const x = xScale(i);
+      const y = yScale(p.ton);
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("x", x - barW / 2); rect.setAttribute("y", y);
+      rect.setAttribute("width", barW); rect.setAttribute("height", Math.max(0, (TON_CHART_H - TON_PADB) - y));
+      rect.setAttribute("fill", LINE_COLOR); rect.setAttribute("opacity", "0.55"); rect.setAttribute("rx", "1.5");
+      svg.appendChild(rect);
+
+      const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const hitW = Math.max(xStep, 6);
+      hit.setAttribute("x", x - hitW / 2); hit.setAttribute("y", TON_PADT);
+      hit.setAttribute("width", hitW); hit.setAttribute("height", TON_CHART_H - TON_PADB - TON_PADT);
+      hit.setAttribute("fill", "transparent"); hit.style.cursor = "pointer";
+      hit.tabIndex = 0;
+      const showFn = evt => {
+        const wrap = document.createElement("div");
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
+        wrap.appendChild(ttl);
+        const row = document.createElement("div"); row.className = "row";
+        const v = document.createElement("span"); v.className = "val";
+        v.textContent = p.ton.toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+        row.appendChild(v);
+        wrap.appendChild(row);
+        showTooltip(evt, wrap);
+      };
+      hit.addEventListener("pointermove", showFn);
+      hit.addEventListener("focus", showFn);
+      hit.addEventListener("pointerleave", hideTooltip);
+      hit.addEventListener("blur", hideTooltip);
+      hitLayer.appendChild(hit);
+    });
+    svg.appendChild(hitLayer);
+  }
+
   function renderKpis(rows, series) {
     const el = document.getElementById("turib-kpi-row");
     el.textContent = "";
     const tiles = [
-      ["Ağırlıklı ortalama fiyat (seçili dönem)", fmtPriceKg(overallWeightedAvg(rows))],
-      ["Son fiyat", series.length ? fmtPriceKg(series[series.length - 1].price) : "—"],
+      ["Ağırlıklı ortalama fiyat (seçili dönem)", fmtPriceTon(overallWeightedAvg(rows))],
+      ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
       ["Toplam işlem hacmi", fmtKg(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0))],
       ["Toplam işlem değeri", fmtTl(rows.reduce((s, r) => s + (r.islem_hacmi_tl || 0), 0))],
       ["İşlem günü sayısı", String(series.length)],
@@ -1918,7 +2067,7 @@ window.__tabManager = (function () {
       const tr = document.createElement("tr");
       const cells = [
         fmtDateFull(r.trade_date), r.lidas_adi || "—", r.il || "—", r.ilce || "—",
-        fmtPriceKg(r.agirlikli_ortalama_fiyat), fmtKg(r.islem_miktari_kg), fmtTl(r.islem_hacmi_tl), String(r.islem_adedi ?? "—"),
+        fmtPriceTon(r.agirlikli_ortalama_fiyat != null ? r.agirlikli_ortalama_fiyat * 1000 : null), fmtKg(r.islem_miktari_kg), fmtTl(r.islem_hacmi_tl), String(r.islem_adedi ?? "—"),
       ];
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
@@ -1952,8 +2101,10 @@ window.__tabManager = (function () {
   function renderAll() {
     const rows = currentRows();
     const series = dailyWeightedSeries(rows);
-    document.getElementById("turib-chart-title").textContent = "Ağırlıklı ortalama fiyat eğilimi — " + state.product + (state.lidas ? " · " + state.lidas : "");
-    drawChart(series);
+    document.getElementById("turib-chart-title").textContent = "Fiyat eğilimi (TL/ton) — " + state.product + (state.lidas ? " · " + state.lidas : "");
+    renderPriceLegend();
+    drawPriceChart(series);
+    drawTonnageChart(series);
     renderKpis(rows, series);
     renderTable(rows);
   }
