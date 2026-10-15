@@ -965,8 +965,6 @@ document.getElementById("refresh-data").addEventListener("click", () => {
     }
 
 
-    document.getElementById("asof-badge").textContent = "Veri " + periodLabelFull(maxPeriodKey) + " dönemine kadar güncel";
-
     buildPeriodControls();
     buildFlowFilter();
     buildProductChips();
@@ -2041,7 +2039,6 @@ window.__tabManager = (function () {
       ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
       ["Toplam işlem hacmi", fmtKg(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0))],
       ["Toplam işlem değeri", fmtTl(rows.reduce((s, r) => s + (r.islem_hacmi_tl || 0), 0))],
-      ["İşlem günü sayısı", String(series.length)],
     ];
     tiles.forEach(([label, value]) => {
       const tile = document.createElement("div");
@@ -2158,6 +2155,9 @@ window.__tabManager = (function () {
       setActivePreset(null);
       renderAll();
     });
+
+    setActivePreset(document.querySelector('#turib-period-presets .seg[data-preset="90"]'));
+    applyPreset("90");
   }
 
   function buildProductControls() {
@@ -2630,7 +2630,6 @@ window.__tabManager = (function () {
       ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
       ["Toplam işlem hacmi", fmtTon(rows.reduce((s, r) => s + (r.toplam_kilo || 0) / 1000, 0))],
       ["Ortalama rutubet", fmtPct(avgRutubet)],
-      ["İşlem günü sayısı", String(series.length)],
     ];
     tiles.forEach(([label, value]) => {
       const tile = document.createElement("div");
@@ -2732,6 +2731,9 @@ window.__tabManager = (function () {
     });
     startInput.addEventListener("change", () => { state.dateStart = startInput.value || null; setActivePreset(null); renderAll(); });
     endInput.addEventListener("change", () => { state.dateEnd = endInput.value || null; setActivePreset(null); renderAll(); });
+
+    setActivePreset(document.querySelector('#uztb-period-presets .seg[data-preset="90"]'));
+    applyPreset("90");
   }
 
   let loaded = false;
@@ -3154,7 +3156,6 @@ window.__tabManager = (function () {
       ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
       ["Toplam işlem hacmi", fmtTon(rows.reduce((s, r) => s + (r.miktar || 0) / 1000, 0))],
       ["Toplam işlem sayısı", String(rows.reduce((s, r) => s + (r.islem_sayisi || 0), 0))],
-      ["İşlem günü sayısı", String(series.length)],
     ];
     tiles.forEach(([label, value]) => {
       const tile = document.createElement("div");
@@ -3267,6 +3268,9 @@ window.__tabManager = (function () {
       setActivePreset(null);
       renderAll();
     });
+
+    setActivePreset(document.querySelector('#ktb-period-presets .seg[data-preset="90"]'));
+    applyPreset("90");
   }
 
   function buildProductControls() {

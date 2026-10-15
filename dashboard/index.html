@@ -20,7 +20,6 @@
     </div>
     <div class="meta">
       <span class="snapshot-badge"><span class="dot" id="status-dot"></span><span id="status-text">Yükleniyor…</span></span>
-      <span class="asof-badge" id="asof-badge"></span>
       <button class="theme-btn" id="refresh-data" aria-label="Verileri yenile" title="Önbelleği temizle, en güncel veriyi çek">⟳</button>
       <button class="theme-btn" id="theme-toggle" aria-label="Tema değiştir" title="Tema değiştir">◐</button>
     </div>
@@ -234,8 +233,8 @@
           <span class="filter-label">Hızlı seçim</span>
           <div class="segmented" id="turib-period-presets" role="group" aria-label="Dönem hazır seçimleri">
             <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
-            <button class="seg" type="button" data-preset="90">Son 90 Gün</button>
-            <button class="seg active" type="button" data-preset="all">Tüm Zamanlar</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
           </div>
         </div>
       </section>
@@ -273,9 +272,7 @@
         <div>
           <strong>UZTB (Uzunköprü Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong> — her iş günü
           18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
-          toplam miktar, ortalama rutubet) çekilir. Kaynakta tarih parametreli bir geçmiş API bulunmadığı
-          için geçmiş veri sadece kaynağın kendi tuttuğu son birkaç haftayla sınırlı — rutubet geçmişi
-          günlük veri birikmeye başladığı andan itibaren gerçek.
+          toplam miktar, ortalama rutubet) çekilir.
         </div>
         <span class="wasde-release-badge" id="uztb-asof-badge">Yükleniyor…</span>
       </div>
@@ -293,7 +290,8 @@
           <span class="filter-label">Hızlı seçim</span>
           <div class="segmented" id="uztb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
             <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
-            <button class="seg active" type="button" data-preset="all">Tüm Zamanlar</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
           </div>
         </div>
       </section>
@@ -330,8 +328,7 @@
         <div>
           <strong>KTB (Konya Ticaret Borsası) günlük Satış Salonu bülteni</strong> — her iş günü 18:00'da
           o günün bülteni çekilir. Fiyatlar seçili ürün grubunun o günkü tüm sınıflarının (kalite
-          derecelerinin) ağırlıklı ortalaması, en düşüğü ve en yükseğidir. 1 yıl öncesine kadar geçmiş
-          veri çekildi.
+          derecelerinin) ağırlıklı ortalaması, en düşüğü ve en yükseğidir.
         </div>
         <span class="wasde-release-badge" id="ktb-asof-badge">Yükleniyor…</span>
       </div>
@@ -353,8 +350,8 @@
           <span class="filter-label">Hızlı seçim</span>
           <div class="segmented" id="ktb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
             <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
-            <button class="seg" type="button" data-preset="90">Son 90 Gün</button>
-            <button class="seg active" type="button" data-preset="all">Tüm Zamanlar</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
           </div>
         </div>
       </section>
