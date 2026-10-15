@@ -109,6 +109,8 @@
     display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap;
     padding-bottom: 14px; border-bottom: 1px solid var(--border-strong);
   }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-logo { height: 40px; width: auto; flex: none; }
   .brand .eyebrow {
     display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--text-muted); font-weight: 600; margin-bottom: 4px;

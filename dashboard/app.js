@@ -25,8 +25,22 @@ window.__supaCache = (function () {
       // kota dolu / gizli sekme — önbellek olmadan da sayfa normal çalışır
     }
   }
-  return { get, set };
+  function clearAll() {
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith(PREFIX))
+        .forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+      // yoksay
+    }
+  }
+  return { get, set, clearAll };
 })();
+
+document.getElementById("refresh-data").addEventListener("click", () => {
+  window.__supaCache.clearAll();
+  location.reload();
+});
 
 (function () {
   "use strict";
@@ -120,11 +134,6 @@ window.__supaCache = (function () {
       if (page.length < pageSize) break;
       from += pageSize;
     }
-    const reportRes = await fetch(
-      `${cfg.SUPABASE_URL}/rest/v1/daily_reports?select=*&order=report_date.desc&limit=1`,
-      { headers }
-    );
-    const reports = reportRes.ok ? await reportRes.json() : [];
     const result = {
       rows: rows.map(r => [
         r.period_year,
@@ -136,78 +145,9 @@ window.__supaCache = (function () {
         r.weight_kg,
         r.period_month,
       ]),
-      report: reports[0] || null,
     };
     window.__supaCache.set("trade", result);
     return result;
-  }
-
-  // Renders the small, fixed markdown subset build_report() (reports/daily_report.py)
-  // actually produces: #/##/### headings, "- " bullet lists, **bold**, blank-line breaks.
-  // A generic markdown library is overkill for one known, self-authored source.
-  function renderInlineMd(text) {
-    const frag = document.createDocumentFragment();
-    const re = /\*\*(.+?)\*\*/g;
-    let last = 0, m;
-    while ((m = re.exec(text))) {
-      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-      const strong = document.createElement("strong");
-      strong.textContent = m[1];
-      frag.appendChild(strong);
-      last = re.lastIndex;
-    }
-    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-    return frag;
-  }
-
-  function renderReport(report) {
-    const el = document.getElementById("report-body");
-    el.textContent = "";
-    if (!report) {
-      el.textContent = "Henüz rapor üretilmedi.";
-      return;
-    }
-
-    let ul = null;
-    const closeList = () => { ul = null; };
-
-    for (const raw of report.summary_md.split("\n")) {
-      // bullet lines reference bare GTİP codes ("- 100590000019: $…") — show the
-      // same "kod AD" label used everywhere else in the report instead of a bare code.
-      const line = raw.replace(/\b(\d{12})\b/g, code => GTIP_SHORT_NAMES[code] || code);
-      let m;
-      if (!line.trim()) {
-        closeList();
-      } else if ((m = /^### (.+)/.exec(line))) {
-        closeList();
-        const h = document.createElement("h4");
-        h.className = "report-h3";
-        h.appendChild(renderInlineMd(m[1]));
-        el.appendChild(h);
-      } else if ((m = /^## (.+)/.exec(line))) {
-        closeList();
-        const h = document.createElement("h3");
-        h.className = "report-h2";
-        h.appendChild(renderInlineMd(m[1]));
-        el.appendChild(h);
-      } else if ((m = /^# (.+)/.exec(line))) {
-        closeList();
-        const h = document.createElement("div");
-        h.className = "report-h1";
-        h.appendChild(renderInlineMd(m[1]));
-        el.appendChild(h);
-      } else if ((m = /^- (.+)/.exec(line))) {
-        if (!ul) { ul = document.createElement("ul"); ul.className = "report-list"; el.appendChild(ul); }
-        const li = document.createElement("li");
-        li.appendChild(renderInlineMd(m[1]));
-        ul.appendChild(li);
-      } else {
-        closeList();
-        const p = document.createElement("p");
-        p.appendChild(renderInlineMd(line));
-        el.appendChild(p);
-      }
-    }
   }
 
   // ---------- theme (works immediately, doesn't need data) ----------
@@ -219,7 +159,7 @@ window.__supaCache = (function () {
     root.setAttribute("data-theme", next);
   });
 
-  function init(RAW, report) {
+  function init(RAW) {
 
     const countryNames = {};
     RAW.forEach(r => { if (!countryNames[r[3]]) countryNames[r[3]] = r[4]; });
@@ -1035,13 +975,12 @@ window.__supaCache = (function () {
     setupTrendNav();
     setupTrendHighlight();
     renderAll();
-    renderReport(report);
   }
 
   fetchAllRows()
-    .then(({ rows, report }) => {
+    .then(({ rows }) => {
       setStatus(`Canlı — ${rows.length.toLocaleString("tr-TR")} kayıt yüklendi — ${new Date().toLocaleString("tr-TR")}`, true);
-      init(rows, report);
+      init(rows);
     })
     .catch(err => {
       console.error(err);
