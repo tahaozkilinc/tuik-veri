@@ -1,5 +1,4 @@
-"""temp: KTB - get full real group id list, then try historical endpoints with real ids + ISO dates."""
-import json
+"""temp: KTB - try singular GetBultenGrupSinifUrunSelect with real ids, and self-referencing triples."""
 import urllib.request
 import urllib.error
 
@@ -7,7 +6,7 @@ BASE = "https://www.ktb.org.tr"
 P = "/api/v1/Alpha.WebPanel/OnlineKullaniciBulten"
 
 
-def try_get(path, show=1500):
+def try_get(path, show=600):
     url = BASE + path
     h = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
     req = urllib.request.Request(url, headers=h)
@@ -16,32 +15,29 @@ def try_get(path, show=1500):
             body = resp.read().decode("utf-8", errors="replace")
             print(f"GET {path} -> {resp.status} (len {len(body)})")
             print(body[:show])
-            return body
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         print(f"GET {path} -> HTTP {e.code}")
-        print(body[:500])
+        print(body[:400])
     except Exception as e:
         print(f"GET {path} -> ERROR {e}")
     print()
-    return None
 
 
-body = try_get(f"{P}/GetGrupSinifUrunSelectler/1", show=100000)
-print("\n==== parsed real group ids ====")
-try:
-    data = json.loads(body)
-    for g in data.get("Gruplar", []):
-        print(g["Id"], g["GrupKodu"], g["GrupAdi"])
-except Exception as e:
-    print("parse error", e)
+# singular endpoint, real group ids
+for gid in [937, 1281, 1, 10]:
+    try_get(f"{P}/GetBultenGrupSinifUrunSelect/{gid}")
 
-print("\n==== try real id 937 (Kirmizi Sert Bugday, had 23 trades today) ====")
-try_get(f"{P}/GetBultenKartModel/937/0/0")
-try_get(f"{P}/GetBultenGecmisIslemFiyatTarihli/937/2026-10-15/0")
-try_get(f"{P}/GetBultenGecmisIslemFiyatTarihAraligi/937/0/0/2026-09-01/2026-10-15")
-try_get(f"{P}/GetBultenGecmisIslemUrunListesi/937/0/2026-09-01/2026-10-15")
+# KartModel self-referencing (grupId as all three)
+for gid in [937, 1281, 1]:
+    try_get(f"{P}/GetBultenKartModel/{gid}/{gid}/{gid}")
 
-print("\n==== try group id 1 (Arpa, had 31 trades today) ====")
-try_get(f"{P}/GetBultenKartModel/1/0/0")
-try_get(f"{P}/GetBultenGecmisIslemFiyatTarihAraligi/1/0/0/2026-09-01/2026-10-15")
+# GetBultenFiyatTarihli(oe,se,ve,ze) - 4 params, maybe (grup,sinif,urun,tarih)
+try_get(f"{P}/GetBultenFiyatTarihli/937/937/937/2026-10-15")
+try_get(f"{P}/GetBultenFiyatTarihli/1281/1281/1281/2026-10-15")
+
+# GetBultenGecmisIslemFiyatTarihli(oe,se,ve) maybe (grup,sinif,tarih) not (grup,tarih,urun)
+try_get(f"{P}/GetBultenGecmisIslemFiyatTarihli/937/937/2026-10-15")
+
+# try GetStokListesi which takes single id
+try_get(f"{P}/GetStokListesi/937")
