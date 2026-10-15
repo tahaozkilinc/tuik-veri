@@ -1,0 +1,33 @@
+name: Weekly Export Sales Fetch
+
+on:
+  schedule:
+    # USDA ESR her Perşembe öğlen ET (yaklaşık 12:30-13:30 UTC) yayınlanıyor.
+    # Perşembe VE Cuma kontrol ediyoruz (resmi tatillerde yayın bir gün
+    # kayabiliyor) — script idempotent, henüz yeni veri çıkmadıysa mevcut
+    # en güncel pazarlama yılını tekrar çeker, veri kopyalanmaz.
+    - cron: "30 13 * * 4,5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install supabase==2.31.0
+
+      - name: Fetch + load Export Sales
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python -m esr.run

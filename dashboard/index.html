@@ -28,6 +28,7 @@
     <button class="tab active" id="tab-tuik" type="button" role="tab" aria-selected="true">TÜİK Dış Ticaret</button>
     <button class="tab" id="tab-wasde" type="button" role="tab" aria-selected="false">WASDE Raporu</button>
     <button class="tab" id="tab-exchange" type="button" role="tab" aria-selected="false">Ticaret Borsası</button>
+    <button class="tab" id="tab-esr" type="button" role="tab" aria-selected="false">ABD İhracat Satışları</button>
   </div>
 
   <div id="tuik-panel">
@@ -194,8 +195,68 @@
     </section>
   </div>
 
+  <div id="esr-panel" hidden>
+    <div class="wasde-banner">
+      <div>
+        <strong>Bu da TÜİK'ten ve WASDE'den ayrı, üçüncü bir sistem.</strong>
+        USDA Export Sales Reporting (ESR), ABD'li ihracatçıların her hafta bildirmek zorunda olduğu
+        GERÇEK satış sözleşmeleridir — WASDE gibi tahmin değil, Türkiye'ye özgü de değil: ABD'nin
+        dünya geneline sattığı miktarları gösterir. "Toplam Sevkiyat" fiilen gemiye/kamyona yüklenmiş
+        olanı, "Bekleyen Satış" satılmış ama henüz sevk edilmemiş taahhütleri ifade eder.
+      </div>
+      <span class="wasde-release-badge" id="esr-release-badge">Yükleniyor…</span>
+    </div>
+
+    <section class="filters" aria-label="İhracat satışları filtreleri">
+      <div class="filter-group">
+        <span class="filter-label">Ürün</span>
+        <div class="segmented" id="esr-commodity" role="group" aria-label="Emtia"></div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Alıcı</span>
+        <div class="segmented" id="esr-country-mode" role="group" aria-label="Alıcı">
+          <button class="seg active" type="button" data-value="world">Dünya Toplamı</button>
+          <button class="seg" type="button" data-value="turkey">Türkiye</button>
+        </div>
+      </div>
+      <div class="filter-group country-box">
+        <span class="filter-label">Başka ülke ara</span>
+        <input type="text" class="text-input" id="esr-country-search" placeholder="Ülke ara…" autocomplete="off">
+        <div class="suggestions" id="esr-country-suggestions"></div>
+      </div>
+    </section>
+
+    <div class="filter-group">
+      <span class="filter-label">Büyük alıcılar (bu ürün)</span>
+      <div class="chip-multi" id="esr-top-buyers" aria-label="Büyük alıcılar"></div>
+    </div>
+
+    <section class="kpi-row" id="esr-kpi-row" aria-label="İhracat satışları özet göstergeler"></section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 id="esr-chart-title">Haftalık eğilim</h2>
+      </div>
+      <div class="legend" id="esr-legend"></div>
+      <svg class="chart" id="esr-chart" role="img" aria-label="Toplam sevkiyat ve bekleyen satış"></svg>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 id="esr-table-title">Haftalık detay</h2>
+        <button class="reset-btn" id="esr-export-btn" type="button">Excel'e aktar (CSV)</button>
+      </div>
+      <div class="table-scroll">
+        <table class="pivot" id="esr-table">
+          <thead><tr id="esr-thead"></tr></thead>
+          <tbody id="esr-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
   <footer class="note">
-    Veri kaynağı: TÜİK dış ticaret istatistikleri, Qlik Engine API üzerinden doğrudan çekildi ve Supabase üzerinden bu sayfaya canlı yüklenir. WASDE verisi USDA'nın aylık yayınından çekilir. Kaynak: <a href="https://github.com/tahaozkilinc/tuik-veri" target="_blank" rel="noopener">tahaozkilinc/tuik-veri</a>.
+    Veri kaynağı: TÜİK dış ticaret istatistikleri, Qlik Engine API üzerinden doğrudan çekildi ve Supabase üzerinden bu sayfaya canlı yüklenir. WASDE verisi USDA'nın aylık yayınından, İhracat Satışları verisi USDA ESR API'sinden (haftalık) çekilir. Kaynak: <a href="https://github.com/tahaozkilinc/tuik-veri" target="_blank" rel="noopener">tahaozkilinc/tuik-veri</a>.
   </footer>
 </div>
 

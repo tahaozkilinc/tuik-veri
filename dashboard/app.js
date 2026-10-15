@@ -1621,3 +1621,450 @@ window.__tabManager = (function () {
     exportCsv(cachedRows);
   });
 })();
+
+// ---------------------------------------------------------------------------
+// ABD İhracat Satışları (USDA ESR) sekmesi — TÜİK'ten (Türkiye'nin gerçek
+// gümrük verisi) ve WASDE'den (tahmin) ayrı, üçüncü bir kaynak: ABD'li
+// ihracatçıların haftalık bildirdiği GERÇEK satış sözleşmeleri. Türkiye'ye
+// özgü değil (ABD'nin dünya geneline sattığı), ama "Türkiye" tek tıkla
+// seçilebilen bir alıcı ülke olarak bu dashboard'da öne çıkarılıyor.
+(function () {
+  "use strict";
+
+  const cfg = window.TUIK_DASHBOARD_CONFIG;
+  const COMMODITIES = [
+    { code: 401, label: "Mısır" },
+    { code: 801, label: "Soya Fasulyesi" },
+    { code: 901, label: "Soya Küspesi" },
+    { code: 902, label: "Soya Yağı" },
+    { code: 1110, label: "Ayçiçek Yağı" },
+  ];
+  // USDA ESR ülke listesindeki Türkiye kodu — metinden pozisyonel olarak
+  // çıkarılan bir etiket değil, API'nin kendi kararlı sayısal kimliği
+  // (GTİP kodu gibi), bu yüzden burada sabit tutmak güvenli.
+  const TURKEY_COUNTRY_CODE = 4890;
+  const UNKNOWN_COUNTRY_CODE = 9990;
+  const CHART_W = 640, CHART_H = 190, PADL = 64, PADR = 16, PADT = 10, PADB = 24;
+
+  function fmtTon(v) {
+    if (v == null || isNaN(v)) return "—";
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(2) + "M ton";
+    if (a >= 1e3) return (v / 1e3).toFixed(1) + "K ton";
+    return (Math.round(v) || 0) + " ton";
+  }
+
+  function fmtDateShort(isoDate) {
+    const d = new Date(isoDate + "T00:00:00");
+    return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+  }
+
+  function fmtDateFull(isoDate) {
+    const d = new Date(isoDate + "T00:00:00");
+    return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  }
+
+  async function fetchEsrRows() {
+    const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
+    const pageSize = 1000;
+    let rows = [];
+    let from = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await fetch(
+        `${cfg.SUPABASE_URL}/rest/v1/export_sales_stats?select=week_ending,commodity_code,commodity_name_tr,marketing_year,country_code,country_name,weekly_exports_ton,accumulated_exports_ton,outstanding_sales_ton,gross_new_sales_ton,current_my_net_sales_ton,current_my_total_commitment_ton,next_my_outstanding_sales_ton,next_my_net_sales_ton&order=week_ending.asc`,
+        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
+      );
+      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
+      const page = await res.json();
+      rows = rows.concat(page);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    return rows;
+  }
+
+  // ---------- tooltip (diğer panellerle aynı görünüm, her panel kendi kopyasını taşır) ----------
+  function makeTooltip() {
+    let el = document.querySelector(".tooltip");
+    if (!el) { el = document.createElement("div"); el.className = "tooltip"; document.body.appendChild(el); }
+    return el;
+  }
+  function showTooltip(evt, node) {
+    const tip = makeTooltip();
+    tip.textContent = ""; tip.appendChild(node);
+    tip.style.opacity = "1";
+    let x = evt.clientX + 14, y = evt.clientY + 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+    const rect = tip.getBoundingClientRect();
+    if (rect.right > window.innerWidth) tip.style.left = (evt.clientX - rect.width - 14) + "px";
+    if (rect.bottom > window.innerHeight) tip.style.top = (evt.clientY - rect.height - 14) + "px";
+  }
+  function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
+
+  function exportEsrCsv(rows, commodityLabel, buyerLabel) {
+    const cols = [
+      ["week_ending", "Hafta"], ["weekly_exports_ton", "Haftalık Sevkiyat (ton)"],
+      ["accumulated_exports_ton", "Toplam Sevkiyat (ton)"], ["outstanding_sales_ton", "Bekleyen Satış (ton)"],
+      ["gross_new_sales_ton", "Brüt Yeni Satış (ton)"], ["current_my_net_sales_ton", "Net Satış (ton)"],
+      ["current_my_total_commitment_ton", "Toplam Taahhüt (ton)"],
+      ["next_my_outstanding_sales_ton", "Gelecek PY Bekleyen Satış (ton)"], ["next_my_net_sales_ton", "Gelecek PY Net Satış (ton)"],
+    ];
+    const esc = v => {
+      const s = v == null ? "" : String(v);
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [cols.map(c => c[1]).join(";")].concat(rows.map(r => cols.map(c => esc(r[c[0]])).join(";")));
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ihracat-satislari-" + commodityLabel + "-" + buyerLabel + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function drawEsrChart(rows) {
+    const svg = document.getElementById("esr-chart");
+    const legend = document.getElementById("esr-legend");
+    svg.textContent = "";
+    legend.textContent = "";
+    svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
+    if (!rows.length) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
+      t.textContent = "Bu kombinasyon için veri yok.";
+      svg.appendChild(t);
+      return;
+    }
+
+    const series = [
+      { key: "accumulated_exports_ton", label: "Toplam Sevkiyat", color: "var(--series-export)" },
+      { key: "outstanding_sales_ton", label: "Bekleyen Satış", color: "var(--series-import)" },
+    ];
+    series.forEach(s => {
+      const key = document.createElement("span"); key.className = "key";
+      const sw = document.createElement("span"); sw.className = "swatch-line"; sw.style.background = s.color;
+      key.appendChild(sw); key.appendChild(document.createTextNode(s.label));
+      legend.appendChild(key);
+    });
+
+    const xStep = rows.length > 1 ? (CHART_W - PADL - PADR) / (rows.length - 1) : 0;
+    const xScale = i => rows.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+    const maxVal = Math.max(1, ...series.flatMap(s => rows.map(r => r[s.key] || 0)));
+    const yScale = v => CHART_H - PADB - (v / maxVal) * (CHART_H - PADB - PADT);
+
+    for (let g = 0; g <= 3; g++) {
+      const y = PADT + (g * (CHART_H - PADB - PADT)) / 3;
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "gridline");
+      line.setAttribute("x1", PADL); line.setAttribute("x2", CHART_W - PADR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      svg.appendChild(line);
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
+      t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+      t.textContent = fmtTon(maxVal - (g * maxVal) / 3);
+      svg.appendChild(t);
+    }
+
+    const minLabelGap = 50;
+    const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
+    rows.forEach((r, i) => {
+      const isLast = i === rows.length - 1;
+      if (i % tickEvery !== 0 && !isLast) return;
+      if (isLast && rows.length > 1 && (rows.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((rows.length - 1) / tickEvery) * tickEvery;
+        if ((rows.length - 1 - prevShown) * xStep < minLabelGap) return;
+      }
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", xScale(i)); t.setAttribute("y", CHART_H - 6);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+      t.textContent = fmtDateShort(r.week_ending);
+      svg.appendChild(t);
+    });
+
+    const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    hoverLine.setAttribute("class", "baseline");
+    hoverLine.setAttribute("y1", PADT); hoverLine.setAttribute("y2", CHART_H - PADB);
+    hoverLine.style.opacity = "0";
+    svg.appendChild(hoverLine);
+
+    series.forEach(s => {
+      const pts = rows.map((r, i) => [xScale(i), yScale(r[s.key] || 0)]);
+      if (pts.length === 1) {
+        const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        dot.setAttribute("cx", pts[0][0]); dot.setAttribute("cy", pts[0][1]); dot.setAttribute("r", "4");
+        dot.setAttribute("fill", s.color);
+        svg.appendChild(dot);
+        return;
+      }
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+      path.setAttribute("stroke", s.color); path.setAttribute("stroke-width", "2");
+      path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+      svg.appendChild(path);
+    });
+
+    const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    rows.forEach((r, i) => {
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const hitW = Math.max(xStep, 6);
+      rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", PADT);
+      rect.setAttribute("width", hitW); rect.setAttribute("height", CHART_H - PADB - PADT);
+      rect.setAttribute("fill", "transparent"); rect.style.cursor = "pointer"; rect.tabIndex = 0;
+      const showFn = evt => {
+        hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
+        hoverLine.style.opacity = "1";
+        const wrap = document.createElement("div");
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(r.week_ending);
+        wrap.appendChild(ttl);
+        series.forEach(s => {
+          const row = document.createElement("div"); row.className = "row";
+          const kl = document.createElement("span"); kl.className = "key-line"; kl.style.background = s.color;
+          const v = document.createElement("span"); v.className = "val"; v.textContent = fmtTon(r[s.key]);
+          row.appendChild(kl); row.appendChild(v); row.appendChild(document.createTextNode(" " + s.label));
+          wrap.appendChild(row);
+        });
+        showTooltip(evt, wrap);
+      };
+      rect.addEventListener("pointermove", showFn);
+      rect.addEventListener("focus", showFn);
+      rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      hitLayer.appendChild(rect);
+    });
+    svg.appendChild(hitLayer);
+  }
+
+  function init(allRows) {
+    if (!allRows.length) {
+      document.getElementById("esr-release-badge").textContent = "Henüz veri yok";
+      document.getElementById("esr-table-title").textContent = "Haftalık detay — henüz veri yüklenmedi";
+      return;
+    }
+
+    const latestWeek = allRows.reduce((max, r) => (r.week_ending > max ? r.week_ending : max), allRows[0].week_ending);
+    document.getElementById("esr-release-badge").textContent = "Veri " + fmtDateFull(latestWeek) + " haftasına kadar güncel";
+
+    const state = { commodity: 401, countryMode: "world", customCountry: null };
+    let currentSeriesRows = [];
+
+    function currentCommodityRows() {
+      return allRows.filter(r => r.commodity_code === state.commodity);
+    }
+
+    // Dünya toplamı: aynı hafta için tüm ülkelerin satırlarını toplar.
+    // UNKNOWN (USDA'nın alıcı ülkeyi bildirmediği satışlar) dahil — bu
+    // ABD'nin kendi resmi toplamının bir parçası, dışarıda bırakmak
+    // "toplam sevkiyat" rakamını gerçek resmi toplamdan düşük gösterirdi.
+    function aggregateByWeek(rows) {
+      const map = new Map();
+      const keys = [
+        "weekly_exports_ton", "accumulated_exports_ton", "outstanding_sales_ton", "gross_new_sales_ton",
+        "current_my_net_sales_ton", "current_my_total_commitment_ton", "next_my_outstanding_sales_ton", "next_my_net_sales_ton",
+      ];
+      rows.forEach(r => {
+        let cur = map.get(r.week_ending);
+        if (!cur) { cur = { week_ending: r.week_ending }; keys.forEach(k => { cur[k] = 0; }); map.set(r.week_ending, cur); }
+        keys.forEach(k => { cur[k] += r[k] || 0; });
+      });
+      return [...map.values()].sort((a, b) => a.week_ending.localeCompare(b.week_ending));
+    }
+
+    function currentSeries() {
+      const rows = currentCommodityRows();
+      if (state.countryMode === "turkey") {
+        return { rows: rows.filter(r => r.country_code === TURKEY_COUNTRY_CODE).sort((a, b) => a.week_ending.localeCompare(b.week_ending)), label: "Türkiye" };
+      }
+      if (state.countryMode === "custom" && state.customCountry) {
+        return { rows: rows.filter(r => r.country_code === state.customCountry.code).sort((a, b) => a.week_ending.localeCompare(b.week_ending)), label: state.customCountry.name };
+      }
+      return { rows: aggregateByWeek(rows), label: "Dünya Toplamı" };
+    }
+
+    function topBuyers(rows) {
+      const latestByCountry = new Map();
+      rows.forEach(r => {
+        if (r.country_code === UNKNOWN_COUNTRY_CODE) return;
+        const cur = latestByCountry.get(r.country_code);
+        if (!cur || r.week_ending > cur.week_ending) latestByCountry.set(r.country_code, r);
+      });
+      return [...latestByCountry.values()].sort((a, b) => b.accumulated_exports_ton - a.accumulated_exports_ton).slice(0, 8);
+    }
+
+    function buildCommodityControls() {
+      const wrap = document.getElementById("esr-commodity");
+      wrap.textContent = "";
+      COMMODITIES.forEach(c => {
+        const btn = document.createElement("button");
+        btn.className = "seg" + (state.commodity === c.code ? " active" : "");
+        btn.type = "button";
+        btn.textContent = c.label;
+        btn.addEventListener("click", () => {
+          state.commodity = c.code;
+          wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+          renderAll();
+        });
+        wrap.appendChild(btn);
+      });
+    }
+
+    function setCountryMode(mode, custom) {
+      state.countryMode = mode;
+      state.customCountry = custom || null;
+      document.querySelectorAll("#esr-country-mode .seg").forEach(b => b.classList.toggle("active", mode !== "custom" && b.dataset.value === mode));
+      renderAll();
+    }
+
+    function buildCountryModeControls() {
+      document.querySelectorAll("#esr-country-mode .seg").forEach(btn => {
+        btn.addEventListener("click", () => setCountryMode(btn.dataset.value));
+      });
+    }
+
+    function buildCountrySearch() {
+      const input = document.getElementById("esr-country-search");
+      const box = document.getElementById("esr-country-suggestions");
+      function closeBox() { box.classList.remove("open"); box.textContent = ""; }
+      function renderSuggestions() {
+        const q = input.value.trim().toLowerCase();
+        if (!q) { closeBox(); return; }
+        const names = new Map();
+        currentCommodityRows().forEach(r => {
+          if (r.country_code !== UNKNOWN_COUNTRY_CODE && !names.has(r.country_code)) names.set(r.country_code, r.country_name);
+        });
+        const matches = [...names.entries()].filter(([, name]) => name.toLowerCase().includes(q)).slice(0, 8);
+        box.textContent = "";
+        if (!matches.length) {
+          const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = "Sonuç yok";
+          box.appendChild(empty);
+        } else {
+          matches.forEach(([code, name]) => {
+            const btn = document.createElement("button");
+            btn.type = "button"; btn.textContent = name;
+            btn.addEventListener("mousedown", evt => { evt.preventDefault(); input.value = ""; closeBox(); setCountryMode("custom", { code, name }); });
+            box.appendChild(btn);
+          });
+        }
+        box.classList.add("open");
+      }
+      input.addEventListener("input", renderSuggestions);
+      input.addEventListener("focus", () => { if (input.value.trim()) renderSuggestions(); });
+      input.addEventListener("blur", () => setTimeout(closeBox, 120));
+    }
+
+    function renderTopBuyers() {
+      const wrap = document.getElementById("esr-top-buyers");
+      wrap.textContent = "";
+      topBuyers(currentCommodityRows()).forEach(b => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        const isActive = state.countryMode === "custom" && state.customCountry && state.customCountry.code === b.country_code;
+        chip.className = "chip" + (isActive ? " active" : "");
+        chip.textContent = b.country_name;
+        chip.addEventListener("click", () => setCountryMode("custom", { code: b.country_code, name: b.country_name }));
+        wrap.appendChild(chip);
+      });
+    }
+
+    function renderKpis(series) {
+      const wrap = document.getElementById("esr-kpi-row");
+      wrap.textContent = "";
+      const last = series.rows[series.rows.length - 1];
+      if (!last) {
+        const p = document.createElement("p"); p.style.color = "var(--text-muted)"; p.style.fontSize = "13px";
+        p.textContent = "Bu kombinasyon için veri yok.";
+        wrap.appendChild(p);
+        return;
+      }
+      [
+        ["Toplam Sevkiyat (PY başından)", last.accumulated_exports_ton],
+        ["Bekleyen Satış (Sevk Edilmemiş)", last.outstanding_sales_ton],
+        ["Bu Hafta Net Satış", last.current_my_net_sales_ton],
+        ["Toplam Taahhüt", last.current_my_total_commitment_ton],
+        ["Gelecek PY Bekleyen Satış", last.next_my_outstanding_sales_ton],
+      ].forEach(([label, value]) => {
+        const tile = document.createElement("div"); tile.className = "stat-tile";
+        const l = document.createElement("div"); l.className = "label"; l.textContent = label;
+        const v = document.createElement("div"); v.className = "value num"; v.textContent = fmtTon(value);
+        tile.appendChild(l); tile.appendChild(v);
+        wrap.appendChild(tile);
+      });
+    }
+
+    function renderTable(rows) {
+      const thead = document.getElementById("esr-thead");
+      const tbody = document.getElementById("esr-tbody");
+      thead.textContent = ""; tbody.textContent = "";
+      const cols = [
+        ["Hafta", r => fmtDateFull(r.week_ending), false],
+        ["Haftalık Sevkiyat", r => fmtTon(r.weekly_exports_ton), true],
+        ["Toplam Sevkiyat", r => fmtTon(r.accumulated_exports_ton), true],
+        ["Bekleyen Satış", r => fmtTon(r.outstanding_sales_ton), true],
+        ["Net Satış", r => fmtTon(r.current_my_net_sales_ton), true],
+        ["Toplam Taahhüt", r => fmtTon(r.current_my_total_commitment_ton), true],
+      ];
+      cols.forEach(([label, , isNum]) => {
+        const th = document.createElement("th"); th.textContent = label;
+        if (isNum) th.classList.add("num-col");
+        thead.appendChild(th);
+      });
+      if (!rows.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td"); td.colSpan = cols.length; td.textContent = "Bu kombinasyon için veri yok.";
+        tr.appendChild(td); tbody.appendChild(tr);
+        return;
+      }
+      [...rows].reverse().forEach(r => {
+        const tr = document.createElement("tr");
+        cols.forEach(([, get, isNum]) => {
+          const td = document.createElement("td");
+          if (isNum) td.classList.add("num-col", "num");
+          td.textContent = get(r);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderAll() {
+      const series = currentSeries();
+      currentSeriesRows = series.rows;
+      const commodityLabel = COMMODITIES.find(c => c.code === state.commodity).label;
+      document.getElementById("esr-chart-title").textContent = "Haftalık eğilim — " + commodityLabel + " · " + series.label;
+      document.getElementById("esr-table-title").textContent = "Haftalık detay — " + commodityLabel + " · " + series.label;
+      renderKpis(series);
+      drawEsrChart(series.rows);
+      renderTable(series.rows);
+      renderTopBuyers();
+    }
+
+    document.getElementById("esr-export-btn").addEventListener("click", () => {
+      if (!currentSeriesRows.length) return;
+      const commodityLabel = COMMODITIES.find(c => c.code === state.commodity).label;
+      const buyerLabel = state.countryMode === "turkey" ? "Turkiye" : state.countryMode === "custom" && state.customCountry ? state.customCountry.name.trim() : "Dunya";
+      exportEsrCsv(currentSeriesRows, commodityLabel, buyerLabel);
+    });
+
+    buildCommodityControls();
+    buildCountryModeControls();
+    buildCountrySearch();
+    renderAll();
+  }
+
+  let loaded = false;
+  window.__tabManager.register("tab-esr", "esr-panel", () => {
+    if (loaded) return;
+    loaded = true;
+    fetchEsrRows()
+      .then(rows => init(rows))
+      .catch(err => {
+        console.error(err);
+        document.getElementById("esr-release-badge").textContent = "Veri çekilemedi";
+        document.getElementById("esr-table-title").textContent = "Haftalık detay yüklenemedi — Supabase bağlantısını kontrol edin";
+      });
+  });
+})();
