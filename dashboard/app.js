@@ -1983,11 +1983,11 @@ window.__tabManager = (function () {
     }
     products.forEach(p => {
       const btn = document.createElement("button");
-      btn.className = "seg" + (p === state.product ? " active" : "");
+      btn.className = "chip" + (p === state.product ? " active" : "");
       btn.type = "button"; btn.textContent = p;
       btn.addEventListener("click", () => {
         state.product = p;
-        wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+        wrap.querySelectorAll(".chip").forEach(b => b.classList.toggle("active", b === btn));
         renderAll();
       });
       wrap.appendChild(btn);
@@ -2015,8 +2015,8 @@ window.__tabManager = (function () {
     function closeBox() { box.classList.remove("open"); box.textContent = ""; }
     function renderSuggestions() {
       const q = input.value.trim().toLocaleLowerCase("tr");
-      if (!q) { closeBox(); return; }
-      const names = [...new Set(productRows().map(r => r.lidas_adi))].filter(n => n && n.toLocaleLowerCase("tr").includes(q)).sort((a, b) => a.localeCompare(b, "tr")).slice(0, 10);
+      const allNames = [...new Set(productRows().map(r => r.lidas_adi))].filter(Boolean).sort((a, b) => a.localeCompare(b, "tr"));
+      const names = q ? allNames.filter(n => n.toLocaleLowerCase("tr").includes(q)) : allNames;
       box.textContent = "";
       if (!names.length) {
         const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = "Sonuç yok";
@@ -2039,7 +2039,8 @@ window.__tabManager = (function () {
       box.classList.add("open");
     }
     input.addEventListener("input", renderSuggestions);
-    input.addEventListener("focus", () => { if (input.value.trim()) renderSuggestions(); });
+    input.addEventListener("focus", renderSuggestions);
+    input.addEventListener("click", renderSuggestions);
     input.addEventListener("blur", () => setTimeout(closeBox, 120));
   }
 
