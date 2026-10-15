@@ -1,0 +1,49 @@
+name: Daily TURIB Report Email
+
+on:
+  schedule:
+    # 18:10 Türkiye saati = 15:10 UTC (TR daimi UTC+3, DST yok). Günlük
+    # bülten çekme işinden (18:00) 10 dakika sonra, o günün verisi DB'ye
+    # yazıldıktan sonra çalışır.
+    - cron: "10 15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Belirli bir günü gönder (YYYY-MM-DD), boş bırakılırsa bugün"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install supabase==2.31.0 fpdf2==2.8.5
+
+      - name: Generate + send TURIB daily report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          REPORT_TO: "taha.ozkilinc@sunaryatirim.com.tr"
+          TURIB_REPORT_DATE: ${{ github.event.inputs.date }}
+        run: |
+          if [ -n "$TURIB_REPORT_DATE" ]; then
+            python -m turib.report_run --date "$TURIB_REPORT_DATE"
+          else
+            python -m turib.report_run
+          fi
