@@ -1,4 +1,4 @@
-"""temp: KTB (Konya Ticaret Borsasi) kesif scripti - Angular SPA, env config + bundle grep."""
+"""temp: KTB main bundle - context around key API calls + service class body."""
 import re
 import urllib.request
 
@@ -12,29 +12,23 @@ def get(path):
         return resp.read().decode("utf-8", errors="replace")
 
 
-print("==== environment.js ====")
-try:
-    env = get("/assets/config/environment.js")
-    print(env[:3000])
-except Exception as e:
-    print("ERR:", e)
+main = get("/main.222ebc54c3aab9f5.js")
+print("main.js length:", len(main))
 
-print("\n==== main bundle: searching for api/http patterns ====")
-try:
-    main = get("/main.222ebc54c3aab9f5.js")
-    print("main.js length:", len(main))
-    seen = set()
-    for m in re.finditer(r'["\']((?:https?://|/)[a-zA-Z0-9_\-./]{3,80}(?:api|Api|gunluk|fiyat|Fiyat|bulten|Bulten|salon|Salon)[a-zA-Z0-9_\-./]*)["\']', main):
-        if m.group(1) not in seen:
-            seen.add(m.group(1))
-            print("MATCH:", m.group(1))
-    print("total unique matches:", len(seen))
-except Exception as e:
-    print("ERR:", e)
+targets = [
+    "GetBultenGecmisIslemFiyatTarihAraligi",
+    "GetBultenGecmisIslemUrunListesi",
+    "GetGunlukBulten",
+    "GetSatilanUrunDetay",
+    "GetBultenUrunGruplarGruplar",
+    "GetBultenGrupSinifUrunSelect",
+    "GetGrupSinifUrunSelectler",
+]
 
-print("\n==== scripts bundle ====")
-try:
-    scripts = get("/scripts.8424758f1970bb3a.js")
-    print("scripts.js length:", len(scripts))
-except Exception as e:
-    print("ERR:", e)
+for t in targets:
+    print(f"\n==== context around {t} ====")
+    for m in re.finditer(re.escape(t), main):
+        start = max(0, m.start() - 400)
+        end = min(len(main), m.end() + 400)
+        print("---")
+        print(main[start:end])
