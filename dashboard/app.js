@@ -32,7 +32,9 @@ window.__supaCache = (function () {
   "use strict";
 
   const cfg = window.TUIK_DASHBOARD_CONFIG;
-  // "kod AD" — sadece en üstteki ürün seçim çiplerinde gösterilir.
+  const DEFAULT_PRODUCT_CODE = "100590000019"; // Mısır — sistem bu ürün seçiliyken açılır
+  // izlenen GTİP kodlarının kaynağı — "kod AD" biçimi artık hiçbir yerde
+  // gösterilmiyor (ürün çiplerinde GTIP_SHORT_NAMES kullanılıyor).
   const GTIP_NAMES = {
     "100590000019": "1005.90.00.00.19 MISIR",
     "120190000000": "1201.90.00.00.00 SOYA FASULYESİ",
@@ -234,7 +236,7 @@ window.__supaCache = (function () {
       flow: "all",
       periodStart: ytdStartKey,
       periodEnd: maxPeriodKey,
-      products: new Set(),
+      products: new Set([DEFAULT_PRODUCT_CODE]),
       countries: new Set(),
       groupDims: new Set(["product", "country"]),
       tableSort: { key: "kg", dir: "desc" },
@@ -425,13 +427,13 @@ window.__supaCache = (function () {
       wrap.textContent = "";
       allProducts.forEach((code, i) => {
         const chip = document.createElement("button");
-        chip.className = "chip";
+        chip.className = "chip" + (state.products.has(code) ? " active" : "");
         chip.type = "button";
         const sw = document.createElement("span");
         sw.className = "swatch";
         sw.style.background = CAT_COLORS[i % CAT_COLORS.length];
         chip.appendChild(sw);
-        chip.appendChild(document.createTextNode(GTIP_NAMES[code] || code));
+        chip.appendChild(document.createTextNode(GTIP_SHORT_NAMES[code] || code));
         chip.addEventListener("click", () => {
           if (state.products.has(code)) state.products.delete(code); else state.products.add(code);
           chip.classList.toggle("active");
@@ -536,9 +538,9 @@ window.__supaCache = (function () {
 
     document.getElementById("reset-filters").addEventListener("click", () => {
       state.flow = "all";
-      state.products.clear(); state.countries.clear();
+      state.products = new Set([DEFAULT_PRODUCT_CODE]); state.countries.clear();
       document.querySelectorAll("#flow-filter .seg").forEach(b => b.classList.toggle("active", b.dataset.value === "all"));
-      document.querySelectorAll("#product-chips .chip").forEach(c => c.classList.remove("active"));
+      buildProductChips();
       document.getElementById("country-search").value = "";
       setPeriod(ytdStartKey, maxPeriodKey, "ytd");
     });
