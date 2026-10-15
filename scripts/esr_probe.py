@@ -8,27 +8,21 @@ def get(url):
     with urllib.request.urlopen(req, timeout=25) as resp:
         return json.loads(resp.read())
 
-commodities = get("https://api.fas.usda.gov/api/esr/commodities")
-print("total commodities:", len(commodities))
-for c in commodities:
-    print(c)
+units = get("https://api.fas.usda.gov/api/esr/unitsOfMeasure")
+print("units:", units)
 
-print()
+countries = get("https://api.fas.usda.gov/api/esr/countries")
+print("total countries:", len(countries))
+# Turkey ve büyük alıcıları bul
+for c in countries:
+    name = str(c.get("countryName", "")).upper()
+    if any(k in name for k in ["TURKEY", "TURKIYE", "MEXICO", "CHINA", "JAPAN", "UNKNOWN", "EUROPEAN UNION", "WORLD"]):
+        print(c)
+print("sample first 5:", countries[:5])
+print("country 9990:", [c for c in countries if c.get("countryCode") == 9990])
+print("country 1220:", [c for c in countries if c.get("countryCode") == 1220])
+
 releases = get("https://api.fas.usda.gov/api/esr/datareleasedates")
-print("release dates sample:", releases[:5], "... total:", len(releases))
-# en guncel birkaç tanesini bul (tarihe göre sırala)
-try:
-    releases_sorted = sorted(releases, key=lambda r: r.get("weekEndingDate") or r.get("releaseDate") or "", reverse=True)
-    print("most recent 5:", releases_sorted[:5])
-except Exception as e:
-    print("sort error", e)
-
-print()
-# Corn = 401, marketYear deneme: 2025 ve 2026
-for my in (2025, 2026):
-    url = f"https://api.fas.usda.gov/api/esr/exports/commodityCode/401/allCountries/marketYear/{my}"
-    data = get(url)
-    print(f"corn marketYear={my}: {len(data)} records")
-    if data:
-        print("sample record:", json.dumps(data[0], indent=2))
-        print("sample record (last):", json.dumps(data[-1], indent=2))
+for r in releases:
+    if r["commodityCode"] in (401, 801, 901, 902, 1110):
+        print("release:", r)
