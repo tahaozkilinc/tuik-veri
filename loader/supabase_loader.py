@@ -55,6 +55,26 @@ def replace_wasde_report(client: Client, report_date: str, records: list[dict]) 
     return total
 
 
+def replace_export_sales(client: Client, records: list[dict]) -> int:
+    """Bu çalıştırmada çekilen (commodity_code, marketing_year) çiftlerine ait
+    eski satırları silip yeni veriyi ekler — WASDE'deki report_date bazlı
+    sil-ve-ekle ile aynı mantık (API her çağrıda o çiftin tam/revize
+    geçmişini döndürüyor, artımlı değil), kapsam sadece o (emtia, pazarlama
+    yılı) çiftleriyle sınırlı.
+    """
+    pairs = {(r["commodity_code"], r["marketing_year"]) for r in records}
+    for commodity_code, marketing_year in pairs:
+        client.table("export_sales_stats").delete().eq("commodity_code", commodity_code).eq(
+            "marketing_year", marketing_year
+        ).execute()
+    total = 0
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i : i + BATCH_SIZE]
+        client.table("export_sales_stats").insert(batch).execute()
+        total += len(batch)
+    return total
+
+
 def start_run(client: Client, source: str = "tuik") -> int:
     resp = client.table("scrape_runs").insert({"status": "running", "source": source}).execute()
     return resp.data[0]["id"]

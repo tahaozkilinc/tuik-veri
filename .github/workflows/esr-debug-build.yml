@@ -1,4 +1,4 @@
-name: ESR Probe (temporary)
+name: ESR Debug Build (temporary)
 
 on:
   workflow_dispatch: {}
@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  debug:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -15,5 +15,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Probe ESR endpoints
-        run: python scripts/esr_probe.py
+      - name: Run build_records against real API
+        run: PYTHONPATH=. python scripts/esr_debug_build.py

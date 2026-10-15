@@ -136,6 +136,41 @@ drop policy if exists "public read exchange_prices" on exchange_prices;
 create policy "public read exchange_prices" on exchange_prices for select using (true);
 revoke insert, update, delete, truncate on exchange_prices from anon, authenticated;
 
+-- USDA FAS Export Sales Reporting (ESR) — ABD'nin Mısır, Soya Fasulyesi, Soya
+-- Küspesi, Soya Yağı ve Ayçiçek Yağı için haftalık ihracat satış verisi.
+-- Resmi REST API'den (api.fas.usda.gov, DEMO_KEY ile) çekiliyor, WASDE gibi
+-- Türkiye'ye özgü değil — ABD'nin KÜRESEL satış taahhütleri. Her çalıştırma
+-- o (commodity_code, marketing_year) için TÜM geçmişi yeniden döndürüyor
+-- (API'nin kendisi geçmiş haftalara revizyon yapabiliyor), bu yüzden
+-- sil-ve-ekle o çift için kapsamlı — diğer ürün/pazarlama yıllarına dokunmaz.
+create table if not exists export_sales_stats (
+    id                  bigint generated always as identity primary key,
+    week_ending         date not null,              -- raporun haftası (Perşembe yayınlanır)
+    commodity_code      int not null,                -- USDA ESR emtia kodu (401=Mısır vb.)
+    commodity_name_tr   text not null,
+    marketing_year      int not null,                -- ESR'nin kendi pazarlama yılı numarası (bitiş yılı)
+    country_code        int not null,
+    country_name        text not null,
+    weekly_exports_ton  numeric not null,            -- bu hafta fiilen sevk edilen
+    accumulated_exports_ton numeric not null,        -- pazarlama yılı başından bu haftaya toplam sevkiyat
+    outstanding_sales_ton numeric not null,           -- satıldı ama henüz sevk edilmedi
+    gross_new_sales_ton numeric not null,             -- bu hafta yeni satılan (brüt)
+    current_my_net_sales_ton numeric not null,        -- bu hafta net satış (iptaller düşülmüş)
+    current_my_total_commitment_ton numeric not null, -- toplam taahhüt = sevkiyat + bekleyen satış
+    next_my_outstanding_sales_ton numeric not null,   -- bir sonraki pazarlama yılına bekleyen satış
+    next_my_net_sales_ton numeric not null,
+    fetched_at          timestamptz not null default now(),
+    unique (week_ending, commodity_code, marketing_year, country_code)
+);
+
+create index if not exists idx_export_sales_lookup on export_sales_stats (commodity_code, marketing_year, week_ending desc);
+create index if not exists idx_export_sales_country on export_sales_stats (country_code);
+
+alter table export_sales_stats enable row level security;
+drop policy if exists "public read export_sales_stats" on export_sales_stats;
+create policy "public read export_sales_stats" on export_sales_stats for select using (true);
+revoke insert, update, delete, truncate on export_sales_stats from anon, authenticated;
+
 -- MİGRASYON: bu şemayı daha önce (NULLS NOT DISTINCT olmadan) çalıştırdıysanız
 -- — yani trade_stats tablosu zaten varsa — aşağıdaki blok eski unique
 -- constraint'i bulup NULLS NOT DISTINCT olanla değiştirir. Script hem sıfırdan
