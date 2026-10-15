@@ -1,13 +1,10 @@
-"""Geçici keşif scripti #3 — gerçek API endpoint'ini (/api/salon-satis.php)
-doğrudan çağırır, mkod değişkeninin tanımını bulur, tarih parametresi
-deneyip geçmiş veri alınıp alınamadığını test eder."""
-import json
+"""Geçici keşif scripti #4 — gunlukbulten sayfasındaki asıl AJAX çağrısını
+(veri değişkenini dolduran) ve tarih/ürün parametrelerini bulur."""
 import re
 import urllib.request
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"}
 BASE = "https://www.uzunkoprutb.org.tr"
-PAGE_URL = BASE + "/sayfa.asp?tur=ssdetay&urun=99992"
 
 
 def fetch(url, headers=None, encoding="iso-8859-9"):
@@ -17,38 +14,40 @@ def fetch(url, headers=None, encoding="iso-8859-9"):
         return raw.decode(encoding, errors="replace"), raw
 
 
-html, _ = fetch(PAGE_URL)
+print("--- gunlukbulten?tarih=01.10.2026 full ajax blocks ---")
+html, _ = fetch(BASE + "/sayfa.asp?tur=gunlukbulten&tarih=01.10.2026")
+print("page length:", len(html))
+for m in re.finditer(r'\$\.ajax\(\s*\{.{0,1200}?\}\s*\)\s*;', html, re.S):
+    print(m.group(0))
+    print("=====")
 
-print("--- mkod definition ---")
-for m in re.finditer(r'.{0,50}\bmkod\s*=\s*[^;]{1,80};', html):
-    print(repr(m.group(0)))
+print("\n--- gunlukbulten WITHOUT tarih param (default) ---")
+html2, _ = fetch(BASE + "/sayfa.asp?tur=gunlukbulten")
+print("page length:", len(html2))
+for m in re.finditer(r'\$\.ajax\(\s*\{.{0,1200}?\}\s*\)\s*;', html2, re.S):
+    print(m.group(0))
+    print("=====")
 
-print("\n--- full yukleSalonSatis function (first 6000 chars from its start) ---")
-idx = html.find("function yukleSalonSatis")
-if idx >= 0:
-    print(html[idx:idx + 6000])
+print("\n--- any url: \"...\" occurrences in gunlukbulten page (api endpoints) ---")
+for m in re.finditer(r'url\s*:\s*"([^"]+)"', html):
+    print(m.group(1))
 
-print("\n\n--- direct API call: /api/salon-satis.php?mkod=99992 ---")
-try:
-    text, raw = fetch(BASE + "/api/salon-satis.php?mkod=99992", encoding="utf-8")
-    print("length:", len(text))
-    print(text[:3000])
-except Exception as e:
-    print("ERROR:", e)
+print("\n--- gunlukbulten?tarih=X&urun=99992 (product-scoped?) ---")
+html3, _ = fetch(BASE + "/sayfa.asp?tur=gunlukbulten&tarih=01.10.2026&urun=99992")
+print("page length:", len(html3))
+for m in re.finditer(r'url\s*:\s*"([^"]+)"', html3):
+    print(m.group(1))
 
-print("\n--- direct API call with tarih param: ?mkod=99992&tarih=01.10.2026 ---")
-try:
-    text2, _ = fetch(BASE + "/api/salon-satis.php?mkod=99992&tarih=01.10.2026", encoding="utf-8")
-    print("length:", len(text2))
-    print(text2[:2000])
-except Exception as e:
-    print("ERROR:", e)
-
-print("\n--- gunlukbulten page (fallback for backfill?) ---")
-try:
-    gb, _ = fetch(BASE + "/sayfa.asp?tur=gunlukbulten&tarih=01.10.2026")
-    print("length:", len(gb))
-    idx2 = gb.find("table")
-    print(gb[max(0, idx2 - 500):idx2 + 2000] if idx2 >= 0 else gb[:2000])
-except Exception as e:
-    print("ERROR:", e)
+print("\n--- try candidate api/gunluk*.php endpoints directly ---")
+for candidate in [
+    "/api/gunluk-ozet.php?mkod=99992",
+    "/api/gunluk-bulten.php?mkod=99992",
+    "/api/gunlukbulten.php?mkod=99992&tarih=01.10.2026",
+    "/api/salon-satis-ozet.php?mkod=99992",
+    "/api/fiyat-gecmisi.php?mkod=99992",
+]:
+    try:
+        t, _ = fetch(BASE + candidate, encoding="utf-8")
+        print(candidate, "-> length:", len(t), "preview:", t[:200])
+    except Exception as e:
+        print(candidate, "-> ERROR:", e)
