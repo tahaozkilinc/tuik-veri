@@ -222,6 +222,22 @@
           <div class="suggestions" id="turib-lidas-suggestions"></div>
           <div class="country-selected" id="turib-lidas-selected"></div>
         </div>
+        <div class="filter-group">
+          <span class="filter-label">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="turib-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="turib-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Hızlı seçim</span>
+          <div class="segmented" id="turib-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg active" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
       </section>
 
       <section class="kpi-row" id="turib-kpi-row" aria-label="TÜRİB özet göstergeler"></section>

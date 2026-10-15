@@ -1697,7 +1697,7 @@ window.__tabManager = (function () {
 
   const cfg = window.TUIK_DASHBOARD_CONFIG;
   const LINE_COLOR = "var(--series-export)";
-  const CHART_W = 640, CHART_H = 190, PADL = 64, PADR = 16, PADT = 10, PADB = 24;
+  const CHART_W = 960, CHART_H = 240, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
   const DEFAULT_PRODUCT = "MISIR 1.SINIF";
 
   function fmtKg(v) {
@@ -1770,13 +1770,18 @@ window.__tabManager = (function () {
   function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
 
   let allRows = [];
-  const state = { product: null, lidas: null };
+  const state = { product: null, lidas: null, dateStart: null, dateEnd: null };
 
   function productRows() {
     return allRows.filter(r => r.enstruman_sinifi === state.product);
   }
   function currentRows() {
-    return productRows().filter(r => !state.lidas || r.lidas_adi === state.lidas);
+    return productRows().filter(r => {
+      if (state.lidas && r.lidas_adi !== state.lidas) return false;
+      if (state.dateStart && r.trade_date < state.dateStart) return false;
+      if (state.dateEnd && r.trade_date > state.dateEnd) return false;
+      return true;
+    });
   }
 
   // tarihe göre hacim-ağırlıklı ortalama fiyat: her satırın kendi
@@ -1871,11 +1876,38 @@ window.__tabManager = (function () {
       dot.setAttribute("fill", LINE_COLOR);
       svg.appendChild(dot);
     } else {
+      const gradId = "turibAreaGradient";
+      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+      grad.setAttribute("id", gradId);
+      grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
+      const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", LINE_COLOR); stop1.setAttribute("stop-opacity", "0.22");
+      const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop2.setAttribute("offset", "100%"); stop2.setAttribute("stop-color", LINE_COLOR); stop2.setAttribute("stop-opacity", "0");
+      grad.appendChild(stop1); grad.appendChild(stop2);
+      defs.appendChild(grad);
+      svg.appendChild(defs);
+
+      const baseline = CHART_H - PADB;
+      const areaD = "M" + pts[0][0] + "," + baseline + " " + pts.map(p => "L" + p[0] + "," + p[1]).join(" ") + " L" + pts[pts.length - 1][0] + "," + baseline + " Z";
+      const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      area.setAttribute("d", areaD);
+      area.setAttribute("fill", "url(#" + gradId + ")");
+      area.setAttribute("stroke", "none");
+      svg.appendChild(area);
+
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
       path.setAttribute("d", pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
-      path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "2");
+      path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "2.25");
       path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
       svg.appendChild(path);
+
+      const lastPt = pts[pts.length - 1];
+      const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      endDot.setAttribute("cx", lastPt[0]); endDot.setAttribute("cy", lastPt[1]); endDot.setAttribute("r", "4.5");
+      endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", LINE_COLOR); endDot.setAttribute("stroke-width", "2.25");
+      svg.appendChild(endDot);
     }
 
     const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -1974,6 +2006,51 @@ window.__tabManager = (function () {
     renderTable(rows);
   }
 
+  function buildDateControls() {
+    const startInput = document.getElementById("turib-date-start");
+    const endInput = document.getElementById("turib-date-end");
+    if (!allRows.length) return;
+    const allDates = allRows.map(r => r.trade_date).sort();
+    const minDate = allDates[0], maxDate = allDates[allDates.length - 1];
+    startInput.min = minDate; startInput.max = maxDate;
+    endInput.min = minDate; endInput.max = maxDate;
+    startInput.value = minDate; endInput.value = maxDate;
+
+    function setActivePreset(btn) {
+      document.querySelectorAll("#turib-period-presets .seg").forEach(b => b.classList.toggle("active", b === btn));
+    }
+
+    function applyPreset(preset) {
+      if (preset === "all") {
+        state.dateStart = null; state.dateEnd = null;
+        startInput.value = minDate; endInput.value = maxDate;
+      } else {
+        const end = new Date(maxDate + "T00:00:00");
+        const start = new Date(end);
+        start.setDate(start.getDate() - Number(preset) + 1);
+        const startIso = start.toISOString().slice(0, 10);
+        state.dateStart = startIso < minDate ? minDate : startIso;
+        state.dateEnd = maxDate;
+        startInput.value = state.dateStart; endInput.value = state.dateEnd;
+      }
+      renderAll();
+    }
+
+    document.querySelectorAll("#turib-period-presets .seg").forEach(btn => {
+      btn.addEventListener("click", () => { setActivePreset(btn); applyPreset(btn.dataset.preset); });
+    });
+    startInput.addEventListener("change", () => {
+      state.dateStart = startInput.value || null;
+      setActivePreset(null);
+      renderAll();
+    });
+    endInput.addEventListener("change", () => {
+      state.dateEnd = endInput.value || null;
+      setActivePreset(null);
+      renderAll();
+    });
+  }
+
   function buildProductControls() {
     const wrap = document.getElementById("turib-product");
     wrap.textContent = "";
@@ -2056,6 +2133,7 @@ window.__tabManager = (function () {
             ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
             : "Veri yok";
           buildProductControls();
+          buildDateControls();
           renderAll();
         })
         .catch(err => {
