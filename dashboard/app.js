@@ -1,3 +1,33 @@
+// ---------------------------------------------------------------------------
+// localStorage önbelleği — her panel sekmesi açıldığında (hatta sayfa her
+// yenilendiğinde) Supabase'den tam veri setini yeniden çekmek gereksiz ve
+// yavaş: kaynaklar en hızlı 15 dakikada (Ticaret Borsası canlandığında),
+// çoğu günde/ayda/haftada bir güncelleniyor. Her panel kendi verisini bir
+// TTL ile önbelleğe alır; süre dolmadan önceki açılışlarda hiç ağ isteği
+// atılmaz, sayfa anında önbellekten render olur.
+window.__supaCache = (function () {
+  const PREFIX = "tuik-dash-cache:";
+  function get(key, ttlMs) {
+    try {
+      const raw = localStorage.getItem(PREFIX + key);
+      if (!raw) return null;
+      const entry = JSON.parse(raw);
+      if (!entry || typeof entry.t !== "number" || Date.now() - entry.t > ttlMs) return null;
+      return entry.v;
+    } catch (e) {
+      return null;
+    }
+  }
+  function set(key, value) {
+    try {
+      localStorage.setItem(PREFIX + key, JSON.stringify({ t: Date.now(), v: value }));
+    } catch (e) {
+      // kota dolu / gizli sekme — önbellek olmadan da sayfa normal çalışır
+    }
+  }
+  return { get, set };
+})();
+
 (function () {
   "use strict";
 
@@ -66,7 +96,12 @@
   }
 
   // ---------- live data ----------
+  const CACHE_TTL_MS = 30 * 60 * 1000; // 30 dk — trade_stats günde bir güncelleniyor
+
   async function fetchAllRows() {
+    const cached = window.__supaCache.get("trade", CACHE_TTL_MS);
+    if (cached) return cached;
+
     const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
     const pageSize = 1000;
     let rows = [];
@@ -88,7 +123,7 @@
       { headers }
     );
     const reports = reportRes.ok ? await reportRes.json() : [];
-    return {
+    const result = {
       rows: rows.map(r => [
         r.period_year,
         r.flow === "import" ? 1 : 0,
@@ -101,6 +136,8 @@
       ]),
       report: reports[0] || null,
     };
+    window.__supaCache.set("trade", result);
+    return result;
   }
 
   // Renders the small, fixed markdown subset build_report() (reports/daily_report.py)
@@ -1089,7 +1126,12 @@ window.__tabManager = (function () {
     return (value >= 0 ? "+" : "") + value.toFixed(1) + "%";
   }
 
+  const CACHE_TTL_MS = 30 * 60 * 1000; // 30 dk — WASDE ayda bir güncelleniyor
+
   async function fetchWasdeRows() {
+    const cached = window.__supaCache.get("wasde", CACHE_TTL_MS);
+    if (cached) return cached;
+
     const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
     const pageSize = 1000;
     let rows = [];
@@ -1106,6 +1148,7 @@ window.__tabManager = (function () {
       if (page.length < pageSize) break;
       from += pageSize;
     }
+    window.__supaCache.set("wasde", rows);
     return rows;
   }
 
@@ -1365,7 +1408,12 @@ window.__tabManager = (function () {
     return d.toLocaleString("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   }
 
+  const CACHE_TTL_MS = 5 * 60 * 1000; // 5 dk — borsa fiyatları 15 dk'da bir güncellenecek
+
   async function fetchExchangeRows() {
+    const cached = window.__supaCache.get("exchange", CACHE_TTL_MS);
+    if (cached) return cached;
+
     const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
     const pageSize = 1000;
     let rows = [];
@@ -1382,6 +1430,7 @@ window.__tabManager = (function () {
       if (page.length < pageSize) break;
       from += pageSize;
     }
+    window.__supaCache.set("exchange", rows);
     return rows;
   }
 
@@ -1664,7 +1713,12 @@ window.__tabManager = (function () {
     return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
   }
 
+  const CACHE_TTL_MS = 30 * 60 * 1000; // 30 dk — ESR haftada bir güncelleniyor, ~4-5 sayfalık en ağır çekim
+
   async function fetchEsrRows() {
+    const cached = window.__supaCache.get("esr", CACHE_TTL_MS);
+    if (cached) return cached;
+
     const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
     const pageSize = 1000;
     let rows = [];
@@ -1681,6 +1735,7 @@ window.__tabManager = (function () {
       if (page.length < pageSize) break;
       from += pageSize;
     }
+    window.__supaCache.set("esr", rows);
     return rows;
   }
 
