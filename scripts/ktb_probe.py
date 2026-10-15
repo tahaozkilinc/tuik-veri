@@ -1,4 +1,4 @@
-"""temp: KTB main bundle - context around key API calls + service class body."""
+"""temp: KTB main bundle - find CALL SITES (not service method defs) to learn param meaning."""
 import re
 import urllib.request
 
@@ -15,20 +15,37 @@ def get(path):
 main = get("/main.222ebc54c3aab9f5.js")
 print("main.js length:", len(main))
 
-targets = [
-    "GetBultenGecmisIslemFiyatTarihAraligi",
-    "GetBultenGecmisIslemUrunListesi",
-    "GetGunlukBulten",
-    "GetSatilanUrunDetay",
-    "GetBultenUrunGruplarGruplar",
-    "GetBultenGrupSinifUrunSelect",
-    "GetGrupSinifUrunSelectler",
+# find call sites like ".getBultenGecmisIslemFiyatTarihAraligi(" with actual args (not "this.httpClient.get")
+call_targets = [
+    "getBultenGecmisIslemFiyatTarihAraligi(",
+    "getBultenUrunGruplarGruplar(",
+    "getGunlukBulten(",
+    "getBultenGrupSinifUrunSelect(",
+    "getGrupSinifUrunSelectler(",
+    "getSatilanUrunDetay(",
 ]
 
-for t in targets:
-    print(f"\n==== context around {t} ====")
+for t in call_targets:
+    print(f"\n==== call sites for {t} ====")
+    count = 0
     for m in re.finditer(re.escape(t), main):
-        start = max(0, m.start() - 400)
-        end = min(len(main), m.end() + 400)
+        # skip the definition site (has "return this.httpClient.get" right after)
+        after = main[m.end():m.end() + 40]
+        if "return this.httpClient" in after or after.startswith(")"):
+            continue
+        start = max(0, m.start() - 300)
+        end = min(len(main), m.end() + 150)
         print("---")
         print(main[start:end])
+        count += 1
+        if count >= 5:
+            break
+    if count == 0:
+        print("(no non-definition call sites found with this heuristic)")
+
+print("\n==== IsletmeId / FirmaId / SubeId usage ====")
+for key in ["IsletmeId", "FirmaId", "SubeId", "environment.IsletmeId", "environment[\"IsletmeId\"]"]:
+    idxs = [m.start() for m in re.finditer(re.escape(key), main)]
+    print(key, "-> count:", len(idxs))
+    for i in idxs[:3]:
+        print("   ctx:", main[max(0,i-100):i+100])
