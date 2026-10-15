@@ -206,6 +206,35 @@ drop policy if exists "public read turib_bulletin" on turib_bulletin;
 create policy "public read turib_bulletin" on turib_bulletin for select using (true);
 revoke insert, update, delete, truncate on turib_bulletin from anon, authenticated;
 
+-- Uzunköprü Ticaret Borsası (UZTB) — Salon Satışı günlük fiyat özeti.
+-- www.uzunkoprutb.org.tr'nin kendi iç API'leri kullanılıyor (sayfa HTML'i
+-- veriyi barındırmıyor, JS ile AJAX çekiyor). İki kaynak birleşiyor: bugün
+-- için /api/salon-satis.php (bireysel işlemler, rutubet dahil, BURADAN
+-- kendimiz günlük özet hesaplıyoruz), geçmiş içinse /json/gunluk_bulten_detay.asp
+-- (kaynağın kendi tuttuğu ~1 aylık hazır özet, rutubet YOK). Her satır bir
+-- günün TEK özeti — bireysel işlem değil.
+create table if not exists uztb_fiyat (
+    id           bigint generated always as identity primary key,
+    trade_date   date not null,
+    urun_kodu    text not null,   -- kaynağın "mkod" / "MAL" kodu, örn '99992'
+    urun_adi     text not null,   -- örn 'AYÇİÇEK'
+    min_fiyat    numeric,
+    max_fiyat    numeric,
+    ort_fiyat    numeric,         -- ağırlıklı ortalama
+    toplam_kilo  numeric,
+    islem_adet   int,
+    ort_rutubet  numeric,         -- sadece /api/salon-satis.php ile çekilen günlerde dolu
+    fetched_at   timestamptz not null default now(),
+    unique (trade_date, urun_kodu)
+);
+
+create index if not exists idx_uztb_fiyat_lookup on uztb_fiyat (urun_kodu, trade_date desc);
+
+alter table uztb_fiyat enable row level security;
+drop policy if exists "public read uztb_fiyat" on uztb_fiyat;
+create policy "public read uztb_fiyat" on uztb_fiyat for select using (true);
+revoke insert, update, delete, truncate on uztb_fiyat from anon, authenticated;
+
 -- MİGRASYON: bu şemayı daha önce (NULLS NOT DISTINCT olmadan) çalıştırdıysanız
 -- — yani trade_stats tablosu zaten varsa — aşağıdaki blok eski unique
 -- constraint'i bulup NULLS NOT DISTINCT olanla değiştirir. Script hem sıfırdan

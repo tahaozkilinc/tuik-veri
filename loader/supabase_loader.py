@@ -90,6 +90,18 @@ def replace_turib_bulletin(client: Client, trade_date: str, records: list[dict])
     return total
 
 
+def replace_uztb_fiyat(client: Client, trade_date: str, urun_kodu: str, record: dict) -> int:
+    """Bu (trade_date, urun_kodu) çiftine ait günlük özeti silip yeniden
+    yazar — her kayıt zaten bir günün TEK ÖZET satırı (bireysel işlem
+    değil), bu yüzden WASDE/export_sales'teki gibi toplu değil tekil
+    sil-ve-ekle. Günlük cron, backfill'in bıraktığı rutubetsiz özeti
+    gerçek (rutubet dahil) özetle üzerine yazar.
+    """
+    client.table("uztb_fiyat").delete().eq("trade_date", trade_date).eq("urun_kodu", urun_kodu).execute()
+    client.table("uztb_fiyat").insert(record).execute()
+    return 1
+
+
 def start_run(client: Client, source: str = "tuik") -> int:
     resp = client.table("scrape_runs").insert({"status": "running", "source": source}).execute()
     return resp.data[0]["id"]
