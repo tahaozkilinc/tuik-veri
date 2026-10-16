@@ -1650,6 +1650,10 @@ window.__tabManager = (function () {
     if (a >= 1e3) return (v / 1e3).toFixed(1) + "K kg";
     return (Math.round(v) || 0) + " kg";
   }
+  function fmtTon(v) {
+    if (v == null || isNaN(v)) return "—";
+    return (v / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+  }
   function fmtTl(v) {
     if (v == null || isNaN(v)) return "—";
     const a = Math.abs(v);
@@ -2037,7 +2041,7 @@ window.__tabManager = (function () {
     const tiles = [
       ["Ağırlıklı ortalama fiyat (seçili dönem)", fmtPriceTon(overallWeightedAvg(rows))],
       ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
-      ["Toplam işlem hacmi", fmtKg(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0))],
+      ["Toplam işlem hacmi", fmtTon(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0))],
       ["Toplam işlem değeri", fmtTl(rows.reduce((s, r) => s + (r.islem_hacmi_tl || 0), 0))],
     ];
     tiles.forEach(([label, value]) => {
