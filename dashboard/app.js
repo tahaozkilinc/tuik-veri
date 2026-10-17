@@ -74,6 +74,249 @@ window.__updateStatusFromCache = function (keys) {
   window.__setStatus("Canlı — " + new Date(latest).toLocaleString("tr-TR"), true);
 };
 
+// ---------------------------------------------------------------------------
+// Site geneli dil altyapısı — her panel IIFE'si kendi applyLanguage(lang)
+// fonksiyonunu window.__registerI18nPanel ile kaydeder (panel henüz hiç
+// veri çekmemişse applyLanguage sadece sabit metinleri günceller, zararsız).
+// Header'daki tek TR/EN/RU toggle tıklanınca window.__setAppLang TÜM kayıtlı
+// panelleri aynı anda günceller; tercih localStorage'da saklanıp sayfa
+// yenilenince korunuyor. <html lang> attribute'u da güncelleniyor — CSS
+// text-transform:uppercase'in yanlış locale'de büyütme yapmaması için
+// (bkz. KTB'de bulunan "HIGHEST" -> "HİGHEST" bug'ı).
+window.__appLang = "tr";
+const __i18nPanels = [];
+window.__registerI18nPanel = function (applyFn) {
+  __i18nPanels.push(applyFn);
+};
+window.__setAppLang = function (lang) {
+  window.__appLang = lang;
+  try { localStorage.setItem("tuik-dash-lang", lang); } catch (e) { /* kota dolu / gizli sekme — tercih bu oturumda kalır */ }
+  document.documentElement.setAttribute("lang", lang);
+  document.querySelectorAll("#app-lang-toggle .seg").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+  __i18nPanels.forEach(fn => { try { fn(lang); } catch (e) { console.error(e); } });
+};
+document.getElementById("app-lang-toggle").querySelectorAll(".seg").forEach(btn => {
+  btn.addEventListener("click", () => window.__setAppLang(btn.dataset.lang));
+});
+
+// Ülke adları çeviri sözlüğü — TÜİK ve ESR panelleri ortak kullanıyor
+// (trade_stats/esr_* tablolarındaki ham Türkçe country_name/partner_name
+// değerleri buradan EN/RU'ya çevriliyor; kapalı küme değil ama 1 yıl+
+// gerçek veriden çekilmiş, dünya üzerindeki ülkelerin tamamına yakını).
+  const COUNTRY_NAMES_I18N = {
+    "Fransa": { en: "France", ru: "Франция" },
+    "Portekiz": { en: "Portugal", ru: "Португалия" },
+    "İspanya": { en: "Spain", ru: "Испания" },
+    "Belçika": { en: "Belgium", ru: "Бельгия" },
+    "Belçika-Lüksemburg": { en: "Belgium-Luxembourg", ru: "Бельгия-Люксембург" },
+    "Fas": { en: "Morocco", ru: "Марокко" },
+    "Cezayir": { en: "Algeria", ru: "Алжир" },
+    "Tunus": { en: "Tunisia", ru: "Тунис" },
+    "Libya": { en: "Libya", ru: "Ливия" },
+    "Mısır": { en: "Egypt", ru: "Египет" },
+    "Sudan": { en: "Sudan", ru: "Судан" },
+    "Güney Sudan": { en: "South Sudan", ru: "Южный Судан" },
+    "Moritanya": { en: "Mauritania", ru: "Мавритания" },
+    "Mali": { en: "Mali", ru: "Мали" },
+    "Burkina Faso": { en: "Burkina Faso", ru: "Буркина-Фасо" },
+    "İzlanda": { en: "Iceland", ru: "Исландия" },
+    "Nijer": { en: "Niger", ru: "Нигер" },
+    "Çad": { en: "Chad", ru: "Чад" },
+    "Cabo Verde": { en: "Cabo Verde", ru: "Кабо-Верде" },
+    "Senegal": { en: "Senegal", ru: "Сенегал" },
+    "Gambiya": { en: "Gambia", ru: "Гамбия" },
+    "Gine Bissau": { en: "Guinea-Bissau", ru: "Гвинея-Бисау" },
+    "Gine": { en: "Guinea", ru: "Гвинея" },
+    "Sierra Leone": { en: "Sierra Leone", ru: "Сьерра-Леоне" },
+    "Liberya": { en: "Liberia", ru: "Либерия" },
+    "Kotdivuar": { en: "Côte d'Ivoire", ru: "Кот-д'Ивуар" },
+    "Gana": { en: "Ghana", ru: "Гана" },
+    "Norveç": { en: "Norway", ru: "Норвегия" },
+    "Togo": { en: "Togo", ru: "Того" },
+    "Benin": { en: "Benin", ru: "Бенин" },
+    "Nijerya": { en: "Nigeria", ru: "Нигерия" },
+    "Hollanda": { en: "Netherlands", ru: "Нидерланды" },
+    "İsveç": { en: "Sweden", ru: "Швеция" },
+    "Kamerun": { en: "Cameroon", ru: "Камерун" },
+    "Orta Afrika Cumhuriyeti": { en: "Central African Republic", ru: "Центральноафриканская Республика" },
+    "Ekvator Ginesi": { en: "Equatorial Guinea", ru: "Экваториальная Гвинея" },
+    "Sao Tome ve Prinsipe": { en: "São Tomé and Príncipe", ru: "Сан-Томе и Принсипи" },
+    "Gabon": { en: "Gabon", ru: "Габон" },
+    "Kongo": { en: "Congo", ru: "Конго" },
+    "Finlandiya": { en: "Finland", ru: "Финляндия" },
+    "Kongo Demokratik Cumhuriyeti": { en: "Democratic Republic of the Congo", ru: "Демократическая Республика Конго" },
+    "Ruanda": { en: "Rwanda", ru: "Руанда" },
+    "Burundi": { en: "Burundi", ru: "Бурунди" },
+    "Angola": { en: "Angola", ru: "Ангола" },
+    "Etiyopya": { en: "Ethiopia", ru: "Эфиопия" },
+    "Eritre": { en: "Eritrea", ru: "Эритрея" },
+    "Cibuti": { en: "Djibouti", ru: "Джибути" },
+    "Somali": { en: "Somalia", ru: "Сомали" },
+    "Kenya": { en: "Kenya", ru: "Кения" },
+    "Uganda": { en: "Uganda", ru: "Уганда" },
+    "Tanzanya": { en: "Tanzania", ru: "Танзания" },
+    "Seyşeller": { en: "Seychelles", ru: "Сейшельские Острова" },
+    "İsviçre": { en: "Switzerland", ru: "Швейцария" },
+    "Mozambik": { en: "Mozambique", ru: "Мозамбик" },
+    "Madagaskar": { en: "Madagascar", ru: "Мадагаскар" },
+    "Mauritius": { en: "Mauritius", ru: "Маврикий" },
+    "Komorlar Birliği": { en: "Union of the Comoros", ru: "Союз Коморских Островов" },
+    "Mayotte": { en: "Mayotte", ru: "Майотта" },
+    "Zambia": { en: "Zambia", ru: "Замбия" },
+    "Avusturya": { en: "Austria", ru: "Австрия" },
+    "Zimbabve": { en: "Zimbabwe", ru: "Зимбабве" },
+    "Malavi": { en: "Malawi", ru: "Малави" },
+    "Güney Afrika Cumhuriyeti": { en: "Republic of South Africa", ru: "Южно-Африканская Республика" },
+    "Namibya": { en: "Namibia", ru: "Намибия" },
+    "Güney Afrika": { en: "South Africa", ru: "Южная Африка" },
+    "Botsvana": { en: "Botswana", ru: "Ботсвана" },
+    "Esvatini": { en: "Eswatini", ru: "Эсватини" },
+    "Lesotho": { en: "Lesotho", ru: "Лесото" },
+    "Almanya": { en: "Germany", ru: "Германия" },
+    "ABD": { en: "USA", ru: "США" },
+    "Kanada": { en: "Canada", ru: "Канада" },
+    "Meksika": { en: "Mexico", ru: "Мексика" },
+    "Guatemala": { en: "Guatemala", ru: "Гватемала" },
+    "Belize": { en: "Belize", ru: "Белиз" },
+    "Honduras": { en: "Honduras", ru: "Гондурас" },
+    "El Salvador": { en: "El Salvador", ru: "Сальвадор" },
+    "Nikaragua": { en: "Nicaragua", ru: "Никарагуа" },
+    "Kostarika": { en: "Costa Rica", ru: "Коста-Рика" },
+    "Panama": { en: "Panama", ru: "Панама" },
+    "Küba": { en: "Cuba", ru: "Куба" },
+    "St. Kitts ve Nevis": { en: "St. Kitts and Nevis", ru: "Сент-Китс и Невис" },
+    "Haiti": { en: "Haiti", ru: "Гаити" },
+    "Bahamalar": { en: "Bahamas", ru: "Багамские Острова" },
+    "Türk ve Caicos Ad.": { en: "Turks and Caicos Islands", ru: "Теркс и Кайкос" },
+    "Dominik Cumhuriyeti": { en: "Dominican Republic", ru: "Доминиканская Республика" },
+    "Antigua ve Barbuda": { en: "Antigua and Barbuda", ru: "Антигуа и Барбуда" },
+    "Malta": { en: "Malta", ru: "Мальта" },
+    "Dominik": { en: "Dominica", ru: "Доминика" },
+    "Jamaika": { en: "Jamaica", ru: "Ямайка" },
+    "St. Lucia": { en: "St. Lucia", ru: "Сент-Люсия" },
+    "St. Vincent ve Grenadines": { en: "St. Vincent and the Grenadines", ru: "Сент-Винсент и Гренадины" },
+    "Barbados": { en: "Barbados", ru: "Барбадос" },
+    "Trinidad ve Tobago": { en: "Trinidad and Tobago", ru: "Тринидад и Тобаго" },
+    "Grenada": { en: "Grenada", ru: "Гренада" },
+    "Aruba": { en: "Aruba", ru: "Аруба" },
+    "Curaçao": { en: "Curaçao", ru: "Кюрасао" },
+    "Hollanda Antilleri": { en: "Netherlands Antilles", ru: "Нидерландские Антильские острова" },
+    "Kolombiya": { en: "Colombia", ru: "Колумбия" },
+    "Venezuela": { en: "Venezuela", ru: "Венесуэла" },
+    "Guyana": { en: "Guyana", ru: "Гайана" },
+    "Surinam": { en: "Suriname", ru: "Суринам" },
+    "İtalya": { en: "Italy", ru: "Италия" },
+    "Ekvator": { en: "Ecuador", ru: "Эквадор" },
+    "Peru": { en: "Peru", ru: "Перу" },
+    "Brezilya": { en: "Brazil", ru: "Бразилия" },
+    "Şili": { en: "Chile", ru: "Чили" },
+    "Bolivya": { en: "Bolivia", ru: "Боливия" },
+    "Paraguay": { en: "Paraguay", ru: "Парагвай" },
+    "Uruguay": { en: "Uruguay", ru: "Уругвай" },
+    "Arjantin": { en: "Argentina", ru: "Аргентина" },
+    "Estonya": { en: "Estonia", ru: "Эстония" },
+    "Letonya": { en: "Latvia", ru: "Латвия" },
+    "Litvanya": { en: "Lithuania", ru: "Литва" },
+    "Birleşik Krallık": { en: "United Kingdom", ru: "Великобритания" },
+    "Polonya": { en: "Poland", ru: "Польша" },
+    "Kuzey Kıbrıs Türk Cum.": { en: "Turkish Republic of Northern Cyprus", ru: "Турецкая Республика Северного Кипра" },
+    "Lübnan": { en: "Lebanon", ru: "Ливан" },
+    "Suriye": { en: "Syria", ru: "Сирия" },
+    "Çekya": { en: "Czechia", ru: "Чехия" },
+    "Irak": { en: "Iraq", ru: "Ирак" },
+    "İran": { en: "Iran", ru: "Иран" },
+    "İsrail": { en: "Israel", ru: "Израиль" },
+    "Filistin Devleti": { en: "State of Palestine", ru: "Государство Палестина" },
+    "Ürdün": { en: "Jordan", ru: "Иордания" },
+    "Slovakya": { en: "Slovakia", ru: "Словакия" },
+    "Suudi Arabistan": { en: "Saudi Arabia", ru: "Саудовская Аравия" },
+    "Kuveyt": { en: "Kuwait", ru: "Кувейт" },
+    "Macaristan": { en: "Hungary", ru: "Венгрия" },
+    "Bahreyn": { en: "Bahrain", ru: "Бахрейн" },
+    "Katar": { en: "Qatar", ru: "Катар" },
+    "BAE": { en: "UAE", ru: "ОАЭ" },
+    "Umman": { en: "Oman", ru: "Оман" },
+    "Yemen": { en: "Yemen", ru: "Йемен" },
+    "Romanya": { en: "Romania", ru: "Румыния" },
+    "Afganistan": { en: "Afghanistan", ru: "Афганистан" },
+    "Pakistan": { en: "Pakistan", ru: "Пакистан" },
+    "Hindistan": { en: "India", ru: "Индия" },
+    "Bangladeş": { en: "Bangladesh", ru: "Бангладеш" },
+    "Maldivler": { en: "Maldives", ru: "Мальдивы" },
+    "Sri Lanka": { en: "Sri Lanka", ru: "Шри-Ланка" },
+    "Nepal": { en: "Nepal", ru: "Непал" },
+    "Butan": { en: "Bhutan", ru: "Бутан" },
+    "Myanmar": { en: "Myanmar", ru: "Мьянма" },
+    "Bulgaristan": { en: "Bulgaria", ru: "Болгария" },
+    "Tayland": { en: "Thailand", ru: "Таиланд" },
+    "Laos": { en: "Laos", ru: "Лаос" },
+    "Vietnam": { en: "Vietnam", ru: "Вьетнам" },
+    "Kamboçya": { en: "Cambodia", ru: "Камбоджа" },
+    "İrlanda": { en: "Ireland", ru: "Ирландия" },
+    "Arnavutluk": { en: "Albania", ru: "Албания" },
+    "Endonezya": { en: "Indonesia", ru: "Индонезия" },
+    "Malezya": { en: "Malaysia", ru: "Малайзия" },
+    "Bruney": { en: "Brunei", ru: "Бруней" },
+    "Singapur": { en: "Singapore", ru: "Сингапур" },
+    "Filipinler": { en: "Philippines", ru: "Филиппины" },
+    "Moğolistan": { en: "Mongolia", ru: "Монголия" },
+    "Ukrayna": { en: "Ukraine", ru: "Украина" },
+    "Çin": { en: "China", ru: "Китай" },
+    "Güney Kore": { en: "South Korea", ru: "Южная Корея" },
+    "Belarus": { en: "Belarus", ru: "Беларусь" },
+    "Japonya": { en: "Japan", ru: "Япония" },
+    "Tayvan": { en: "Taiwan", ru: "Тайвань" },
+    "Moldova": { en: "Moldova", ru: "Молдова" },
+    "Hong Kong": { en: "Hong Kong", ru: "Гонконг" },
+    "Makao": { en: "Macau", ru: "Макао" },
+    "Rusya Federasyonu": { en: "Russian Federation", ru: "Российская Федерация" },
+    "Gürcistan": { en: "Georgia", ru: "Грузия" },
+    "Azerbaycan": { en: "Azerbaijan", ru: "Азербайджан" },
+    "Kazakistan": { en: "Kazakhstan", ru: "Казахстан" },
+    "Danimarka": { en: "Denmark", ru: "Дания" },
+    "Türkmenistan": { en: "Turkmenistan", ru: "Туркменистан" },
+    "Avustralya": { en: "Australia", ru: "Австралия" },
+    "Papua Yeni Gine": { en: "Papua New Guinea", ru: "Папуа — Новая Гвинея" },
+    "Yeni Zelanda": { en: "New Zealand", ru: "Новая Зеландия" },
+    "Yeni Kaledonya": { en: "New Caledonia", ru: "Новая Каледония" },
+    "Özbekistan": { en: "Uzbekistan", ru: "Узбекистан" },
+    "Fiji": { en: "Fiji", ru: "Фиджи" },
+    "Tacikistan": { en: "Tajikistan", ru: "Таджикистан" },
+    "Kırgızistan": { en: "Kyrgyzstan", ru: "Киргизия" },
+    "Amerikan Samoası": { en: "American Samoa", ru: "Американское Самоа" },
+    "Yunanistan": { en: "Greece", ru: "Греция" },
+    "Slovenya": { en: "Slovenia", ru: "Словения" },
+    "Hırvatistan": { en: "Croatia", ru: "Хорватия" },
+    "Bosna-Hersek": { en: "Bosnia and Herzegovina", ru: "Босния и Герцеговина" },
+    "Kosova": { en: "Kosovo", ru: "Косово" },
+    "Belirlenemeyen Ülke ve Bölgeler": { en: "Unspecified Countries and Regions", ru: "Неустановленные страны и регионы" },
+    "Kuzey Makedonya": { en: "North Macedonia", ru: "Северная Македония" },
+    "Antalya Serbest Bölgesi": { en: "Antalya Free Zone", ru: "Свободная зона Анталья" },
+    "AHL Serbest Bölgesi": { en: "AHL Free Zone", ru: "Свободная зона AHL" },
+    "İstanbul Endüstri ve Tic.Serb.Böl.": { en: "Istanbul Industry and Trade Free Zone", ru: "Свободная зона Стамбул (пром. и торг.)" },
+    "Ege Serbest Bölgesi": { en: "Aegean Free Zone", ru: "Эгейская свободная зона" },
+    "Mersin Serbest Bölgesi": { en: "Mersin Free Zone", ru: "Свободная зона Мерсин" },
+    "Trakya Serbest Bölgesi": { en: "Thrace Free Zone", ru: "Свободная зона Фракия" },
+    "Trabzon Serbest Bölgesi": { en: "Trabzon Free Zone", ru: "Свободная зона Трабзон" },
+    "Mardin Serbest Bölgesi": { en: "Mardin Free Zone", ru: "Свободная зона Мардин" },
+    "Karadağ": { en: "Montenegro", ru: "Черногория" },
+    "İzmir Serbest Bölgesi": { en: "Izmir Free Zone", ru: "Свободная зона Измир" },
+    "Yumurtalık Serbest Bölgesi": { en: "Yumurtalık Free Zone", ru: "Свободная зона Юмурталык" },
+    "Rize Serbest Bölgesi": { en: "Rize Free Zone", ru: "Свободная зона Ризе" },
+    "Samsun Serbest Bölgesi": { en: "Samsun Free Zone", ru: "Свободная зона Самсун" },
+    "Kayseri Serbest Bölgesi": { en: "Kayseri Free Zone", ru: "Свободная зона Кайсери" },
+    "Çorlu Avrupa Serbest Bölgesi": { en: "Çorlu European Free Zone", ru: "Европейская свободная зона Чорлу" },
+    "Gaziantep Serbest Bölgesi": { en: "Gaziantep Free Zone", ru: "Свободная зона Газиантеп" },
+    "Bursa Serbest Bölgesi": { en: "Bursa Free Zone", ru: "Свободная зона Бурса" },
+    "Sırbistan": { en: "Serbia", ru: "Сербия" },
+    "Kocaeli Serbest Bölgesi": { en: "Kocaeli Free Zone", ru: "Свободная зона Коджаэли" },
+  };
+function translateCountryName(name, lang) {
+  if (lang === "tr" || !name) return name;
+  const entry = COUNTRY_NAMES_I18N[name];
+  return entry ? entry[lang] : name;
+}
+
 (function () {
   "use strict";
 
@@ -3625,7 +3868,6 @@ window.__tabManager = (function () {
     // noktalı İ) — KTB bölümünün kendi lang attribute'unu geçersiz kılmak bu
     // alt ağaçta doğru (locale'e uygun) büyütmeyi geri getiriyor.
     document.getElementById("ktb-section").setAttribute("lang", lang);
-    document.querySelectorAll("#ktb-lang-toggle .seg").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
     document.getElementById("ktb-banner-strong").textContent = tt("bannerStrong");
     document.getElementById("ktb-banner-body").textContent = tt("bannerBody");
     document.getElementById("ktb-label-product").textContent = tt("productGroupLabel");
@@ -3644,9 +3886,7 @@ window.__tabManager = (function () {
     }
   }
 
-  document.getElementById("ktb-lang-toggle").querySelectorAll(".seg").forEach(btn => {
-    btn.addEventListener("click", () => applyLanguage(btn.dataset.lang));
-  });
+  window.__registerI18nPanel(applyLanguage);
 
   let loaded = false;
   window.__ktbTab = {
@@ -4128,4 +4368,15 @@ window.__tabManager = (function () {
         document.getElementById("esr-table-title").textContent = "Haftalık detay yüklenemedi — Supabase bağlantısını kontrol edin";
       });
   });
+})();
+
+// ---------------------------------------------------------------------------
+// Tüm panel IIFE'leri yukarıda çalışıp window.__registerI18nPanel ile
+// kaydoldu — şimdi (varsa) kaydedilmiş dil tercihini tek seferde yayınlıyoruz.
+// Henüz veri çekmemiş paneller sadece sabit metinlerini günceller; veri
+// çekmiş olanlar tam yeniden render olur.
+(function () {
+  let initialLang = "tr";
+  try { initialLang = localStorage.getItem("tuik-dash-lang") || "tr"; } catch (e) { /* yoksay */ }
+  window.__setAppLang(initialLang);
 })();
