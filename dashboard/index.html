@@ -174,29 +174,64 @@
 
   <div id="exchange-panel" hidden>
     <div class="tab-bar subtab-bar" id="exchange-subtabs" role="tablist" aria-label="Ticaret Borsası alt sekmesi">
-      <button class="tab active" id="subtab-live" type="button" role="tab" aria-selected="true">Canlı Kurlar</button>
+      <button class="tab active" id="subtab-summary" type="button" role="tab" aria-selected="true">Özet</button>
       <button class="tab" id="subtab-turib" type="button" role="tab" aria-selected="false">TÜRİB</button>
       <button class="tab" id="subtab-uztb" type="button" role="tab" aria-selected="false">UZTB</button>
       <button class="tab" id="subtab-ktb" type="button" role="tab" aria-selected="false">KTB</button>
     </div>
 
-    <div id="exchange-live-section">
+    <div id="exchange-summary-section">
       <div class="wasde-banner">
         <div>
-          <strong>Ticaret Borsası fiyatları</strong> 15 dakikada bir güncellenir, sadece ilgili borsanın
-          Türkiye saatiyle açık olduğu saatler arasında. Borsa kapalıyken son kapanış fiyatı gösterilir.
+          <strong>Mısır fiyat özeti</strong> — TÜRİB (Mısır 1.Sınıf) ve KTB (Mısır) ağırlıklı ortalama
+          fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Sadece ağırlıklı ortalama gösterilir, alt/üst
+          limit yok.
         </div>
-        <span class="wasde-release-badge" id="exchange-asof-badge">Yükleniyor…</span>
+        <span class="wasde-release-badge" id="exchange-summary-asof-badge">Yükleniyor…</span>
       </div>
 
-      <section class="kpi-row" id="exchange-kpi-row" aria-label="Borsa özet göstergeler"></section>
+      <section class="kpi-row" id="exchange-summary-kpi-row" aria-label="Özet göstergeler"></section>
 
       <section class="card">
         <div class="card-head">
-          <h2>Borsalar</h2>
-          <button class="reset-btn" id="exchange-export-btn" type="button">Excel'e aktar (CSV)</button>
+          <h2>Mısır fiyat eğilimi</h2>
+          <div class="segmented" id="exchange-currency-toggle" role="group" aria-label="Para birimi">
+            <button class="seg active" type="button" data-currency="try">TL</button>
+            <button class="seg" type="button" data-currency="usd">USD</button>
+          </div>
         </div>
-        <div id="exchange-sections"></div>
+        <div class="legend" id="exchange-summary-legend"></div>
+        <svg class="chart" id="exchange-summary-chart" role="img" aria-label="TÜRİB ve KTB Mısır ağırlıklı ortalama fiyat eğilimi"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Günlük veriler</h2>
+          <button class="reset-btn" id="exchange-summary-export-btn" type="button">Excel'e aktar (CSV)</button>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="exchange-summary-table">
+            <thead>
+              <tr>
+                <th>Tarih</th>
+                <th class="num-col">USD/TRY (TCMB)</th>
+                <th class="num-col">TÜRİB Mısır (TL/ton)</th>
+                <th class="num-col">TÜRİB Mısır (USD/ton)</th>
+                <th class="num-col">KTB Mısır (TL/ton)</th>
+                <th class="num-col">KTB Mısır (USD/ton)</th>
+              </tr>
+            </thead>
+            <tbody id="exchange-summary-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="exchange-summary-row-info"></span>
+          <div class="segmented" id="exchange-summary-row-limit">
+            <button class="seg active" type="button" data-limit="10">10</button>
+            <button class="seg" type="button" data-limit="50">50</button>
+            <button class="seg" type="button" data-limit="100">100</button>
+          </div>
+        </div>
       </section>
     </div>
 
