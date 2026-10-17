@@ -1,37 +1,74 @@
-"""wasde_stats tablosundaki distinct measure/unit kombinasyonlarını çeker."""
-import json
+"""WASDE (USDA World Agricultural Supply and Demand Estimates) kaynağını
+keşif amaçlı çeker — Supabase'e hiçbir şey yazmaz.
+
+Kaynak: usda.library.cornell.edu üzerindeki "concern/publications/{id}"
+sayfası, WASDE için id = 3t945q76s. Bu sayfa her ayki yayını txt/pdf/xls
+indirme linkleriyle listeliyor, kimlik doğrulama gerekmiyor (API token'lı
+resmi API'nin aksine — bkz. https://github.com/drewdiprinzio/usda-esmis-parsing).
+
+Amaç: en son yayının indirme linklerini bulmak, TXT sürümünü indirip
+biçimini incelemek (WASDE PDF yerine düz metin olarak yayınlıyor —
+ayrıştırması PDF tablo çıkarmaktan çok daha güvenilir).
+"""
+
+from __future__ import annotations
+
+import re
+import sys
 import urllib.request
 
-SUPABASE_URL = "https://kajilskrmavwqdaipixu.supabase.co"
-ANON_KEY = "sb_publishable_6UslA4U4eYBSQl0RGkAe8g_7qPFuK1M"
+PUB_URL = "https://usda.library.cornell.edu/concern/publications/3t945q76s?locale=en"
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; tuik-veri-research/1.0)"}
 
 
-def supa_get_paginated(path):
-    headers = {"apikey": ANON_KEY, "Authorization": f"Bearer {ANON_KEY}"}
-    page_size = 1000
-    rows = []
-    frm = 0
-    while True:
-        req = urllib.request.Request(
-            SUPABASE_URL + path,
-            headers=dict(headers, Range=f"{frm}-{frm + page_size - 1}"),
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            page = json.loads(resp.read().decode("utf-8"))
-        rows.extend(page)
-        if len(page) < page_size:
-            break
-        frm += page_size
-    return rows
+def fetch(url: str) -> str:
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return resp.read().decode("utf-8", errors="replace")
 
 
-rows = supa_get_paginated("/rest/v1/wasde_stats?select=measure,measure_label_tr,unit,unit_label_tr&order=measure.asc")
-print("toplam satır:", len(rows))
-pairs = sorted({(r["measure"], r["measure_label_tr"]) for r in rows})
-print("=== measure -> measure_label_tr ===")
-for p in pairs:
-    print(p)
-units = sorted({(r["unit"], r["unit_label_tr"]) for r in rows})
-print("=== unit -> unit_label_tr ===")
-for u in units:
-    print(u)
+def main() -> None:
+    print(f"GET {PUB_URL}", file=sys.stderr)
+    html = fetch(PUB_URL)
+    print(f"html length: {len(html)}", file=sys.stderr)
+
+    with open("wasde_page.html", "w", encoding="utf-8") as f:
+        f.write(html)
+
+    # any <a> tags whose href ends in a file extension we care about
+    href_re = re.compile(r'<a[^>]*href="([^"]+\.(?:pdf|txt|xls|xlsx|zip))"[^>]*>(.*?)</a>', re.I | re.S)
+    matches = href_re.findall(html)
+    print(f"\n\nfile-extension href match count: {len(matches)}")
+    for href, inner in matches[:20]:
+        print(href, "|", re.sub(r"\s+", " ", inner).strip()[:80])
+
+    if not matches:
+        return
+
+    # try downloading the first (most recent) txt file
+    txt_links = [h for h, i in matches if h.lower().endswith(".txt")]
+    if txt_links:
+        txt_url = txt_links[0]
+        if txt_url.startswith("/"):
+            txt_url = "https://usda.library.cornell.edu" + txt_url
+        print(f"\nDownloading latest TXT: {txt_url}", file=sys.stderr)
+        txt_content = fetch(txt_url)
+        print(f"txt length: {len(txt_content)}", file=sys.stderr)
+
+        with open("wasde_latest.txt", "w", encoding="utf-8") as f:
+            f.write(txt_content)
+        print(f"\nfull txt saved, total length {len(txt_content)}")
+
+        # GitHub Actions artifact indirme egress'ten engellendiği için (sadece
+        # usda.gov değil, Azure blob depolama da bloklu) — tüm dosyayı iş
+        # kaydına (job log) düz metin olarak yazdır, buradan tail_lines ile
+        # tamamını okuyacağız.
+        print("\n=== FULL TXT START ===")
+        print(txt_content)
+        print("=== FULL TXT END ===")
+    else:
+        print("\nNo .txt link found among matches.", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
