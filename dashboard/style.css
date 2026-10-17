@@ -321,6 +321,9 @@
   .share-bar { width: 56px; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; flex: none; }
   .share-bar > span { display: block; height: 100%; background: var(--focus); border-radius: 3px; }
   .table-foot { font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .table-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pager { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
+  .pager-label { white-space: nowrap; min-width: 80px; text-align: center; }
 
   .tooltip {
     position: fixed; pointer-events: none; z-index: 40; background: var(--text-primary); color: var(--surface-1);

@@ -357,6 +357,28 @@ function translateCountryName(name, lang) {
   return entry ? entry[lang] : name;
 }
 
+// ---------------------------------------------------------------------------
+// Sayfalama yardımcıları — Ticaret Borsası'ndaki 4 tablo da (Özet/TÜRİB/UZTB/
+// KTB) aynı düzeni paylaşıyor: veri zaten TAMAMEN çekilip önbelleğe alınmış
+// durumda, sayfa geçişi sadece o aralığı diziden kesip DOM'a basıyor — her
+// sayfa için YENİ bir Supabase isteği atılmıyor (ağ/"token" maliyeti sıfır,
+// tamamı istemci tarafında).
+function paginateRows(sortedArray, page, rowLimit) {
+  const total = sortedArray.length;
+  const totalPages = Math.max(1, Math.ceil(total / rowLimit));
+  const clampedPage = Math.min(Math.max(0, page), totalPages - 1);
+  const start = clampedPage * rowLimit;
+  const slice = sortedArray.slice(start, start + rowLimit);
+  return { slice, page: clampedPage, totalPages, start, end: start + slice.length, total };
+}
+function updatePagerUI(prefix, info) {
+  document.getElementById(prefix + "-pager-label").textContent = info.total
+    ? `${info.start + 1}–${info.end} / ${info.total.toLocaleString(window.__appLang === "tr" ? "tr-TR" : window.__appLang === "ru" ? "ru-RU" : "en-US")}`
+    : "0 / 0";
+  document.getElementById(prefix + "-page-prev").disabled = info.page <= 0;
+  document.getElementById(prefix + "-page-next").disabled = info.page >= info.totalPages - 1;
+}
+
 (function () {
   "use strict";
 
@@ -2123,11 +2145,13 @@ window.__tabManager = (function () {
     URL.revokeObjectURL(url);
   }
 
-  function renderTable(points, rowLimit) {
+  function renderTable(points, rowLimit, page) {
     const tbody = document.getElementById("exchange-summary-tbody");
     tbody.textContent = "";
     const sorted = [...points].sort((a, b) => b.date.localeCompare(a.date));
-    sorted.slice(0, rowLimit).forEach(p => {
+    const info = paginateRows(sorted, page, rowLimit);
+    exchangePage = info.page;
+    info.slice.forEach(p => {
       const tr = document.createElement("tr");
       const cells = [
         fmtDateFull(p.date),
@@ -2143,21 +2167,19 @@ window.__tabManager = (function () {
       });
       tbody.appendChild(tr);
     });
-    const info = document.getElementById("exchange-summary-row-info");
-    info.textContent = sorted.length > rowLimit
-      ? `İlk ${rowLimit} satır gösteriliyor — toplam ${sorted.length} satır. Tümü için CSV olarak aktarın.`
-      : `${sorted.length} satırın tümü gösteriliyor.`;
+    updatePagerUI("exchange-summary", info);
   }
 
   let merged = [];
   let currency = "try";
   let rowLimit = 10;
+  let exchangePage = 0;
 
   function renderAll() {
     renderKpis(merged);
     renderLegend();
     drawChart(merged, currency);
-    renderTable(merged, rowLimit);
+    renderTable(merged, rowLimit, exchangePage);
   }
 
   document.getElementById("exchange-currency-toggle").querySelectorAll(".seg").forEach(btn => {
@@ -2170,9 +2192,18 @@ window.__tabManager = (function () {
   document.getElementById("exchange-summary-row-limit").querySelectorAll(".seg").forEach(btn => {
     btn.addEventListener("click", () => {
       rowLimit = Number(btn.dataset.limit);
+      exchangePage = 0;
       document.getElementById("exchange-summary-row-limit").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
-      renderTable(merged, rowLimit);
+      renderTable(merged, rowLimit, exchangePage);
     });
+  });
+  document.getElementById("exchange-summary-page-prev").addEventListener("click", () => {
+    exchangePage -= 1;
+    renderTable(merged, rowLimit, exchangePage);
+  });
+  document.getElementById("exchange-summary-page-next").addEventListener("click", () => {
+    exchangePage += 1;
+    renderTable(merged, rowLimit, exchangePage);
   });
   document.getElementById("exchange-summary-export-btn").addEventListener("click", () => {
     if (!merged.length) return;
@@ -2645,7 +2676,8 @@ window.__tabManager = (function () {
     });
   }
 
-  const TABLE_ROW_LIMIT = 10;
+  let rowLimit = 10;
+  let tablePage = 0;
 
   function renderTable(rows) {
     const thead = document.getElementById("turib-thead");
@@ -2661,7 +2693,9 @@ window.__tabManager = (function () {
       : rows;
     const sorted = [...filtered].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.lidas_adi || "").localeCompare(b.lidas_adi || "", "tr"));
     document.getElementById("turib-table-title").textContent = "Günlük işlemler";
-    sorted.slice(0, TABLE_ROW_LIMIT).forEach(r => {
+    const info = paginateRows(sorted, tablePage, rowLimit);
+    tablePage = info.page;
+    info.slice.forEach(r => {
       const tr = document.createElement("tr");
       const cells = [
         fmtDateFull(r.trade_date), r.lidas_adi || "—", r.il || "—", r.ilce || "—",
@@ -2670,12 +2704,7 @@ window.__tabManager = (function () {
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
-
-    const countEl = document.createElement("span");
-    countEl.textContent = sorted.length > TABLE_ROW_LIMIT
-      ? `İlk ${TABLE_ROW_LIMIT} satır gösteriliyor — toplam ${sorted.length} satır. Tümü için ara/filtrele veya CSV olarak aktarın.`
-      : `${sorted.length} satır`;
-    foot.appendChild(countEl);
+    updatePagerUI("turib", info);
   }
 
   function exportTuribCsv(rows) {
@@ -2697,6 +2726,7 @@ window.__tabManager = (function () {
   }
 
   function renderAll() {
+    tablePage = 0; // filtre değişince sayfa 1'e dönülür — eski sayfa artık anlamsız
     const rows = currentRows();
     const series = dailyWeightedSeries(rows);
     document.getElementById("turib-chart-title").textContent = "Fiyat eğilimi (TL/ton) — " + state.product + (state.lidas ? " · " + state.lidas : "");
@@ -2915,6 +2945,24 @@ window.__tabManager = (function () {
 
   document.getElementById("turib-table-search").addEventListener("input", (e) => {
     state.tableSearch = e.target.value.trim();
+    tablePage = 0;
+    renderTable(currentRows());
+  });
+
+  document.getElementById("turib-row-limit").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => {
+      rowLimit = Number(btn.dataset.limit);
+      tablePage = 0;
+      document.getElementById("turib-row-limit").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+      renderTable(currentRows());
+    });
+  });
+  document.getElementById("turib-page-prev").addEventListener("click", () => {
+    tablePage -= 1;
+    renderTable(currentRows());
+  });
+  document.getElementById("turib-page-next").addEventListener("click", () => {
+    tablePage += 1;
     renderTable(currentRows());
   });
 
@@ -2939,7 +2987,8 @@ window.__tabManager = (function () {
   const LINE_COLOR = "var(--series-import)";
   const CHART_W = 960, CHART_H = 240, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
   const TON_CHART_H = 110, TON_PADT = 10, TON_PADB = 24;
-  const TABLE_ROW_LIMIT = 10;
+  let rowLimit = 10;
+  let tablePage = 0;
 
   function fmtPriceTon(v) {
     if (v == null || isNaN(v)) return "—";
@@ -3309,7 +3358,9 @@ window.__tabManager = (function () {
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
     const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
-    sorted.slice(0, TABLE_ROW_LIMIT).forEach(r => {
+    const info = paginateRows(sorted, tablePage, rowLimit);
+    tablePage = info.page;
+    info.slice.forEach(r => {
       const tr = document.createElement("tr");
       const cells = [
         fmtDateFull(r.trade_date),
@@ -3321,12 +3372,7 @@ window.__tabManager = (function () {
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
-
-    const countEl = document.createElement("span");
-    countEl.textContent = sorted.length > TABLE_ROW_LIMIT
-      ? `İlk ${TABLE_ROW_LIMIT} satır gösteriliyor — toplam ${sorted.length} satır. Tümü için CSV olarak aktarın.`
-      : `${sorted.length} satır`;
-    foot.appendChild(countEl);
+    updatePagerUI("uztb", info);
   }
 
   function exportUztbCsv(rows) {
@@ -3348,6 +3394,7 @@ window.__tabManager = (function () {
   }
 
   function renderAll() {
+    tablePage = 0; // filtre değişince sayfa 1'e dönülür — eski sayfa artık anlamsız
     const rows = currentRows();
     const series = toSeries(rows);
     renderPriceLegend();
@@ -3417,6 +3464,23 @@ window.__tabManager = (function () {
     },
   };
 
+  document.getElementById("uztb-row-limit").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => {
+      rowLimit = Number(btn.dataset.limit);
+      tablePage = 0;
+      document.getElementById("uztb-row-limit").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+      renderTable(currentRows());
+    });
+  });
+  document.getElementById("uztb-page-prev").addEventListener("click", () => {
+    tablePage -= 1;
+    renderTable(currentRows());
+  });
+  document.getElementById("uztb-page-next").addEventListener("click", () => {
+    tablePage += 1;
+    renderTable(currentRows());
+  });
+
   document.getElementById("uztb-export-btn").addEventListener("click", () => {
     const rows = currentRows();
     if (!rows.length) return;
@@ -3441,7 +3505,8 @@ window.__tabManager = (function () {
   const LINE_COLOR = "var(--series-export)";
   const CHART_W = 960, CHART_H = 240, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
   const TON_CHART_H = 110, TON_PADT = 10, TON_PADB = 24;
-  const TABLE_ROW_LIMIT = 10;
+  let rowLimit = 10;
+  let tablePage = 0;
   const DEFAULT_PRODUCT = "Mısır";
 
   // ---------- i18n (TR/EN/RU) — sadece bu sekmenin sabit arayüz metinleri ve
@@ -3461,6 +3526,7 @@ window.__tabManager = (function () {
       tonnageChartTitle: "Günlük işlem hacmi (ton)",
       tableTitle: "Günlük özet (sınıf bazında)",
       exportBtn: "Excel'e aktar (CSV)",
+      prevPageTitle: "Önceki sayfa", nextPageTitle: "Sonraki sayfa",
       legendAvg: "Ağırlıklı Ortalama", legendMax: "En Yüksek", legendMin: "En Düşük",
       tooltipAvg: "Ağırlıklı Ort.", tooltipMax: "En Yüksek", tooltipMin: "En Düşük",
       noDataChart: "Bu filtrede veri yok.",
@@ -3485,6 +3551,7 @@ window.__tabManager = (function () {
       tonnageChartTitle: "Daily trade volume (ton)",
       tableTitle: "Daily summary (by class)",
       exportBtn: "Export to Excel (CSV)",
+      prevPageTitle: "Previous page", nextPageTitle: "Next page",
       legendAvg: "Weighted Average", legendMax: "Highest", legendMin: "Lowest",
       tooltipAvg: "Weighted Avg.", tooltipMax: "Highest", tooltipMin: "Lowest",
       noDataChart: "No data for this filter.",
@@ -3509,6 +3576,7 @@ window.__tabManager = (function () {
       tonnageChartTitle: "Суточный объём торгов (т)",
       tableTitle: "Суточная сводка (по классам)",
       exportBtn: "Экспорт в Excel (CSV)",
+      prevPageTitle: "Предыдущая страница", nextPageTitle: "Следующая страница",
       legendAvg: "Средневзвешенная", legendMax: "Максимум", legendMin: "Минимум",
       tooltipAvg: "Средневзв.", tooltipMax: "Максимум", tooltipMin: "Минимум",
       noDataChart: "Нет данных для этого фильтра.",
@@ -3940,7 +4008,9 @@ window.__tabManager = (function () {
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
     const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.sinif_adi || "").localeCompare(b.sinif_adi || "", "tr"));
-    sorted.slice(0, TABLE_ROW_LIMIT).forEach(r => {
+    const info = paginateRows(sorted, tablePage, rowLimit);
+    tablePage = info.page;
+    info.slice.forEach(r => {
       const tr = document.createElement("tr");
       const cells = [
         fmtDateFull(r.trade_date), r.sinif_adi || "—",
@@ -3952,12 +4022,7 @@ window.__tabManager = (function () {
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
-
-    const countEl = document.createElement("span");
-    countEl.textContent = sorted.length > TABLE_ROW_LIMIT
-      ? tt("footLimited")(TABLE_ROW_LIMIT, sorted.length)
-      : tt("footAll")(sorted.length);
-    foot.appendChild(countEl);
+    updatePagerUI("ktb", info);
   }
 
   function exportKtbCsv(rows) {
@@ -3979,6 +4044,7 @@ window.__tabManager = (function () {
   }
 
   function renderAll() {
+    tablePage = 0; // filtre değişince sayfa 1'e dönülür — eski sayfa artık anlamsız
     const rows = currentRows();
     const series = dailyWeightedSeries(rows);
     document.getElementById("ktb-chart-title").textContent = tt("chartTitlePrefix") + " — " + translateProduct(state.product || "");
@@ -4088,6 +4154,8 @@ window.__tabManager = (function () {
     document.getElementById("ktb-tonnage-title").textContent = tt("tonnageChartTitle");
     document.getElementById("ktb-table-title").textContent = tt("tableTitle");
     document.getElementById("ktb-export-btn").textContent = tt("exportBtn");
+    document.getElementById("ktb-page-prev").title = tt("prevPageTitle");
+    document.getElementById("ktb-page-next").title = tt("nextPageTitle");
     updateAsofBadge();
     if (allRows.length) {
       buildProductControls();
@@ -4117,6 +4185,23 @@ window.__tabManager = (function () {
         });
     },
   };
+
+  document.getElementById("ktb-row-limit").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => {
+      rowLimit = Number(btn.dataset.limit);
+      tablePage = 0;
+      document.getElementById("ktb-row-limit").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+      renderTable(currentRows());
+    });
+  });
+  document.getElementById("ktb-page-prev").addEventListener("click", () => {
+    tablePage -= 1;
+    renderTable(currentRows());
+  });
+  document.getElementById("ktb-page-next").addEventListener("click", () => {
+    tablePage += 1;
+    renderTable(currentRows());
+  });
 
   document.getElementById("ktb-export-btn").addEventListener("click", () => {
     const rows = currentRows();

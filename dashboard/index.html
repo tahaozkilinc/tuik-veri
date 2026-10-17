@@ -212,7 +212,19 @@
       <section class="card">
         <div class="card-head">
           <h2>Günlük veriler</h2>
-          <button class="reset-btn" id="exchange-summary-export-btn" type="button">Excel'e aktar (CSV)</button>
+          <div class="table-controls">
+            <div class="segmented" id="exchange-summary-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="exchange-summary-pager">
+              <button class="pan-btn" id="exchange-summary-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="exchange-summary-pager-label"></span>
+              <button class="pan-btn" id="exchange-summary-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="exchange-summary-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
         </div>
         <div class="table-scroll">
           <table class="pivot" id="exchange-summary-table">
@@ -228,14 +240,6 @@
             </thead>
             <tbody id="exchange-summary-tbody"></tbody>
           </table>
-        </div>
-        <div class="table-foot">
-          <span id="exchange-summary-row-info"></span>
-          <div class="segmented" id="exchange-summary-row-limit">
-            <button class="seg active" type="button" data-limit="10">10</button>
-            <button class="seg" type="button" data-limit="50">50</button>
-            <button class="seg" type="button" data-limit="100">100</button>
-          </div>
         </div>
       </section>
     </div>
@@ -303,7 +307,19 @@
         <div class="card-head">
           <h2 id="turib-table-title">Günlük işlemler</h2>
           <input type="text" class="table-search" id="turib-table-search" placeholder="Tabloda LİDAŞ/il/ilçe ara…" autocomplete="off">
-          <button class="reset-btn" id="turib-export-btn" type="button">Excel'e aktar (CSV)</button>
+          <div class="table-controls">
+            <div class="segmented" id="turib-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="turib-pager">
+              <button class="pan-btn" id="turib-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="turib-pager-label"></span>
+              <button class="pan-btn" id="turib-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="turib-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
         </div>
         <div class="table-scroll">
           <table class="pivot" id="turib-table">
@@ -359,7 +375,19 @@
       <section class="card">
         <div class="card-head">
           <h2 id="uztb-table-title">Günlük özet</h2>
-          <button class="reset-btn" id="uztb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          <div class="table-controls">
+            <div class="segmented" id="uztb-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="uztb-pager">
+              <button class="pan-btn" id="uztb-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="uztb-pager-label"></span>
+              <button class="pan-btn" id="uztb-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="uztb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
         </div>
         <div class="table-scroll">
           <table class="pivot" id="uztb-table">
@@ -420,7 +448,19 @@
       <section class="card">
         <div class="card-head">
           <h2 id="ktb-table-title">Günlük özet (sınıf bazında)</h2>
-          <button class="reset-btn" id="ktb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          <div class="table-controls">
+            <div class="segmented" id="ktb-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="ktb-pager">
+              <button class="pan-btn" id="ktb-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="ktb-pager-label"></span>
+              <button class="pan-btn" id="ktb-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="ktb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
         </div>
         <div class="table-scroll">
           <table class="pivot" id="ktb-table">
