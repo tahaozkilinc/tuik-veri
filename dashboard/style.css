@@ -352,12 +352,6 @@
   #report-body p { margin: 0 0 4px; font-size: 13px; color: var(--text-secondary); }
   #report-body strong { color: var(--text-primary); font-weight: 700; font-family: "IBM Plex Mono", monospace; }
 
-  footer.note {
-    font-size: 12px; color: var(--text-muted); text-align: center; padding: 10px 0 4px;
-    border-top: 1px solid var(--border); line-height: 1.6;
-  }
-  footer.note a { color: var(--focus); }
-
   @media (max-width: 560px) {
     .brand h1 { font-size: 21px; }
     .filters { gap: 12px; }

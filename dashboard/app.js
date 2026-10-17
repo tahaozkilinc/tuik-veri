@@ -34,13 +34,45 @@ window.__supaCache = (function () {
       // yoksay
     }
   }
-  return { get, set, clearAll };
+  // bir anahtarın en son GERÇEKTEN çekildiği an (önbellekten okunsa bile) —
+  // üst durum rozetinin her sekmede doğru "son çekilme" zamanını göstermesi
+  // için (get() sadece veriyi döner, zamanı değil).
+  function getTime(key) {
+    try {
+      const raw = localStorage.getItem(PREFIX + key);
+      if (!raw) return null;
+      const entry = JSON.parse(raw);
+      return (entry && typeof entry.t === "number") ? entry.t : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  return { get, set, clearAll, getTime };
 })();
 
 document.getElementById("refresh-data").addEventListener("click", () => {
   window.__supaCache.clearAll();
   location.reload();
 });
+
+// ---------------------------------------------------------------------------
+// Üst durum rozeti — hangi sekme/alt sekme aktifse ONUN canlı verisinin en
+// son çekildiği an gösterilir (kayıt sayısı yok). Her panel, aktif olduğunda
+// (önbellekten de gelse) __updateStatusFromCache'i kendi önbellek anahtarıyla
+// çağırır; bu yüzden rozet sekmeler arası geçişte her zaman doğru kalır.
+window.__setStatus = function (text, ok) {
+  const dot = document.getElementById("status-dot");
+  const label = document.getElementById("status-text");
+  label.textContent = text;
+  dot.style.background = ok ? "var(--good)" : "var(--bad)";
+};
+window.__updateStatusFromCache = function (keys) {
+  const list = Array.isArray(keys) ? keys : [keys];
+  const times = list.map(k => window.__supaCache.getTime(k)).filter(t => t != null);
+  if (!times.length) return;
+  const latest = Math.max(...times);
+  window.__setStatus("Canlı — " + new Date(latest).toLocaleString("tr-TR"), true);
+};
 
 (function () {
   "use strict";
@@ -101,14 +133,6 @@ document.getElementById("refresh-data").addEventListener("click", () => {
   function keyToMonthInput(key) {
     const p = periodFromKey(key);
     return p.year + "-" + String(p.month).padStart(2, "0");
-  }
-
-  // ---------- status ----------
-  function setStatus(text, ok) {
-    const dot = document.getElementById("status-dot");
-    const label = document.getElementById("status-text");
-    label.textContent = text;
-    dot.style.background = ok ? "var(--good)" : "var(--bad)";
   }
 
   // ---------- live data ----------
@@ -977,12 +1001,12 @@ document.getElementById("refresh-data").addEventListener("click", () => {
 
   fetchAllRows()
     .then(({ rows }) => {
-      setStatus(`Canlı — ${rows.length.toLocaleString("tr-TR")} kayıt yüklendi — ${new Date().toLocaleString("tr-TR")}`, true);
+      window.__updateStatusFromCache("trade");
       init(rows);
     })
     .catch(err => {
       console.error(err);
-      setStatus("Veri çekilemedi — Supabase bağlantısını kontrol edin", false);
+      window.__setStatus("Veri çekilemedi — Supabase bağlantısını kontrol edin", false);
     });
 })();
 
@@ -1005,7 +1029,7 @@ window.__tabManager = (function () {
     tabs.push({ tabId, panelId, onActivate });
     document.getElementById(tabId).addEventListener("click", () => show(tabId));
   }
-  register("tab-tuik", "tuik-panel");
+  register("tab-tuik", "tuik-panel", () => window.__updateStatusFromCache("trade"));
   return { register };
 })();
 
@@ -1306,10 +1330,11 @@ window.__tabManager = (function () {
 
   let loaded = false;
   window.__tabManager.register("tab-wasde", "wasde-panel", () => {
+    window.__updateStatusFromCache("wasde");
     if (loaded) return;
     loaded = true;
     fetchWasdeRows()
-      .then(rows => init(rows))
+      .then(rows => { window.__updateStatusFromCache("wasde"); init(rows); })
       .catch(err => {
         console.error(err);
         document.getElementById("wasde-release-badge").textContent = "Veri çekilemedi";
@@ -1702,12 +1727,16 @@ window.__tabManager = (function () {
     exportCsv(merged);
   });
 
+  const SUMMARY_CACHE_KEYS = ["summary-turib", "summary-ktb", "summary-tcmb"];
+
   let loaded = false;
   window.__tabManager.register("tab-exchange", "exchange-panel", () => {
+    window.__updateStatusFromCache(SUMMARY_CACHE_KEYS);
     if (loaded) return;
     loaded = true;
     Promise.all([fetchTuribMisir(), fetchKtbMisir(), fetchTcmbRates()])
       .then(([turibRows, ktbRows, tcmbRows]) => {
+        window.__updateStatusFromCache(SUMMARY_CACHE_KEYS);
         merged = buildMerged(turibDailyMap(turibRows), ktbDailyMap(ktbRows), tcmbDailyMap(tcmbRows));
         const badge = document.getElementById("exchange-summary-asof-badge");
         badge.textContent = merged.length ? "Son veri: " + fmtDateFull(merged[merged.length - 1].date) : "Veri yok";
@@ -1721,10 +1750,10 @@ window.__tabManager = (function () {
 
   // ---------- Ticaret Borsası alt sekmesi: Özet / TÜRİB / UZTB / KTB ----------
   const EXCHANGE_SUBTABS = {
-    summary: { tabId: "subtab-summary", sectionId: "exchange-summary-section" },
-    turib: { tabId: "subtab-turib", sectionId: "turib-section", onActivate: () => window.__turibTab && window.__turibTab.onActivate() },
-    uztb: { tabId: "subtab-uztb", sectionId: "uztb-section", onActivate: () => window.__uztbTab && window.__uztbTab.onActivate() },
-    ktb: { tabId: "subtab-ktb", sectionId: "ktb-section", onActivate: () => window.__ktbTab && window.__ktbTab.onActivate() },
+    summary: { tabId: "subtab-summary", sectionId: "exchange-summary-section", onActivate: () => window.__updateStatusFromCache(SUMMARY_CACHE_KEYS) },
+    turib: { tabId: "subtab-turib", sectionId: "turib-section", onActivate: () => { window.__turibTab && window.__turibTab.onActivate(); window.__updateStatusFromCache("turib"); } },
+    uztb: { tabId: "subtab-uztb", sectionId: "uztb-section", onActivate: () => { window.__uztbTab && window.__uztbTab.onActivate(); window.__updateStatusFromCache("uztb"); } },
+    ktb: { tabId: "subtab-ktb", sectionId: "ktb-section", onActivate: () => { window.__ktbTab && window.__ktbTab.onActivate(); window.__updateStatusFromCache("ktb"); } },
   };
   Object.entries(EXCHANGE_SUBTABS).forEach(([key, cfgSub]) => {
     document.getElementById(cfgSub.tabId).addEventListener("click", () => showExchangeSubtab(key));
@@ -2414,6 +2443,7 @@ window.__tabManager = (function () {
       loaded = true;
       fetchTuribRows()
         .then(rows => {
+          window.__updateStatusFromCache("turib");
           allRows = rows;
           document.getElementById("turib-asof-badge").textContent = rows.length
             ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
@@ -2920,6 +2950,7 @@ window.__tabManager = (function () {
       loaded = true;
       fetchUztbRows()
         .then(rows => {
+          window.__updateStatusFromCache("uztb");
           allRows = rows;
           document.getElementById("uztb-asof-badge").textContent = rows.length
             ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
@@ -3478,6 +3509,7 @@ window.__tabManager = (function () {
       loaded = true;
       fetchKtbRows()
         .then(rows => {
+          window.__updateStatusFromCache("ktb");
           allRows = rows;
           document.getElementById("ktb-asof-badge").textContent = rows.length
             ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
@@ -3941,10 +3973,11 @@ window.__tabManager = (function () {
 
   let loaded = false;
   window.__tabManager.register("tab-esr", "esr-panel", () => {
+    window.__updateStatusFromCache("esr");
     if (loaded) return;
     loaded = true;
     fetchEsrRows()
-      .then(rows => init(rows))
+      .then(rows => { window.__updateStatusFromCache("esr"); init(rows); })
       .catch(err => {
         console.error(err);
         document.getElementById("esr-release-badge").textContent = "Veri çekilemedi";
