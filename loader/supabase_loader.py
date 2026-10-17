@@ -116,6 +116,17 @@ def replace_ktb_bulletin(client: Client, trade_date: str, records: list[dict]) -
     return total
 
 
+def replace_tcmb_rate(client: Client, trade_date: str, record: dict) -> int:
+    """Bu `trade_date`'e ait eski TCMB kur satırını silip yeniden yazar —
+    uztb_fiyat'taki tekil sil-ve-ekle ile aynı mantık: her kayıt zaten bir
+    günün TEK kuru (TCMB yayınlandıktan sonra değişmez), bu yüzden toplu
+    değil tekil sil-ve-ekle.
+    """
+    client.table("tcmb_usd_try").delete().eq("trade_date", trade_date).execute()
+    client.table("tcmb_usd_try").insert(record).execute()
+    return 1
+
+
 def start_run(client: Client, source: str = "tuik") -> int:
     resp = client.table("scrape_runs").insert({"status": "running", "source": source}).execute()
     return resp.data[0]["id"]

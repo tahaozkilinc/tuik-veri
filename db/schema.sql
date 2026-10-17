@@ -271,6 +271,25 @@ drop policy if exists "public read ktb_bulletin" on ktb_bulletin;
 create policy "public read ktb_bulletin" on ktb_bulletin for select using (true);
 revoke insert, update, delete, truncate on ktb_bulletin from anon, authenticated;
 
+-- TCMB (Türkiye Cumhuriyet Merkez Bankası) günlük USD/TRY kuru.
+-- Kaynak: www.tcmb.gov.tr/kurlar/{YYYYMM}/{DDMMYYYY}.xml (bugün için
+-- /kurlar/today.xml). Hafta sonu/resmi tatillerde TCMB yayın yapmıyor —
+-- o tarihler için kaynak 404 döner, bu bir hata değil, o gün atlanıyor.
+-- forex_buying = "Döviz Alış" (TL bazlı değerleme/karşılaştırmalarda
+-- yaygın kullanılan referans kur), forex_selling = "Döviz Satış" da
+-- bilgi amaçlı ayrıca tutuluyor.
+create table if not exists tcmb_usd_try (
+    trade_date     date primary key,
+    forex_buying   numeric,
+    forex_selling  numeric,
+    fetched_at     timestamptz not null default now()
+);
+
+alter table tcmb_usd_try enable row level security;
+drop policy if exists "public read tcmb_usd_try" on tcmb_usd_try;
+create policy "public read tcmb_usd_try" on tcmb_usd_try for select using (true);
+revoke insert, update, delete, truncate on tcmb_usd_try from anon, authenticated;
+
 -- MİGRASYON: bu şemayı daha önce (NULLS NOT DISTINCT olmadan) çalıştırdıysanız
 -- — yani trade_stats tablosu zaten varsa — aşağıdaki blok eski unique
 -- constraint'i bulup NULLS NOT DISTINCT olanla değiştirir. Script hem sıfırdan
