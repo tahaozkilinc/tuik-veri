@@ -158,6 +158,7 @@
     font-size: 12px; font-weight: 600; color: var(--text-primary); background: var(--surface-1);
     border: 1px solid var(--border-strong); border-radius: 100px; padding: 5px 12px; white-space: nowrap;
   }
+  .banner-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   .trend-cell { display: inline-flex; align-items: center; gap: 6px; }
   .trend-pill { font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 100px; }
   .trend-pill.up { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }

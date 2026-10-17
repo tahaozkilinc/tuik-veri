@@ -15,7 +15,7 @@
   <header class="topbar">
     <div class="brand">
       <img src="assets/sunar-logo.png" alt="SUNAR" class="brand-logo">
-      <span class="eyebrow">TÜİK · Özel Ticaret Sistemi</span>
+      <span class="eyebrow">Özel Ticaret Sistemi</span>
       <h1>Ticaret Raporu</h1>
     </div>
     <div class="meta">
@@ -368,21 +368,29 @@
 
     <div id="ktb-section" hidden>
       <div class="wasde-banner">
-        <div>
-          <strong>KTB (Konya Ticaret Borsası) günlük Satış Salonu bülteni</strong> — her iş günü 18:00'da
-          o günün bülteni çekilir. Fiyatlar seçili ürün grubunun o günkü tüm sınıflarının (kalite
-          derecelerinin) ağırlıklı ortalaması, en düşüğü ve en yükseğidir.
+        <div id="ktb-banner-text">
+          <strong id="ktb-banner-strong">KTB (Konya Ticaret Borsası) günlük Satış Salonu bülteni</strong>
+          <span id="ktb-banner-body"> — her iş günü 18:00'da o günün bülteni çekilir. Fiyatlar seçili ürün
+          grubunun o günkü tüm sınıflarının (kalite derecelerinin) ağırlıklı ortalaması, en düşüğü ve en
+          yükseğidir.</span>
         </div>
-        <span class="wasde-release-badge" id="ktb-asof-badge">Yükleniyor…</span>
+        <div class="banner-right">
+          <span class="wasde-release-badge" id="ktb-asof-badge">Yükleniyor…</span>
+          <div class="segmented" id="ktb-lang-toggle" role="group" aria-label="Dil / Language / Язык">
+            <button class="seg active" type="button" data-lang="tr">TR</button>
+            <button class="seg" type="button" data-lang="en">EN</button>
+            <button class="seg" type="button" data-lang="ru">RU</button>
+          </div>
+        </div>
       </div>
 
       <section class="filters" aria-label="KTB filtreleri">
         <div class="filter-group product-filter-group">
-          <span class="filter-label">Ürün Grubu</span>
+          <span class="filter-label" id="ktb-label-product">Ürün Grubu</span>
           <div class="chip-multi" id="ktb-product" role="group" aria-label="Ürün Grubu"></div>
         </div>
         <div class="filter-group">
-          <span class="filter-label">Tarih Aralığı</span>
+          <span class="filter-label" id="ktb-label-daterange">Tarih Aralığı</span>
           <div class="period-row">
             <input type="date" class="text-input" id="ktb-date-start">
             <span class="period-sep">–</span>
@@ -390,7 +398,7 @@
           </div>
         </div>
         <div class="filter-group">
-          <span class="filter-label">Hızlı seçim</span>
+          <span class="filter-label" id="ktb-label-quickselect">Hızlı seçim</span>
           <div class="segmented" id="ktb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
             <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
             <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
@@ -407,7 +415,7 @@
         </div>
         <div class="legend" id="ktb-price-legend"></div>
         <svg class="chart" id="ktb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
-        <h3 class="price-chart-title">Günlük işlem hacmi (ton)</h3>
+        <h3 class="price-chart-title" id="ktb-tonnage-title">Günlük işlem hacmi (ton)</h3>
         <svg class="chart" id="ktb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
       </section>
 

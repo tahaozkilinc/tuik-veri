@@ -2992,19 +2992,123 @@ window.__tabManager = (function () {
   const TABLE_ROW_LIMIT = 10;
   const DEFAULT_PRODUCT = "Mısır";
 
+  // ---------- i18n (TR/EN/RU) — sadece bu sekmenin sabit arayüz metinleri ve
+  // ana ürün grubu adları çevriliyor (örn. "Mısır"); kaynaktan gelen sınıf
+  // adları (sinif_adi, örn. "2.GRUP MAKARNALIK BUĞDAYLAR") Türkçe kalıyor —
+  // bunlar kapalı/sabit bir küme değil, kaynağın kendi serbest metni.
+  const KTB_LOCALES = { tr: "tr-TR", en: "en-US", ru: "ru-RU" };
+  const KTB_STRINGS = {
+    tr: {
+      bannerStrong: "KTB (Konya Ticaret Borsası) günlük Satış Salonu bülteni",
+      bannerBody: " — her iş günü 18:00'da o günün bülteni çekilir. Fiyatlar seçili ürün grubunun o günkü tüm sınıflarının (kalite derecelerinin) ağırlıklı ortalaması, en düşüğü ve en yükseğidir.",
+      productGroupLabel: "Ürün Grubu",
+      dateRangeLabel: "Tarih Aralığı",
+      quickSelectLabel: "Hızlı seçim",
+      preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
+      chartTitlePrefix: "Fiyat eğilimi (TL/ton)",
+      tonnageChartTitle: "Günlük işlem hacmi (ton)",
+      tableTitle: "Günlük özet (sınıf bazında)",
+      exportBtn: "Excel'e aktar (CSV)",
+      legendAvg: "Ağırlıklı Ortalama", legendMax: "En Yüksek", legendMin: "En Düşük",
+      tooltipAvg: "Ağırlıklı Ort.", tooltipMax: "En Yüksek", tooltipMin: "En Düşük",
+      noDataChart: "Bu filtrede veri yok.",
+      kpiAvgPrice: "Ağırlıklı ortalama fiyat (seçili dönem)",
+      kpiLastPrice: "Son fiyat",
+      kpiTotalVolume: "Toplam işlem hacmi",
+      kpiTotalCount: "Toplam işlem sayısı",
+      thDate: "Tarih", thClass: "Sınıf", thMin: "En Düşük", thMax: "En Yüksek", thAvg: "Ort. Fiyat", thQty: "Miktar", thCount: "İşlem Sayısı",
+      footAll: n => `${n} satır`,
+      footLimited: (n, total) => `İlk ${n} satır gösteriliyor — toplam ${total} satır. Tümü için CSV olarak aktarın.`,
+      asofLoading: "Yükleniyor…", asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi",
+      tonSuffix: " ton", priceSuffix: " TL/ton",
+    },
+    en: {
+      bannerStrong: "KTB (Konya Commodity Exchange) daily Sales Hall bulletin",
+      bannerBody: " — the day's bulletin is fetched every business day at 18:00 (TR time). Prices are the quantity-weighted average, lowest and highest across all classes (quality grades) of the selected product group that day.",
+      productGroupLabel: "Product Group",
+      dateRangeLabel: "Date Range",
+      quickSelectLabel: "Quick select",
+      preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
+      chartTitlePrefix: "Price trend (TRY/ton)",
+      tonnageChartTitle: "Daily trade volume (ton)",
+      tableTitle: "Daily summary (by class)",
+      exportBtn: "Export to Excel (CSV)",
+      legendAvg: "Weighted Average", legendMax: "Highest", legendMin: "Lowest",
+      tooltipAvg: "Weighted Avg.", tooltipMax: "Highest", tooltipMin: "Lowest",
+      noDataChart: "No data for this filter.",
+      kpiAvgPrice: "Weighted average price (selected period)",
+      kpiLastPrice: "Last price",
+      kpiTotalVolume: "Total trade volume",
+      kpiTotalCount: "Total number of trades",
+      thDate: "Date", thClass: "Class", thMin: "Lowest", thMax: "Highest", thAvg: "Avg. Price", thQty: "Quantity", thCount: "Trade Count",
+      footAll: n => `${n} row${n === 1 ? "" : "s"}`,
+      footLimited: (n, total) => `Showing first ${n} rows — ${total} rows total. Export to CSV for all.`,
+      asofLoading: "Loading…", asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data",
+      tonSuffix: " ton", priceSuffix: " TRY/ton",
+    },
+    ru: {
+      bannerStrong: "КТБ (Конийская товарная биржа) — ежедневный бюллетень торгового зала",
+      bannerBody: " — бюллетень за день загружается каждый рабочий день в 18:00 (время Турции). Цены — это средневзвешенная, минимальная и максимальная цена по всем классам (сортам) выбранной товарной группы за этот день.",
+      productGroupLabel: "Товарная группа",
+      dateRangeLabel: "Период",
+      quickSelectLabel: "Быстрый выбор",
+      preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
+      chartTitlePrefix: "Динамика цены (TRY/т)",
+      tonnageChartTitle: "Суточный объём торгов (т)",
+      tableTitle: "Суточная сводка (по классам)",
+      exportBtn: "Экспорт в Excel (CSV)",
+      legendAvg: "Средневзвешенная", legendMax: "Максимум", legendMin: "Минимум",
+      tooltipAvg: "Средневзв.", tooltipMax: "Максимум", tooltipMin: "Минимум",
+      noDataChart: "Нет данных для этого фильтра.",
+      kpiAvgPrice: "Средневзвешенная цена (за период)",
+      kpiLastPrice: "Последняя цена",
+      kpiTotalVolume: "Общий объём торгов",
+      kpiTotalCount: "Общее число сделок",
+      thDate: "Дата", thClass: "Класс", thMin: "Минимум", thMax: "Максимум", thAvg: "Сред. цена", thQty: "Объём", thCount: "Число сделок",
+      footAll: n => `${n} строк`,
+      footLimited: (n, total) => `Показаны первые ${n} строк — всего ${total}. Для всех данных экспортируйте в CSV.`,
+      asofLoading: "Загрузка…", asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные",
+      tonSuffix: " т", priceSuffix: " TRY/т",
+    },
+  };
+  const KTB_PRODUCT_NAMES = {
+    "Beyaz Sert Buğday": { en: "White Hard Wheat", ru: "Белая твёрдая пшеница" },
+    "Diğer Beyaz Buğday": { en: "Other White Wheat", ru: "Прочая белая пшеница" },
+    "Diğer Kırmızı Buğday": { en: "Other Red Wheat", ru: "Прочая красная пшеница" },
+    "Kırmızı Sert Buğday": { en: "Red Hard Wheat", ru: "Красная твёрдая пшеница" },
+    "Makarnalık Buğday": { en: "Durum Wheat", ru: "Твёрдая пшеница (дурум)" },
+    "Arpa": { en: "Barley", ru: "Ячмень" },
+    "Mısır": { en: "Corn", ru: "Кукуруза" },
+    "Diğer Ürünler": { en: "Other Products", ru: "Прочая продукция" },
+    "Tritikale": { en: "Triticale", ru: "Тритикале" },
+    "Yulaf": { en: "Oats", ru: "Овёс" },
+    "Çavdar": { en: "Rye", ru: "Рожь" },
+    "Nohut": { en: "Chickpeas", ru: "Нут" },
+    "Kuru Fasulye": { en: "Dry Beans", ru: "Сухая фасоль" },
+    "Mercimek": { en: "Lentils", ru: "Чечевица" },
+    "Çemen": { en: "Fenugreek", ru: "Пажитник" },
+  };
+  let lang = "tr";
+  function tt(key) { return KTB_STRINGS[lang][key]; }
+  function translateProduct(name) {
+    if (lang === "tr" || !name) return name;
+    const entry = KTB_PRODUCT_NAMES[name];
+    return entry ? entry[lang] : name;
+  }
+
   function fmtPriceTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " TL/ton";
+    return v.toLocaleString(KTB_LOCALES[lang], { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + tt("priceSuffix");
   }
   function fmtTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+    return v.toLocaleString(KTB_LOCALES[lang], { maximumFractionDigits: 1 }) + tt("tonSuffix");
   }
   function fmtDateShort(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(KTB_LOCALES[lang], { day: "2-digit", month: "short" });
   }
   function fmtDateFull(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(KTB_LOCALES[lang], { day: "numeric", month: "long", year: "numeric" });
   }
 
   const CACHE_TTL_MS = 3 * 60 * 60 * 1000;
@@ -3107,9 +3211,9 @@ window.__tabManager = (function () {
     const el = document.getElementById("ktb-price-legend");
     el.textContent = "";
     [
-      ["Ağırlıklı Ortalama", false],
-      ["En Yüksek", true],
-      ["En Düşük", true],
+      [tt("legendAvg"), false],
+      [tt("legendMax"), true],
+      [tt("legendMin"), true],
     ].forEach(([label, dashed]) => {
       const key = document.createElement("span");
       key.className = "key";
@@ -3142,7 +3246,7 @@ window.__tabManager = (function () {
     if (!points.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
-      t.textContent = "Bu filtrede veri yok.";
+      t.textContent = tt("noDataChart");
       svg.appendChild(t);
       return;
     }
@@ -3164,7 +3268,7 @@ window.__tabManager = (function () {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
       t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
-      t.textContent = Math.round(maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString("tr-TR");
+      t.textContent = Math.round(maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString(KTB_LOCALES[lang]);
       svg.appendChild(t);
     }
 
@@ -3256,7 +3360,7 @@ window.__tabManager = (function () {
         const wrap = document.createElement("div");
         const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
         wrap.appendChild(ttl);
-        [["Ağırlıklı Ort.", p.price], ["En Yüksek", p.maxPrice], ["En Düşük", p.minPrice]].forEach(([label, val]) => {
+        [[tt("tooltipAvg"), p.price], [tt("tooltipMax"), p.maxPrice], [tt("tooltipMin"), p.minPrice]].forEach(([label, val]) => {
           const row = document.createElement("div"); row.className = "row";
           const l = document.createElement("span"); l.textContent = label + ": ";
           const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
@@ -3281,7 +3385,7 @@ window.__tabManager = (function () {
     if (!points.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", TON_CHART_H / 2); t.setAttribute("class", "axis-label");
-      t.textContent = "Bu filtrede veri yok.";
+      t.textContent = tt("noDataChart");
       svg.appendChild(t);
       return;
     }
@@ -3300,7 +3404,7 @@ window.__tabManager = (function () {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
       t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
-      t.textContent = val.toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+      t.textContent = fmtTon(val);
       svg.appendChild(t);
     });
 
@@ -3360,10 +3464,10 @@ window.__tabManager = (function () {
     const el = document.getElementById("ktb-kpi-row");
     el.textContent = "";
     const tiles = [
-      ["Ağırlıklı ortalama fiyat (seçili dönem)", fmtPriceTon(overallWeightedAvg(rows))],
-      ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
-      ["Toplam işlem hacmi", fmtTon(rows.reduce((s, r) => s + (r.miktar || 0) / 1000, 0))],
-      ["Toplam işlem sayısı", String(rows.reduce((s, r) => s + (r.islem_sayisi || 0), 0))],
+      [tt("kpiAvgPrice"), fmtPriceTon(overallWeightedAvg(rows))],
+      [tt("kpiLastPrice"), series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
+      [tt("kpiTotalVolume"), fmtTon(rows.reduce((s, r) => s + (r.miktar || 0) / 1000, 0))],
+      [tt("kpiTotalCount"), String(rows.reduce((s, r) => s + (r.islem_sayisi || 0), 0))],
     ];
     tiles.forEach(([label, value]) => {
       const tile = document.createElement("div");
@@ -3380,7 +3484,7 @@ window.__tabManager = (function () {
     const tbody = document.getElementById("ktb-tbody");
     const foot = document.getElementById("ktb-table-foot");
     thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
-    const cols = ["Tarih", "Sınıf", "En Düşük", "En Yüksek", "Ort. Fiyat", "Miktar", "İşlem Sayısı"];
+    const cols = [tt("thDate"), tt("thClass"), tt("thMin"), tt("thMax"), tt("thAvg"), tt("thQty"), tt("thCount")];
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
     const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.sinif_adi || "").localeCompare(b.sinif_adi || "", "tr"));
@@ -3399,8 +3503,8 @@ window.__tabManager = (function () {
 
     const countEl = document.createElement("span");
     countEl.textContent = sorted.length > TABLE_ROW_LIMIT
-      ? `İlk ${TABLE_ROW_LIMIT} satır gösteriliyor — toplam ${sorted.length} satır. Tümü için CSV olarak aktarın.`
-      : `${sorted.length} satır`;
+      ? tt("footLimited")(TABLE_ROW_LIMIT, sorted.length)
+      : tt("footAll")(sorted.length);
     foot.appendChild(countEl);
   }
 
@@ -3425,7 +3529,7 @@ window.__tabManager = (function () {
   function renderAll() {
     const rows = currentRows();
     const series = dailyWeightedSeries(rows);
-    document.getElementById("ktb-chart-title").textContent = "Fiyat eğilimi (TL/ton) — " + (state.product || "");
+    document.getElementById("ktb-chart-title").textContent = tt("chartTitlePrefix") + " — " + translateProduct(state.product || "");
     renderPriceLegend();
     drawPriceChart(series);
     drawTonnageChart(series);
@@ -3491,7 +3595,7 @@ window.__tabManager = (function () {
     products.forEach(p => {
       const btn = document.createElement("button");
       btn.className = "chip" + (p === state.product ? " active" : "");
-      btn.type = "button"; btn.textContent = p;
+      btn.type = "button"; btn.textContent = translateProduct(p);
       btn.addEventListener("click", () => {
         state.product = p;
         wrap.querySelectorAll(".chip").forEach(b => b.classList.toggle("active", b === btn));
@@ -3502,6 +3606,48 @@ window.__tabManager = (function () {
     });
   }
 
+  function updateAsofBadge() {
+    const badge = document.getElementById("ktb-asof-badge");
+    badge.textContent = allRows.length
+      ? tt("asofPrefix") + fmtDateFull(allRows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), allRows[0].trade_date))
+      : tt("asofNoData");
+  }
+
+  // Dil değişince sabit arayüz metinlerinin tamamı yeniden yazılır + ürün
+  // çipleri/grafik/tablo (ürün grubu adları ve rozet dahil) yeniden render
+  // edilir — state.product/filtreler Türkçe ham değerde kalır, sadece
+  // GÖRÜNÜM çevriliyor.
+  function applyLanguage(newLang) {
+    lang = newLang;
+    // Sayfanın kökü <html lang="tr">: CSS text-transform:uppercase (filtre
+    // etiketleri, tablo başlıkları) bunu kullanıp İngilizce/Rusça metni bile
+    // Türkçe büyük harf kurallarıyla çeviriyor ("HIGHEST" -> "HİGHEST" gibi,
+    // noktalı İ) — KTB bölümünün kendi lang attribute'unu geçersiz kılmak bu
+    // alt ağaçta doğru (locale'e uygun) büyütmeyi geri getiriyor.
+    document.getElementById("ktb-section").setAttribute("lang", lang);
+    document.querySelectorAll("#ktb-lang-toggle .seg").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+    document.getElementById("ktb-banner-strong").textContent = tt("bannerStrong");
+    document.getElementById("ktb-banner-body").textContent = tt("bannerBody");
+    document.getElementById("ktb-label-product").textContent = tt("productGroupLabel");
+    document.getElementById("ktb-label-daterange").textContent = tt("dateRangeLabel");
+    document.getElementById("ktb-label-quickselect").textContent = tt("quickSelectLabel");
+    document.querySelector('#ktb-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
+    document.querySelector('#ktb-period-presets .seg[data-preset="90"]').textContent = tt("preset90");
+    document.querySelector('#ktb-period-presets .seg[data-preset="all"]').textContent = tt("presetAll");
+    document.getElementById("ktb-tonnage-title").textContent = tt("tonnageChartTitle");
+    document.getElementById("ktb-table-title").textContent = tt("tableTitle");
+    document.getElementById("ktb-export-btn").textContent = tt("exportBtn");
+    updateAsofBadge();
+    if (allRows.length) {
+      buildProductControls();
+      renderAll();
+    }
+  }
+
+  document.getElementById("ktb-lang-toggle").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => applyLanguage(btn.dataset.lang));
+  });
+
   let loaded = false;
   window.__ktbTab = {
     onActivate() {
@@ -3511,16 +3657,14 @@ window.__tabManager = (function () {
         .then(rows => {
           window.__updateStatusFromCache("ktb");
           allRows = rows;
-          document.getElementById("ktb-asof-badge").textContent = rows.length
-            ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
-            : "Veri yok";
+          updateAsofBadge();
           buildProductControls();
           buildDateControls();
           renderAll();
         })
         .catch(err => {
           console.error(err);
-          document.getElementById("ktb-asof-badge").textContent = "Veri çekilemedi";
+          document.getElementById("ktb-asof-badge").textContent = tt("asofError");
         });
     },
   };
