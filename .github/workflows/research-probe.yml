@@ -9,4 +9,4 @@ jobs:
         with:
           python-version: "3.12"
       - name: WASDE labels probe
-        run: python scripts/wasde_probe.py
+        run: python scripts/wasde_labels_i18n_probe.py
