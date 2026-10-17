@@ -88,11 +88,51 @@ const __i18nPanels = [];
 window.__registerI18nPanel = function (applyFn) {
   __i18nPanels.push(applyFn);
 };
+
+// Sayfa başlığı/üst sekme çubuğu/Ticaret Borsası alt sekmeleri gibi tek bir
+// panele ait olmayan, paylaşılan "chrome" metinleri — her panelin kendi
+// applyLanguage'ı yerine burada, tek seferde çevriliyor.
+const SHARED_STRINGS = {
+  tr: {
+    eyebrow: "Özel Ticaret Sistemi",
+    tabTuik: "TÜİK Dış Ticaret", tabWasde: "WASDE Raporu", tabExchange: "Ticaret Borsası", tabEsr: "ABD İhracat Satışları",
+    subtabSummary: "Özet",
+    refreshTitle: "Önbelleği temizle, en güncel veriyi çek",
+    themeTitle: "Tema değiştir",
+  },
+  en: {
+    eyebrow: "Private Trade System",
+    tabTuik: "TurkStat Foreign Trade", tabWasde: "WASDE Report", tabExchange: "Commodity Exchange", tabEsr: "US Export Sales",
+    subtabSummary: "Summary",
+    refreshTitle: "Clear cache, fetch the latest data",
+    themeTitle: "Switch theme",
+  },
+  ru: {
+    eyebrow: "Частная торговая система",
+    tabTuik: "Внешняя торговля (TurkStat)", tabWasde: "Отчёт WASDE", tabExchange: "Товарная биржа", tabEsr: "Экспортные продажи США",
+    subtabSummary: "Сводка",
+    refreshTitle: "Очистить кэш, загрузить последние данные",
+    themeTitle: "Сменить тему",
+  },
+};
+function applySharedChrome(lang) {
+  const s = SHARED_STRINGS[lang];
+  document.getElementById("app-eyebrow").textContent = s.eyebrow;
+  document.getElementById("tab-tuik").textContent = s.tabTuik;
+  document.getElementById("tab-wasde").textContent = s.tabWasde;
+  document.getElementById("tab-exchange").textContent = s.tabExchange;
+  document.getElementById("tab-esr").textContent = s.tabEsr;
+  document.getElementById("subtab-summary").textContent = s.subtabSummary;
+  document.getElementById("refresh-data").title = s.refreshTitle;
+  document.getElementById("theme-toggle").title = s.themeTitle;
+}
+
 window.__setAppLang = function (lang) {
   window.__appLang = lang;
   try { localStorage.setItem("tuik-dash-lang", lang); } catch (e) { /* kota dolu / gizli sekme — tercih bu oturumda kalır */ }
   document.documentElement.setAttribute("lang", lang);
   document.querySelectorAll("#app-lang-toggle .seg").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+  applySharedChrome(lang);
   __i18nPanels.forEach(fn => { try { fn(lang); } catch (e) { console.error(e); } });
 };
 document.getElementById("app-lang-toggle").querySelectorAll(".seg").forEach(btn => {
@@ -351,14 +391,141 @@ function translateCountryName(name, lang) {
     "151521900000": "MISIR HAM",
     "151529900000": "MISIR RAFİNE",
   };
-  const FLOW_LABEL = ["İhracat", "İthalat"];
   const FLOW_COLOR = ["var(--series-export)", "var(--series-import)"];
   const CAT_COLORS = [
     "var(--series-export)", "var(--series-import)", "var(--cat-3)", "var(--cat-4)", "var(--cat-5)",
     "var(--cat-6)", "var(--cat-7)", "var(--cat-8)", "var(--cat-9)", "var(--cat-10)", "var(--cat-11)",
   ];
-  const MONTH_ABBR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-  const MONTH_FULL = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+  // ---------- i18n (TR/EN/RU) — site geneli window.__registerI18nPanel'e
+  // kayıtlı. Ay adları ve "İhracat/İthalat" dile göre değişir; ürün kısa
+  // adları (GTIP_SHORT_NAMES) ve ülke adları (COUNTRY_NAMES_I18N, global)
+  // ayrıca çevriliyor.
+  let lang = "tr";
+  const FLOW_LABEL_I18N = {
+    tr: ["İhracat", "İthalat"],
+    en: ["Export", "Import"],
+    ru: ["Экспорт", "Импорт"],
+  };
+  const MONTH_ABBR_I18N = {
+    tr: ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"],
+    en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    ru: ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"],
+  };
+  const MONTH_FULL_I18N = {
+    tr: ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
+    en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    ru: ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"],
+  };
+  const GTIP_SHORT_NAMES_I18N = {
+    "100590000019": { en: "Corn", ru: "Кукуруза" },
+    "120190000000": { en: "Soybeans", ru: "Соевые бобы" },
+    "110430900011": { en: "Corn Germ", ru: "Кукурузный зародыш" },
+    "230400000000": { en: "Soybean Meal", ru: "Соевый шрот" },
+    "120600990019": { en: "Sunflower Seed", ru: "Семена подсолнечника" },
+    "151211910000": { en: "Crude Sunflower Oil", ru: "Сырое подсолнечное масло" },
+    "151219900011": { en: "Refined Sunflower Oil", ru: "Рафинированное подсолнечное масло" },
+    "150710900000": { en: "Crude Soybean Oil", ru: "Сырое соевое масло" },
+    "150790900000": { en: "Refined Soybean Oil", ru: "Рафинированное соевое масло" },
+    "151521900000": { en: "Crude Corn Oil", ru: "Сырое кукурузное масло" },
+    "151529900000": { en: "Refined Corn Oil", ru: "Рафинированное кукурузное масло" },
+  };
+  const TUIK_STRINGS = {
+    tr: {
+      filterFlowLabel: "Yön", filterPeriodLabel: "Dönem", filterQuickSelectLabel: "Hızlı seçim",
+      presetYtd: "Bu yıl", preset12m: "Son 12 ay", presetAll: "Tüm zamanlar",
+      filterProductLabel: "Ürün", filterCountryLabel: "Ülke", countrySearchPlaceholder: "Ülke ara ve ekle…",
+      resetFiltersBtn: "Filtreleri temizle",
+      breakdownTitle: "Kırılım — istediğiniz kombinasyonu seçin",
+      top10Prefix: "İlk 10",
+      unitPriceBadgeTitle: "Toplam değer / toplam miktar — geçerli filtrelerin ortalaması",
+      tonnageBadgeTitle: "Geçerli filtrelerdeki toplam miktar",
+      unitPriceBadgePrefix: "Ort. birim fiyat: ", tonnageBadgePrefix: "Toplam tonaj: ",
+      trendTitle: "Zaman içinde eğilim (ton)",
+      prevPeriodTitle: "Önceki dönem", nextPeriodTitle: "Sonraki dönem",
+      priceChartTitle: "Birim fiyat eğilimi ($/ton)",
+      detailTableTitle: "Detay tablo",
+      tableSearchPlaceholder: "Tabloda ürün/ülke ara…",
+      noDataFilters: "Bu filtrelerle veri yok.", noDataPeriod: "Bu dönemde veri yok.",
+      tooltipTotalValue: "toplam değer", tooltipTotalQty: "toplam miktar",
+      dimProduct: "Ürün", dimCountry: "Ülke", dimYear: "Yıl", dimMonth: "Ay", dimFlow: "Yön",
+      kpiTotalExport: "Toplam İhracat", kpiTotalImport: "Toplam İthalat", kpiNet: "Net (İhracat − İthalat)",
+      kpiCountries: "Kapsanan ülke", kpiProducts: "Kapsanan ürün", kpiTotalTonnage: "Toplam Tonaj",
+      yoySuffix: "YoY",
+      thRank: "#", thQty: "Toplam Miktar", thValue: "Toplam Değer", thUnitPrice: "Birim Fiyat", thShare: "Pay",
+      tableCountLimited: (n, total) => `İlk ${n} satır gösteriliyor · toplam ${total.toLocaleString("tr-TR")} satır`,
+      tableCountAll: n => `${n.toLocaleString("tr-TR")} satır`,
+      tableTotal: v => "Toplam: " + v,
+      noMatchCountry: "Eşleşen ülke yok",
+      flowAll: "Tümü",
+      dataError: "Veri çekilemedi — Supabase bağlantısını kontrol edin",
+    },
+    en: {
+      filterFlowLabel: "Direction", filterPeriodLabel: "Period", filterQuickSelectLabel: "Quick select",
+      presetYtd: "This year", preset12m: "Last 12 months", presetAll: "All time",
+      filterProductLabel: "Product", filterCountryLabel: "Country", countrySearchPlaceholder: "Search and add a country…",
+      resetFiltersBtn: "Clear filters",
+      breakdownTitle: "Breakdown — choose your combination",
+      top10Prefix: "Top 10",
+      unitPriceBadgeTitle: "Total value / total quantity — average for current filters",
+      tonnageBadgeTitle: "Total quantity for current filters",
+      unitPriceBadgePrefix: "Avg. unit price: ", tonnageBadgePrefix: "Total tonnage: ",
+      trendTitle: "Trend over time (ton)",
+      prevPeriodTitle: "Previous period", nextPeriodTitle: "Next period",
+      priceChartTitle: "Unit price trend ($/ton)",
+      detailTableTitle: "Detail table",
+      tableSearchPlaceholder: "Search product/country in table…",
+      noDataFilters: "No data for these filters.", noDataPeriod: "No data for this period.",
+      tooltipTotalValue: "total value", tooltipTotalQty: "total quantity",
+      dimProduct: "Product", dimCountry: "Country", dimYear: "Year", dimMonth: "Month", dimFlow: "Direction",
+      kpiTotalExport: "Total Exports", kpiTotalImport: "Total Imports", kpiNet: "Net (Exports − Imports)",
+      kpiCountries: "Countries covered", kpiProducts: "Products covered", kpiTotalTonnage: "Total Tonnage",
+      yoySuffix: "YoY",
+      thRank: "#", thQty: "Total Quantity", thValue: "Total Value", thUnitPrice: "Unit Price", thShare: "Share",
+      tableCountLimited: (n, total) => `Showing first ${n} rows · ${total.toLocaleString("en-US")} rows total`,
+      tableCountAll: n => `${n.toLocaleString("en-US")} rows`,
+      tableTotal: v => "Total: " + v,
+      noMatchCountry: "No matching country",
+      flowAll: "All",
+      dataError: "Failed to fetch data — check the Supabase connection",
+    },
+    ru: {
+      filterFlowLabel: "Направление", filterPeriodLabel: "Период", filterQuickSelectLabel: "Быстрый выбор",
+      presetYtd: "С начала года", preset12m: "Последние 12 месяцев", presetAll: "Всё время",
+      filterProductLabel: "Продукт", filterCountryLabel: "Страна", countrySearchPlaceholder: "Поиск и добавление страны…",
+      resetFiltersBtn: "Сбросить фильтры",
+      breakdownTitle: "Разбивка — выберите комбинацию",
+      top10Prefix: "Топ 10",
+      unitPriceBadgeTitle: "Общая стоимость / общее количество — среднее по текущим фильтрам",
+      tonnageBadgeTitle: "Общее количество по текущим фильтрам",
+      unitPriceBadgePrefix: "Сред. цена за ед.: ", tonnageBadgePrefix: "Общий тоннаж: ",
+      trendTitle: "Динамика во времени (т)",
+      prevPeriodTitle: "Предыдущий период", nextPeriodTitle: "Следующий период",
+      priceChartTitle: "Динамика удельной цены ($/т)",
+      detailTableTitle: "Подробная таблица",
+      tableSearchPlaceholder: "Поиск продукта/страны в таблице…",
+      noDataFilters: "Нет данных для этих фильтров.", noDataPeriod: "Нет данных за этот период.",
+      tooltipTotalValue: "общая стоимость", tooltipTotalQty: "общее количество",
+      dimProduct: "Продукт", dimCountry: "Страна", dimYear: "Год", dimMonth: "Месяц", dimFlow: "Направление",
+      kpiTotalExport: "Общий экспорт", kpiTotalImport: "Общий импорт", kpiNet: "Нетто (экспорт − импорт)",
+      kpiCountries: "Охвачено стран", kpiProducts: "Охвачено продуктов", kpiTotalTonnage: "Общий тоннаж",
+      yoySuffix: "г/г",
+      thRank: "#", thQty: "Общее количество", thValue: "Общая стоимость", thUnitPrice: "Цена за ед.", thShare: "Доля",
+      tableCountLimited: (n, total) => `Показаны первые ${n} строк · всего ${total.toLocaleString("ru-RU")} строк`,
+      tableCountAll: n => `${n.toLocaleString("ru-RU")} строк`,
+      tableTotal: v => "Итого: " + v,
+      noMatchCountry: "Совпадающих стран нет",
+      flowAll: "Все",
+      dataError: "Не удалось загрузить данные — проверьте подключение к Supabase",
+    },
+  };
+  function tt(key) { return TUIK_STRINGS[lang][key]; }
+  function translateProductShort(code) {
+    const base = GTIP_SHORT_NAMES[code] || code;
+    if (lang === "tr") return base;
+    const entry = GTIP_SHORT_NAMES_I18N[code];
+    return entry ? entry[lang] : base;
+  }
 
   // period "key" = ay çözünürlüğünde tek bir sıralanabilir tamsayı (year*12 + monthIndex0).
   function periodKey(year, month) { return year * 12 + ((month || 1) - 1); }
@@ -366,8 +533,8 @@ function translateCountryName(name, lang) {
     const month = (((key % 12) + 12) % 12) + 1;
     return { year: (key - (month - 1)) / 12, month };
   }
-  function periodLabelShort(key) { const p = periodFromKey(key); return MONTH_ABBR[p.month - 1] + " " + String(p.year).slice(2); }
-  function periodLabelFull(key) { const p = periodFromKey(key); return MONTH_FULL[p.month - 1] + " " + p.year; }
+  function periodLabelShort(key) { const p = periodFromKey(key); return MONTH_ABBR_I18N[lang][p.month - 1] + " " + String(p.year).slice(2); }
+  function periodLabelFull(key) { const p = periodFromKey(key); return MONTH_FULL_I18N[lang][p.month - 1] + " " + p.year; }
   function monthInputToKey(str) {
     if (!str) return null;
     const [y, m] = str.split("-").map(Number);
@@ -427,6 +594,7 @@ function translateCountryName(name, lang) {
   });
 
   function init(RAW) {
+    lang = window.__appLang || "tr"; // fetch sırasında dil değişmiş olabilir — ilk render'dan itibaren doğru olsun
 
     const countryNames = {};
     RAW.forEach(r => { if (!countryNames[r[3]]) countryNames[r[3]] = r[4]; });
@@ -451,11 +619,11 @@ function translateCountryName(name, lang) {
     };
 
     const DIMENSIONS = {
-      product: { label: "Ürün", get: r => r[2], display: v => GTIP_SHORT_NAMES[v] || v },
-      country: { label: "Ülke", get: r => r[3], display: v => countryNames[v] || v },
-      year: { label: "Yıl", get: r => r[0], display: v => String(v) },
-      month: { label: "Ay", get: r => periodKey(r[0], r[7]), display: v => periodLabelFull(v) },
-      flow: { label: "Yön", get: r => r[1], display: v => FLOW_LABEL[v] },
+      product: { get label() { return tt("dimProduct"); }, get: r => r[2], display: v => translateProductShort(v) },
+      country: { get label() { return tt("dimCountry"); }, get: r => r[3], display: v => translateCountryName(countryNames[v] || v, lang) },
+      year: { get label() { return tt("dimYear"); }, get: r => r[0], display: v => String(v) },
+      month: { get label() { return tt("dimMonth"); }, get: r => periodKey(r[0], r[7]), display: v => periodLabelFull(v) },
+      flow: { get label() { return tt("dimFlow"); }, get: r => r[1], display: v => FLOW_LABEL_I18N[lang][v] },
     };
     const DIM_ORDER = ["product", "country", "year", "month", "flow"];
 
@@ -548,12 +716,12 @@ function translateCountryName(name, lang) {
       const rangeLabel = " (" + periodRangeLabel() + ")";
 
       const tiles = [
-        { label: "Toplam İhracat" + rangeLabel, value: fmtUsd(exp), delta: yoyExp },
-        { label: "Toplam İthalat" + rangeLabel, value: fmtUsd(imp), delta: yoyImp },
-        { label: "Net (İhracat − İthalat)", value: (net >= 0 ? "+" : "") + fmtUsd(net), delta: null },
-        { label: "Kapsanan ülke", value: String(countries), delta: null },
-        { label: "Kapsanan ürün", value: String(products), delta: null },
-        { label: "Toplam Tonaj", value: fmtKg(kg), delta: null },
+        { label: tt("kpiTotalExport") + rangeLabel, value: fmtUsd(exp), delta: yoyExp },
+        { label: tt("kpiTotalImport") + rangeLabel, value: fmtUsd(imp), delta: yoyImp },
+        { label: tt("kpiNet"), value: (net >= 0 ? "+" : "") + fmtUsd(net), delta: null },
+        { label: tt("kpiCountries"), value: String(countries), delta: null },
+        { label: tt("kpiProducts"), value: String(products), delta: null },
+        { label: tt("kpiTotalTonnage"), value: fmtKg(kg), delta: null },
       ];
 
       const container = document.getElementById("kpi-row");
@@ -570,7 +738,7 @@ function translateCountryName(name, lang) {
           const d = document.createElement("div");
           const dir = t.delta > 0.05 ? "up" : t.delta < -0.05 ? "down" : "flat";
           d.className = "delta " + dir;
-          d.textContent = (t.delta >= 0 ? "▲ " : "▼ ") + Math.abs(t.delta).toFixed(1) + "% YoY";
+          d.textContent = (t.delta >= 0 ? "▲ " : "▼ ") + Math.abs(t.delta).toFixed(1) + "% " + tt("yoySuffix");
           tile.appendChild(d);
         }
         container.appendChild(tile);
@@ -640,7 +808,7 @@ function translateCountryName(name, lang) {
         sw.className = "swatch";
         sw.style.background = CAT_COLORS[i % CAT_COLORS.length];
         chip.appendChild(sw);
-        chip.appendChild(document.createTextNode(GTIP_SHORT_NAMES[code] || code));
+        chip.appendChild(document.createTextNode(translateProductShort(code)));
         chip.addEventListener("click", () => {
           if (state.products.has(code)) state.products.delete(code); else state.products.add(code);
           chip.classList.toggle("active");
@@ -657,7 +825,7 @@ function translateCountryName(name, lang) {
         const chip = document.createElement("button");
         chip.className = "chip active";
         chip.type = "button";
-        chip.appendChild(document.createTextNode(countryNames[code] || code));
+        chip.appendChild(document.createTextNode(translateCountryName(countryNames[code] || code, lang)));
         const x = document.createElement("span");
         x.className = "x"; x.textContent = " ✕";
         chip.appendChild(x);
@@ -692,12 +860,12 @@ function translateCountryName(name, lang) {
         box.textContent = "";
         if (!q) { closeSuggestions(); return; }
         currentMatches = allCountries
-          .filter(c => !state.countries.has(c) && countryNames[c].toLowerCase().includes(q))
+          .filter(c => !state.countries.has(c) && translateCountryName(countryNames[c], lang).toLowerCase().includes(q))
           .slice(0, 30);
         if (!currentMatches.length) {
           const empty = document.createElement("div");
           empty.className = "empty";
-          empty.textContent = "Eşleşen ülke yok";
+          empty.textContent = tt("noMatchCountry");
           box.appendChild(empty);
           box.classList.add("open");
           activeIndex = -1;
@@ -706,7 +874,7 @@ function translateCountryName(name, lang) {
         currentMatches.forEach((code, i) => {
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.textContent = countryNames[code];
+          btn.textContent = translateCountryName(countryNames[code], lang);
           if (i === activeIndex) btn.classList.add("active-option");
           btn.addEventListener("mousedown", evt => { evt.preventDefault(); pick(code); });
           box.appendChild(btn);
@@ -777,7 +945,7 @@ function translateCountryName(name, lang) {
       const groups = computeGroups(rows, dims).sort((a, b) => b.usd - a.usd).slice(0, 10);
 
       document.getElementById("top-chart-title").textContent =
-        "İlk 10 — " + dims.map(d => DIMENSIONS[d].label).join(" × ") + " (" + periodRangeLabel() + ")";
+        tt("top10Prefix") + " — " + dims.map(d => DIMENSIONS[d].label).join(" × ") + " (" + periodRangeLabel() + ")";
 
       const svg = document.getElementById("top-chart");
       svg.textContent = "";
@@ -785,7 +953,7 @@ function translateCountryName(name, lang) {
         svg.setAttribute("viewBox", "0 0 520 60");
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
         t.setAttribute("x", 10); t.setAttribute("y", 30); t.setAttribute("class", "axis-label");
-        t.textContent = "Bu filtrelerle veri yok.";
+        t.textContent = tt("noDataFilters");
         svg.appendChild(t);
         return;
       }
@@ -843,11 +1011,11 @@ function translateCountryName(name, lang) {
           wrap.appendChild(ttl);
           const row1 = document.createElement("div"); row1.className = "row";
           const v1 = document.createElement("span"); v1.className = "val"; v1.textContent = fmtUsdFull(g.usd);
-          row1.appendChild(v1); row1.appendChild(document.createTextNode(" toplam değer"));
+          row1.appendChild(v1); row1.appendChild(document.createTextNode(" " + tt("tooltipTotalValue")));
           wrap.appendChild(row1);
           const row2 = document.createElement("div"); row2.className = "row";
           const v2 = document.createElement("span"); v2.className = "val"; v2.textContent = fmtKg(g.kg);
-          row2.appendChild(v2); row2.appendChild(document.createTextNode(" toplam miktar"));
+          row2.appendChild(v2); row2.appendChild(document.createTextNode(" " + tt("tooltipTotalQty")));
           wrap.appendChild(row2);
           showTooltip(evt, wrap);
         };
@@ -904,7 +1072,7 @@ function translateCountryName(name, lang) {
       if (periods.length < 1) {
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
         t.setAttribute("x", TREND_PADL); t.setAttribute("y", TREND_H / 2); t.setAttribute("class", "axis-label");
-        t.textContent = "Bu dönemde veri yok.";
+        t.textContent = tt("noDataPeriod");
         svg.appendChild(t);
         return;
       }
@@ -1039,7 +1207,7 @@ function translateCountryName(name, lang) {
           const sw = document.createElement("span"); sw.className = "swatch-line" + (f === 1 ? " dashed" : "");
           if (f === 1) sw.style.borderColor = productColor(code); else sw.style.background = productColor(code);
           key.appendChild(sw);
-          key.appendChild(document.createTextNode((GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : "")));
+          key.appendChild(document.createTextNode(translateProductShort(code) + (showFlowSuffix ? " · " + FLOW_LABEL_I18N[lang][f] : "")));
           legend.appendChild(key);
         });
       });
@@ -1065,7 +1233,7 @@ function translateCountryName(name, lang) {
       products.forEach((code, pi) => flows.forEach((f, fi) => {
         tonnageSeries.push({
           totals: kgTotals[pi][fi], color: productColor(code), dashed: f === 1, skey: code + "::" + f,
-          label: (GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : ""), fullFmt: fmtKg,
+          label: translateProductShort(code) + (showFlowSuffix ? " · " + FLOW_LABEL_I18N[lang][f] : ""), fullFmt: fmtKg,
         });
       }));
       drawSeriesChart("trend-chart", periods, tonnageSeries, fmtKg, key => periodLabelFull(key));
@@ -1079,7 +1247,7 @@ function translateCountryName(name, lang) {
         });
         priceSeries.push({
           totals: m, color: productColor(code), dashed: f === 1, skey: code + "::" + f,
-          label: (GTIP_SHORT_NAMES[code] || code) + (showFlowSuffix ? " · " + FLOW_LABEL[f] : ""), fullFmt: fmtUnitPrice,
+          label: translateProductShort(code) + (showFlowSuffix ? " · " + FLOW_LABEL_I18N[lang][f] : ""), fullFmt: fmtUnitPrice,
         });
       }));
       drawSeriesChart("price-chart", periods, priceSeries, v => "$" + Math.round(v), key => periodLabelFull(key));
@@ -1139,13 +1307,13 @@ function translateCountryName(name, lang) {
 
       const thead = document.getElementById("pivot-thead");
       thead.textContent = "";
-      const cols = [{ key: "rank", label: "#", num: false }]
+      const cols = [{ key: "rank", label: tt("thRank"), num: false }]
         .concat(dims.map(d => ({ key: d, label: DIMENSIONS[d].label, num: false })))
         .concat([
-          { key: "kg", label: "Toplam Miktar", num: true },
-          { key: "usd", label: "Toplam Değer", num: true },
-          { key: "unitPrice", label: "Birim Fiyat", num: true },
-          { key: "share", label: "Pay", num: true },
+          { key: "kg", label: tt("thQty"), num: true },
+          { key: "usd", label: tt("thValue"), num: true },
+          { key: "unitPrice", label: tt("thUnitPrice"), num: true },
+          { key: "share", label: tt("thShare"), num: true },
         ]);
       cols.forEach(c => {
         const th = document.createElement("th");
@@ -1177,7 +1345,7 @@ function translateCountryName(name, lang) {
           if (d === "flow") {
             const tag = document.createElement("span"); tag.className = "flow-tag";
             const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = FLOW_COLOR[g.parts[di]];
-            tag.appendChild(dot); tag.appendChild(document.createTextNode(FLOW_LABEL[g.parts[di]]));
+            tag.appendChild(dot); tag.appendChild(document.createTextNode(FLOW_LABEL_I18N[lang][g.parts[di]]));
             td.appendChild(tag);
           } else {
             td.textContent = DIMENSIONS[d].display(g.parts[di]);
@@ -1204,9 +1372,8 @@ function translateCountryName(name, lang) {
       });
 
       document.getElementById("table-count").textContent =
-        groups.length > 300 ? ("İlk 300 satır gösteriliyor · toplam " + groups.length.toLocaleString("tr-TR") + " satır")
-                             : (groups.length.toLocaleString("tr-TR") + " satır");
-      document.getElementById("table-total").textContent = "Toplam: " + fmtUsdFull(total);
+        groups.length > 300 ? tt("tableCountLimited")(300, groups.length) : tt("tableCountAll")(groups.length);
+      document.getElementById("table-total").textContent = tt("tableTotal")(fmtUsdFull(total));
     }
 
     document.getElementById("table-search").addEventListener("input", (e) => {
@@ -1214,12 +1381,22 @@ function translateCountryName(name, lang) {
       renderTable();
     });
 
+    function setBadgeText(id, prefixKey, value) {
+      const el = document.getElementById(id);
+      el.textContent = "";
+      const prefix = document.createElement("span");
+      prefix.className = "badge-prefix";
+      prefix.textContent = tt(prefixKey);
+      el.appendChild(prefix);
+      el.appendChild(document.createTextNode(value));
+    }
+
     function renderUnitPriceBadge() {
       const rows = filteredRows();
       const usd = rows.reduce((s, r) => s + (r[5] || 0), 0);
       const kg = rows.reduce((s, r) => s + (r[6] || 0), 0);
-      document.getElementById("unit-price-badge").textContent = fmtUnitPrice(kg ? (usd / kg) * 1000 : null);
-      document.getElementById("tonnage-badge").textContent = fmtKg(kg);
+      setBadgeText("unit-price-badge", "unitPriceBadgePrefix", fmtUnitPrice(kg ? (usd / kg) * 1000 : null));
+      setBadgeText("tonnage-badge", "tonnageBadgePrefix", fmtKg(kg));
     }
 
     function renderAll() {
@@ -1231,15 +1408,47 @@ function translateCountryName(name, lang) {
       renderTable();
     }
 
+    // Dil değişince sabit arayüz metinleri (etiketler, başlıklar, tooltip
+    // title'ları, placeholder'lar) yeniden yazılır + ürün çipleri/kırılım
+    // butonları (çevrilen etiketler) yeniden kurulur + tüm kartlar yeniden
+    // render edilir. state/filtreler ham (Türkçe/koda bağlı) değerde kalır,
+    // sadece GÖRÜNÜM çevriliyor.
+    function applyLanguage(newLang) {
+      lang = newLang;
+      document.getElementById("tuik-label-flow").textContent = tt("filterFlowLabel");
+      document.getElementById("tuik-label-period").textContent = tt("filterPeriodLabel");
+      document.getElementById("tuik-label-quickselect").textContent = tt("filterQuickSelectLabel");
+      document.getElementById("tuik-label-product").textContent = tt("filterProductLabel");
+      document.getElementById("tuik-label-country").textContent = tt("filterCountryLabel");
+      document.querySelector('#flow-filter .seg[data-value="all"]').textContent = tt("flowAll");
+      document.querySelector('#flow-filter .seg[data-value="0"]').textContent = FLOW_LABEL_I18N[lang][0];
+      document.querySelector('#flow-filter .seg[data-value="1"]').textContent = FLOW_LABEL_I18N[lang][1];
+      document.querySelector('#period-presets .seg[data-preset="ytd"]').textContent = tt("presetYtd");
+      document.querySelector('#period-presets .seg[data-preset="12m"]').textContent = tt("preset12m");
+      document.querySelector('#period-presets .seg[data-preset="all"]').textContent = tt("presetAll");
+      document.getElementById("country-search").placeholder = tt("countrySearchPlaceholder");
+      document.getElementById("reset-filters").textContent = tt("resetFiltersBtn");
+      document.getElementById("tuik-breakdown-title").textContent = tt("breakdownTitle");
+      document.getElementById("unit-price-badge").title = tt("unitPriceBadgeTitle");
+      document.getElementById("tonnage-badge").title = tt("tonnageBadgeTitle");
+      document.getElementById("tuik-trend-title").textContent = tt("trendTitle");
+      document.getElementById("trend-prev").title = tt("prevPeriodTitle");
+      document.getElementById("trend-next").title = tt("nextPeriodTitle");
+      document.getElementById("tuik-price-chart-title").textContent = tt("priceChartTitle");
+      document.getElementById("tuik-detail-table-title").textContent = tt("detailTableTitle");
+      document.getElementById("table-search").placeholder = tt("tableSearchPlaceholder");
+      buildProductChips();
+      buildGroupControls();
+      renderAll();
+    }
+    window.__registerI18nPanel(applyLanguage);
 
     buildPeriodControls();
     buildFlowFilter();
-    buildProductChips();
     buildCountrySearch();
-    buildGroupControls();
     setupTrendNav();
     setupTrendHighlight();
-    renderAll();
+    applyLanguage(lang); // sabit metinleri doğru dilde yazar + çipleri/kırılımı kurar + ilk render'ı yapar
   }
 
   fetchAllRows()
@@ -1249,7 +1458,7 @@ function translateCountryName(name, lang) {
     })
     .catch(err => {
       console.error(err);
-      window.__setStatus("Veri çekilemedi — Supabase bağlantısını kontrol edin", false);
+      window.__setStatus(tt("dataError"), false);
     });
 })();
 
