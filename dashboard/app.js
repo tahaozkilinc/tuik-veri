@@ -1720,7 +1720,7 @@ window.__tabManager = (function () {
   function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
 
   let allRows = [];
-  const state = { product: null, lidas: null, dateStart: null, dateEnd: null, tableSearch: "" };
+  const state = { product: null, grup: null, altTip: null, sinif: null, lidas: null, dateStart: null, dateEnd: null, tableSearch: "" };
 
   function productRows() {
     return allRows.filter(r => r.enstruman_sinifi === state.product);
@@ -2164,23 +2164,86 @@ window.__tabManager = (function () {
     applyPreset("90");
   }
 
-  function buildProductControls() {
-    const wrap = document.getElementById("turib-product");
-    wrap.textContent = "";
-    const products = [...new Set(allRows.map(r => r.enstruman_sinifi))].sort((a, b) => a.localeCompare(b, "tr"));
-    if (!state.product || !products.includes(state.product)) {
-      state.product = products.includes(DEFAULT_PRODUCT) ? DEFAULT_PRODUCT : (products[0] || null);
+  // TÜRİB ürün adları "[GRUP] [opsiyonel TİP] [SINIF]" biçiminde — örn.
+  // "BUĞDAY EKMEKLİK BEYAZ 1.SINIF" ya da düz "MISIR 1.SINIF". 20 ürünü tek
+  // satırda listelemek yerine kademeli seçim yapıyoruz: önce Grup, Buğday
+  // gibi alt tipi olan bir grupsa Tip, sonra Sınıf — ekran kalabalaşmasın.
+  const SINIF_ORDER = ["1.SINIF", "2.SINIF", "3.SINIF", "DÜŞÜK VASIFLI"];
+
+  function parseProductName(name) {
+    const m = name.match(/^(.*?)\s+(\d+\.SINIF|DÜŞÜK VASIFLI)$/);
+    if (!m) return { full: name, grup: name, altTip: null, sinif: "" };
+    const prefix = m[1], sinif = m[2];
+    if (prefix.startsWith("BUĞDAY ")) {
+      return { full: name, grup: "BUĞDAY", altTip: prefix.slice(7), sinif };
     }
-    products.forEach(p => {
+    return { full: name, grup: prefix, altTip: null, sinif };
+  }
+
+  function renderChipRow(wrapId, options, activeValue, onPick) {
+    const wrap = document.getElementById(wrapId);
+    wrap.textContent = "";
+    options.forEach(opt => {
       const btn = document.createElement("button");
-      btn.className = "chip" + (p === state.product ? " active" : "");
-      btn.type = "button"; btn.textContent = p;
-      btn.addEventListener("click", () => {
-        state.product = p;
-        wrap.querySelectorAll(".chip").forEach(b => b.classList.toggle("active", b === btn));
+      btn.className = "chip" + (opt === activeValue ? " active" : "");
+      btn.type = "button"; btn.textContent = opt;
+      btn.addEventListener("click", () => onPick(opt));
+      wrap.appendChild(btn);
+    });
+  }
+
+  function buildProductControls() {
+    const allProducts = [...new Set(allRows.map(r => r.enstruman_sinifi))];
+    const parsed = allProducts.map(parseProductName);
+
+    function selectEntry(entry) {
+      state.grup = entry.grup; state.altTip = entry.altTip; state.sinif = entry.sinif;
+      state.product = entry.full;
+    }
+    function pickDefaultForCandidates(candidates) {
+      return candidates.find(p => p.sinif === "1.SINIF") || candidates[0];
+    }
+
+    if (!state.product || !allProducts.includes(state.product)) {
+      const def = parsed.find(p => p.full === DEFAULT_PRODUCT) || parsed[0];
+      if (def) selectEntry(def);
+    }
+
+    // 1. kademe: Grup
+    const grups = [...new Set(parsed.map(p => p.grup))].sort((a, b) => a.localeCompare(b, "tr"));
+    renderChipRow("turib-grup", grups, state.grup, (grup) => {
+      const candidates = parsed.filter(p => p.grup === grup);
+      const altTips = [...new Set(candidates.map(p => p.altTip).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
+      const scoped = altTips.length ? candidates.filter(p => p.altTip === altTips[0]) : candidates;
+      selectEntry(pickDefaultForCandidates(scoped));
+      buildProductControls();
+      renderAll();
+    });
+
+    // 2. kademe: Tip (yalnızca seçili grubun alt tipi varsa gösterilir — Buğday)
+    const altTipGroup = document.getElementById("turib-alttip-group");
+    const grupCandidates = parsed.filter(p => p.grup === state.grup);
+    const altTips = [...new Set(grupCandidates.map(p => p.altTip).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
+    if (altTips.length) {
+      altTipGroup.hidden = false;
+      renderChipRow("turib-alttip", altTips, state.altTip, (altTip) => {
+        const scoped = grupCandidates.filter(p => p.altTip === altTip);
+        selectEntry(pickDefaultForCandidates(scoped));
+        buildProductControls();
         renderAll();
       });
-      wrap.appendChild(btn);
+    } else {
+      altTipGroup.hidden = true;
+      document.getElementById("turib-alttip").textContent = "";
+    }
+
+    // 3. kademe: Sınıf
+    const sinifCandidates = grupCandidates.filter(p => p.altTip === state.altTip);
+    const sinifs = [...new Set(sinifCandidates.map(p => p.sinif))].sort((a, b) => SINIF_ORDER.indexOf(a) - SINIF_ORDER.indexOf(b));
+    renderChipRow("turib-sinif", sinifs, state.sinif, (sinif) => {
+      const entry = sinifCandidates.find(p => p.sinif === sinif);
+      selectEntry(entry);
+      renderAll();
     });
   }
 
