@@ -2456,19 +2456,48 @@ window.__tabManager = (function () {
   }
   function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
 
-  let allRows = [];
-  const state = { product: null, grup: null, altTip: null, sinif: null, lidas: null, dateStart: null, dateEnd: null, tableSearch: "" };
+  // Grafikte birden çok ürün seçildiğinde her birini ayrı renkle göstermek
+  // için ürün çiplerindeki aynı renk paleti (bkz. TÜİK paneli CAT_COLORS) —
+  // TÜİK'in kendi IIFE'si içinde tanımlı olduğundan buraya ayrıca tanımlıyoruz.
+  const CAT_COLORS = [
+    "var(--series-export)", "var(--series-import)", "var(--cat-3)", "var(--cat-4)", "var(--cat-5)",
+    "var(--cat-6)", "var(--cat-7)", "var(--cat-8)", "var(--cat-9)", "var(--cat-10)", "var(--cat-11)",
+  ];
 
-  function productRows() {
-    return allRows.filter(r => r.enstruman_sinifi === state.product);
-  }
-  function currentRows() {
-    return productRows().filter(r => {
+  let allRows = [];
+  // state.products: seçili enstruman_sinifi değerlerinin kümesi — her zaman
+  // o anki Grup+Tip kapsamının alt kümesi (bkz. buildProductControls).
+  const state = { products: new Set(), grup: null, altTip: null, lidas: null, dateStart: null, dateEnd: null, tableSearch: "" };
+
+  function filteredRows(rows) {
+    return rows.filter(r => {
       if (state.lidas && r.lidas_adi !== state.lidas) return false;
       if (state.dateStart && r.trade_date < state.dateStart) return false;
       if (state.dateEnd && r.trade_date > state.dateEnd) return false;
       return true;
     });
+  }
+  function productRows() {
+    return allRows.filter(r => state.products.has(r.enstruman_sinifi));
+  }
+  function currentRows() {
+    return filteredRows(productRows());
+  }
+  function rowsForProduct(product) {
+    return filteredRows(allRows.filter(r => r.enstruman_sinifi === product));
+  }
+  // Seçili ürünleri Sınıf sırasına göre (1.SINIF, 2.SINIF, ...) sabit bir
+  // sırayla döndürür — grafik/legend/KPI/çip renkleri hep bu sırayla eşleşsin.
+  function selectedSorted() {
+    return [...state.products].sort((a, b) => SINIF_ORDER.indexOf(parseProductName(a).sinif) - SINIF_ORDER.indexOf(parseProductName(b).sinif));
+  }
+  // Tek ürün seçiliyken eski (tek renkli) görünümü korumak için, çoklu
+  // seçimde her ürüne kendi rengini, tekli seçimde her zaman LINE_COLOR'ı verir.
+  function colorForProduct(product) {
+    const selected = selectedSorted();
+    if (selected.length <= 1) return LINE_COLOR;
+    const idx = selected.indexOf(product);
+    return idx >= 0 ? CAT_COLORS[idx % CAT_COLORS.length] : LINE_COLOR;
   }
 
   // tarihe göre hacim-ağırlıklı ortalama fiyat: her satırın kendi
@@ -2512,9 +2541,25 @@ window.__tabManager = (function () {
     return sumKg > 0 ? (sumPriceKg / sumKg) * 1000 : null;
   }
 
-  function renderPriceLegend() {
+  // perProduct.length > 1 ise her ürün için kendi renginde bir legend
+  // satırı gösterir (çip/grafik renkleriyle birebir aynı); tek ürün
+  // seçiliyken eski Ağırlıklı Ortalama/En Yüksek/En Düşük legend'ı kalır.
+  function renderPriceLegend(perProduct) {
     const el = document.getElementById("turib-price-legend");
     el.textContent = "";
+    if (perProduct.length > 1) {
+      perProduct.forEach(s => {
+        const key = document.createElement("span");
+        key.className = "key";
+        const sw = document.createElement("span");
+        sw.className = "swatch-line";
+        sw.style.background = s.color; sw.style.borderColor = s.color;
+        key.appendChild(sw);
+        key.appendChild(document.createTextNode(s.product));
+        el.appendChild(key);
+      });
+      return;
+    }
     [
       ["Ağırlıklı Ortalama", false],
       ["En Yüksek", true],
@@ -2546,20 +2591,37 @@ window.__tabManager = (function () {
     return d.trim();
   }
 
-  function drawPriceChart(points) {
+  // perProduct: [{ product, color, points }] — her ürünün kendi
+  // dailyWeightedSeries çıktısı. Tek ürün seçiliyken eski görünüm (alan
+  // dolgusu + kesikli en yüksek/en düşük + kalın ortalama çizgisi) birebir
+  // korunur; birden çok ürün seçiliyken her biri kendi renginde düz bir
+  // çizgi olarak çizilir (karışıklığı önlemek için alan/kesikli çizgi yok).
+  function drawPriceChart(perProduct) {
     const svg = document.getElementById("turib-chart");
     svg.textContent = "";
     svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
-    if (!points.length) {
+
+    const allDates = [...new Set(perProduct.flatMap(s => s.points.map(p => p.date)))].sort();
+    if (!allDates.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
       t.textContent = "Bu filtrede veri yok.";
       svg.appendChild(t);
       return;
     }
-    const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
-    const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
-    const allVals = points.flatMap(p => [p.price, p.minPrice, p.maxPrice]).filter(v => v != null);
+
+    const multi = perProduct.length > 1;
+    const xStep = allDates.length > 1 ? (CHART_W - PADL - PADR) / (allDates.length - 1) : 0;
+    const xScale = i => allDates.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+
+    // her serinin noktalarını paylaşılan tarih eksenine hizala — bir ürünün
+    // işlem olmayan günlerinde null bırakılır (çizgi o günde kopar).
+    const aligned = perProduct.map(s => {
+      const byDate = new Map(s.points.map(p => [p.date, p]));
+      return { product: s.product, color: s.color, points: allDates.map(d => byDate.get(d) || { date: d, price: null, minPrice: null, maxPrice: null }) };
+    });
+
+    const allVals = aligned.flatMap(s => s.points.flatMap(p => multi ? [p.price] : [p.price, p.minPrice, p.maxPrice])).filter(v => v != null);
     const minVal = Math.min(...allVals), maxVal = Math.max(...allVals);
     const span = maxVal - minVal || Math.abs(maxVal) || 1;
     const yPad = span * 0.1;
@@ -2581,17 +2643,17 @@ window.__tabManager = (function () {
 
     const minLabelGap = 56;
     const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
-    points.forEach((p, i) => {
-      const isLast = i === points.length - 1;
+    allDates.forEach((date, i) => {
+      const isLast = i === allDates.length - 1;
       if (i % tickEvery !== 0 && !isLast) return;
-      if (isLast && points.length > 1 && (points.length - 1) % tickEvery !== 0) {
-        const prevShown = Math.floor((points.length - 1) / tickEvery) * tickEvery;
-        if ((points.length - 1 - prevShown) * xStep < minLabelGap) return;
+      if (isLast && allDates.length > 1 && (allDates.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((allDates.length - 1) / tickEvery) * tickEvery;
+        if ((allDates.length - 1 - prevShown) * xStep < minLabelGap) return;
       }
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", xScale(i)); t.setAttribute("y", CHART_H - 5);
       t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
-      t.textContent = fmtDateShort(p.date);
+      t.textContent = fmtDateShort(date);
       svg.appendChild(t);
     });
 
@@ -2601,62 +2663,91 @@ window.__tabManager = (function () {
     hoverLine.style.opacity = "0";
     svg.appendChild(hoverLine);
 
-    const avgPts = points.map((p, i) => [xScale(i), yScale(p.price)]);
-    if (avgPts.length === 1) {
-      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      dot.setAttribute("cx", avgPts[0][0]); dot.setAttribute("cy", avgPts[0][1]); dot.setAttribute("r", "4");
-      dot.setAttribute("fill", LINE_COLOR);
-      svg.appendChild(dot);
-    } else {
-      const gradId = "turibAreaGradient";
-      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-      const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
-      grad.setAttribute("id", gradId);
-      grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
-      const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-      stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", LINE_COLOR); stop1.setAttribute("stop-opacity", "0.18");
-      const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-      stop2.setAttribute("offset", "100%"); stop2.setAttribute("stop-color", LINE_COLOR); stop2.setAttribute("stop-opacity", "0");
-      grad.appendChild(stop1); grad.appendChild(stop2);
-      defs.appendChild(grad);
-      svg.appendChild(defs);
+    if (!multi) {
+      const points = aligned[0].points;
+      const color = LINE_COLOR;
+      const avgPts = points.map((p, i) => [xScale(i), yScale(p.price)]);
+      if (avgPts.length === 1) {
+        const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        dot.setAttribute("cx", avgPts[0][0]); dot.setAttribute("cy", avgPts[0][1]); dot.setAttribute("r", "4");
+        dot.setAttribute("fill", color);
+        svg.appendChild(dot);
+      } else {
+        const gradId = "turibAreaGradient";
+        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+        grad.setAttribute("id", gradId);
+        grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
+        const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", color); stop1.setAttribute("stop-opacity", "0.18");
+        const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        stop2.setAttribute("offset", "100%"); stop2.setAttribute("stop-color", color); stop2.setAttribute("stop-opacity", "0");
+        grad.appendChild(stop1); grad.appendChild(stop2);
+        defs.appendChild(grad);
+        svg.appendChild(defs);
 
-      const baseline = CHART_H - PADB;
-      const areaD = "M" + avgPts[0][0] + "," + baseline + " " + avgPts.map(p => "L" + p[0] + "," + p[1]).join(" ") + " L" + avgPts[avgPts.length - 1][0] + "," + baseline + " Z";
-      const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      area.setAttribute("d", areaD);
-      area.setAttribute("fill", "url(#" + gradId + ")");
-      area.setAttribute("stroke", "none");
-      svg.appendChild(area);
+        const baseline = CHART_H - PADB;
+        const areaD = "M" + avgPts[0][0] + "," + baseline + " " + avgPts.map(p => "L" + p[0] + "," + p[1]).join(" ") + " L" + avgPts[avgPts.length - 1][0] + "," + baseline + " Z";
+        const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        area.setAttribute("d", areaD);
+        area.setAttribute("fill", "url(#" + gradId + ")");
+        area.setAttribute("stroke", "none");
+        svg.appendChild(area);
 
-      // kesikli en yüksek / en düşük çizgileri — ortalamanın altında kalsın
-      ["maxPrice", "minPrice"].forEach(field => {
-        const d = buildGappedPath(points, field, xScale, yScale);
-        if (!d) return;
+        // kesikli en yüksek / en düşük çizgileri — ortalamanın altında kalsın
+        ["maxPrice", "minPrice"].forEach(field => {
+          const d = buildGappedPath(points, field, xScale, yScale);
+          if (!d) return;
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", d);
+          path.setAttribute("stroke", color); path.setAttribute("stroke-width", "1.5");
+          path.setAttribute("stroke-dasharray", "5 4"); path.setAttribute("opacity", "0.6");
+          path.setAttribute("fill", "none"); path.setAttribute("stroke-linecap", "round");
+          svg.appendChild(path);
+        });
+
+        // kalın ağırlıklı ortalama çizgisi — en üstte, en belirgin
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", d);
-        path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "1.5");
-        path.setAttribute("stroke-dasharray", "5 4"); path.setAttribute("opacity", "0.6");
-        path.setAttribute("fill", "none"); path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("d", avgPts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+        path.setAttribute("stroke", color); path.setAttribute("stroke-width", "3");
+        path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
         svg.appendChild(path);
+
+        const lastPt = avgPts[avgPts.length - 1];
+        const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        endDot.setAttribute("cx", lastPt[0]); endDot.setAttribute("cy", lastPt[1]); endDot.setAttribute("r", "4.5");
+        endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", color); endDot.setAttribute("stroke-width", "2.5");
+        svg.appendChild(endDot);
+      }
+    } else {
+      aligned.forEach(s => {
+        let d = ""; let drawing = false;
+        s.points.forEach((p, i) => {
+          if (p.price == null) { drawing = false; return; }
+          d += (drawing ? "L" : "M") + xScale(i) + "," + yScale(p.price) + " ";
+          drawing = true;
+        });
+        if (d.trim()) {
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", d.trim());
+          path.setAttribute("stroke", s.color); path.setAttribute("stroke-width", "2.5");
+          path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+          svg.appendChild(path);
+        }
+        for (let i = s.points.length - 1; i >= 0; i--) {
+          if (s.points[i].price != null) {
+            const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            endDot.setAttribute("cx", xScale(i)); endDot.setAttribute("cy", yScale(s.points[i].price)); endDot.setAttribute("r", "4");
+            endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", s.color); endDot.setAttribute("stroke-width", "2.5");
+            svg.appendChild(endDot);
+            break;
+          }
+        }
       });
-
-      // kalın ağırlıklı ortalama çizgisi — en üstte, en belirgin
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", avgPts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
-      path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "3");
-      path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
-      svg.appendChild(path);
-
-      const lastPt = avgPts[avgPts.length - 1];
-      const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      endDot.setAttribute("cx", lastPt[0]); endDot.setAttribute("cy", lastPt[1]); endDot.setAttribute("r", "4.5");
-      endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", LINE_COLOR); endDot.setAttribute("stroke-width", "2.5");
-      svg.appendChild(endDot);
     }
 
     const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    points.forEach((p, i) => {
+    allDates.forEach((date, i) => {
       const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       const hitW = Math.max(xStep, 6);
       rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", PADT);
@@ -2667,15 +2758,31 @@ window.__tabManager = (function () {
         hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
         hoverLine.style.opacity = "1";
         const wrap = document.createElement("div");
-        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(date);
         wrap.appendChild(ttl);
-        [["Ağırlıklı Ort.", p.price], ["En Yüksek", p.maxPrice], ["En Düşük", p.minPrice]].forEach(([label, val]) => {
-          const row = document.createElement("div"); row.className = "row";
-          const l = document.createElement("span"); l.textContent = label + ": ";
-          const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
-          row.appendChild(l); row.appendChild(v);
-          wrap.appendChild(row);
-        });
+        if (!multi) {
+          const p = aligned[0].points[i];
+          [["Ağırlıklı Ort.", p.price], ["En Yüksek", p.maxPrice], ["En Düşük", p.minPrice]].forEach(([label, val]) => {
+            const row = document.createElement("div"); row.className = "row";
+            const l = document.createElement("span"); l.textContent = label + ": ";
+            const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
+            row.appendChild(l); row.appendChild(v);
+            wrap.appendChild(row);
+          });
+        } else {
+          aligned.forEach(s => {
+            const p = s.points[i];
+            if (p.price == null) return;
+            const row = document.createElement("div"); row.className = "row";
+            const l = document.createElement("span");
+            const dot = document.createElement("span"); dot.textContent = "● "; dot.style.color = s.color;
+            l.appendChild(dot);
+            l.appendChild(document.createTextNode(s.product + ": "));
+            const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(p.price);
+            row.appendChild(l); row.appendChild(v);
+            wrap.appendChild(row);
+          });
+        }
         showTooltip(evt, wrap);
       };
       rect.addEventListener("pointermove", showFn);
@@ -2772,20 +2879,31 @@ window.__tabManager = (function () {
     svg.appendChild(hitLayer);
   }
 
-  function renderKpis(rows, series) {
+  // rows: o anki filtrelerle TÜM seçili ürünlerin birleşik satırları (toplam
+  // hacim/değer için); perProduct: her seçili ürünün kendi fiyat serisi —
+  // birden çok ürün seçiliyken her biri kendi rengiyle etiketli ayrı kutu.
+  function renderKpis(rows, perProduct) {
     const el = document.getElementById("turib-kpi-row");
     el.textContent = "";
-    const tiles = [
-      ["Ağırlıklı ortalama fiyat (seçili dönem)", fmtPriceTon(overallWeightedAvg(rows))],
-      ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
-      ["Toplam işlem hacmi", fmtTon(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0))],
-      ["Toplam işlem değeri", fmtTl(rows.reduce((s, r) => s + (r.islem_hacmi_tl || 0), 0))],
-    ];
-    tiles.forEach(([label, value]) => {
+    const multi = perProduct.length > 1;
+    const tiles = [];
+    perProduct.forEach(s => {
+      const prodRows = rowsForProduct(s.product);
+      tiles.push({ color: multi ? s.color : null, label: (multi ? s.product + " — " : "") + "Ağırlıklı ortalama fiyat (seçili dönem)", value: fmtPriceTon(overallWeightedAvg(prodRows)) });
+      tiles.push({ color: multi ? s.color : null, label: (multi ? s.product + " — " : "") + "Son fiyat", value: s.points.length ? fmtPriceTon(s.points[s.points.length - 1].price) : "—" });
+    });
+    tiles.push({ color: null, label: "Toplam işlem hacmi", value: fmtTon(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0)) });
+    tiles.push({ color: null, label: "Toplam işlem değeri", value: fmtTl(rows.reduce((s, r) => s + (r.islem_hacmi_tl || 0), 0)) });
+    tiles.forEach(t => {
       const tile = document.createElement("div");
       tile.className = "stat-tile";
-      const l = document.createElement("div"); l.className = "label"; l.textContent = label;
-      const v = document.createElement("div"); v.className = "value num"; v.textContent = value;
+      const l = document.createElement("div"); l.className = "label";
+      if (t.color) {
+        const dot = document.createElement("span"); dot.textContent = "● "; dot.style.color = t.color;
+        l.appendChild(dot);
+      }
+      l.appendChild(document.createTextNode(t.label));
+      const v = document.createElement("div"); v.className = "value num"; v.textContent = t.value;
       tile.appendChild(l); tile.appendChild(v);
       el.appendChild(tile);
     });
@@ -2799,7 +2917,10 @@ window.__tabManager = (function () {
     const tbody = document.getElementById("turib-tbody");
     const foot = document.getElementById("turib-table-foot");
     thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
-    const cols = ["Tarih", "LİDAŞ Adı", "İl", "İlçe", "Ağ. Ort. Fiyat", "İşlem Miktarı", "İşlem Hacmi", "İşlem Adedi"];
+    const multi = state.products.size > 1;
+    const cols = multi
+      ? ["Tarih", "Sınıf", "LİDAŞ Adı", "İl", "İlçe", "Ağ. Ort. Fiyat", "İşlem Miktarı", "İşlem Hacmi", "İşlem Adedi"]
+      : ["Tarih", "LİDAŞ Adı", "İl", "İlçe", "Ağ. Ort. Fiyat", "İşlem Miktarı", "İşlem Hacmi", "İşlem Adedi"];
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
     const q = state.tableSearch.toLocaleLowerCase("tr");
@@ -2812,10 +2933,12 @@ window.__tabManager = (function () {
     tablePage = info.page;
     info.slice.forEach(r => {
       const tr = document.createElement("tr");
-      const cells = [
-        fmtDateFull(r.trade_date), r.lidas_adi || "—", r.il || "—", r.ilce || "—",
+      const cells = [fmtDateFull(r.trade_date)];
+      if (multi) cells.push(parseProductName(r.enstruman_sinifi).sinif);
+      cells.push(
+        r.lidas_adi || "—", r.il || "—", r.ilce || "—",
         fmtPriceTon(r.agirlikli_ortalama_fiyat != null ? r.agirlikli_ortalama_fiyat * 1000 : null), fmtKg(r.islem_miktari_kg), fmtTl(r.islem_hacmi_tl), String(r.islem_adedi ?? "—"),
-      ];
+      );
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
@@ -2843,12 +2966,18 @@ window.__tabManager = (function () {
   function renderAll() {
     tablePage = 0; // filtre değişince sayfa 1'e dönülür — eski sayfa artık anlamsız
     const rows = currentRows();
-    const series = dailyWeightedSeries(rows);
-    document.getElementById("turib-chart-title").textContent = "Fiyat eğilimi (TL/ton) — " + state.product + (state.lidas ? " · " + state.lidas : "");
-    renderPriceLegend();
-    drawPriceChart(series);
-    drawTonnageChart(series);
-    renderKpis(rows, series);
+    const combinedSeries = dailyWeightedSeries(rows); // tonaj grafiği için — toplam hacim, fiyat karışmaz
+    const selected = selectedSorted();
+    const perProduct = selected.map(product => ({
+      product,
+      color: colorForProduct(product),
+      points: dailyWeightedSeries(rowsForProduct(product)),
+    }));
+    document.getElementById("turib-chart-title").textContent = "Fiyat eğilimi (TL/ton) — " + selected.join(" + ") + (state.lidas ? " · " + state.lidas : "");
+    renderPriceLegend(perProduct);
+    drawPriceChart(perProduct);
+    drawTonnageChart(combinedSeries);
+    renderKpis(rows, perProduct);
     renderTable(rows);
   }
 
@@ -2928,30 +3057,68 @@ window.__tabManager = (function () {
     });
   }
 
+  // Sınıf satırı TEK seçim değil — kullanıcı aynı Grup+Tip kapsamında
+  // (örn. Mısır) birden fazla sınıfı (1.SINIF + 2.SINIF) aynı anda
+  // seçebilsin diye her çip bir toggle'dır. Seçili olan çipler, grafikte
+  // kullanılacak renkle aynı küçük kare işaretini taşır (hangisinin seçili
+  // olduğu ve hangi rengi temsil ettiği tek bakışta görünür); tek ürün
+  // seçiliyken (varsayılan durum) renk karesi gösterilmez, eski sade görünüm
+  // korunur.
+  function renderSinifChipRow(wrapId, entries, onToggle) {
+    const wrap = document.getElementById(wrapId);
+    wrap.textContent = "";
+    const multi = state.products.size > 1;
+    entries.forEach(entry => {
+      const active = state.products.has(entry.full);
+      const btn = document.createElement("button");
+      btn.className = "chip" + (active ? " active" : "");
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", String(active));
+      if (active && multi) {
+        const sw = document.createElement("span");
+        sw.className = "swatch";
+        sw.style.background = colorForProduct(entry.full);
+        btn.appendChild(sw);
+      }
+      btn.appendChild(document.createTextNode(entry.sinif));
+      btn.addEventListener("click", () => onToggle(entry));
+      wrap.appendChild(btn);
+    });
+  }
+
   function buildProductControls() {
     const allProducts = [...new Set(allRows.map(r => r.enstruman_sinifi))];
     const parsed = allProducts.map(parseProductName);
 
-    function selectEntry(entry) {
-      state.grup = entry.grup; state.altTip = entry.altTip; state.sinif = entry.sinif;
-      state.product = entry.full;
-    }
     function pickDefaultForCandidates(candidates) {
-      return candidates.find(p => p.sinif === "1.SINIF") || candidates[0];
+      const def = candidates.find(p => p.sinif === "1.SINIF") || candidates[0];
+      return def ? new Set([def.full]) : new Set();
     }
 
-    if (!state.product || !allProducts.includes(state.product)) {
+    // artık mevcut olmayan ürünleri seçili kümeden temizle
+    for (const p of [...state.products]) {
+      if (!allProducts.includes(p)) state.products.delete(p);
+    }
+
+    // ilk yükleme ya da kapsam (grup) artık geçersiz/boşsa varsayılana dön
+    if (!state.grup || !parsed.some(p => p.grup === state.grup) || !state.products.size) {
       const def = parsed.find(p => p.full === DEFAULT_PRODUCT) || parsed[0];
-      if (def) selectEntry(def);
+      if (def) {
+        state.grup = def.grup; state.altTip = def.altTip;
+        state.products = new Set([def.full]);
+      }
     }
 
-    // 1. kademe: Grup
+    // 1. kademe: Grup — grup/tip değiştirmek yeni bir bağlama geçmek demektir,
+    // seçim bu yeni bağlamın varsayılanına döner (eski gruptaki seçim anlamsız kalır)
     const grups = [...new Set(parsed.map(p => p.grup))].sort((a, b) => a.localeCompare(b, "tr"));
     renderChipRow("turib-grup", grups, state.grup, (grup) => {
+      state.grup = grup;
       const candidates = parsed.filter(p => p.grup === grup);
       const altTips = [...new Set(candidates.map(p => p.altTip).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
-      const scoped = altTips.length ? candidates.filter(p => p.altTip === altTips[0]) : candidates;
-      selectEntry(pickDefaultForCandidates(scoped));
+      state.altTip = altTips.length ? altTips[0] : null;
+      const scoped = candidates.filter(p => p.altTip === state.altTip);
+      state.products = pickDefaultForCandidates(scoped);
       buildProductControls();
       renderAll();
     });
@@ -2963,8 +3130,9 @@ window.__tabManager = (function () {
     if (altTips.length) {
       altTipGroup.hidden = false;
       renderChipRow("turib-alttip", altTips, state.altTip, (altTip) => {
+        state.altTip = altTip;
         const scoped = grupCandidates.filter(p => p.altTip === altTip);
-        selectEntry(pickDefaultForCandidates(scoped));
+        state.products = pickDefaultForCandidates(scoped);
         buildProductControls();
         renderAll();
       });
@@ -2973,12 +3141,16 @@ window.__tabManager = (function () {
       document.getElementById("turib-alttip").textContent = "";
     }
 
-    // 3. kademe: Sınıf
-    const sinifCandidates = grupCandidates.filter(p => p.altTip === state.altTip);
-    const sinifs = [...new Set(sinifCandidates.map(p => p.sinif))].sort((a, b) => SINIF_ORDER.indexOf(a) - SINIF_ORDER.indexOf(b));
-    renderChipRow("turib-sinif", sinifs, state.sinif, (sinif) => {
-      const entry = sinifCandidates.find(p => p.sinif === sinif);
-      selectEntry(entry);
+    // 3. kademe: Sınıf — çoklu seçim (toggle), bkz. renderSinifChipRow
+    const sinifCandidates = grupCandidates.filter(p => p.altTip === state.altTip)
+      .sort((a, b) => SINIF_ORDER.indexOf(a.sinif) - SINIF_ORDER.indexOf(b.sinif));
+    renderSinifChipRow("turib-sinif", sinifCandidates, (entry) => {
+      if (state.products.has(entry.full)) {
+        if (state.products.size > 1) state.products.delete(entry.full); // en az 1 ürün seçili kalmalı
+      } else {
+        state.products.add(entry.full);
+      }
+      buildProductControls();
       renderAll();
     });
   }
