@@ -187,10 +187,11 @@
 
     <div id="exchange-summary-section">
       <div class="wasde-banner">
-        <div>
-          <strong>Mısır fiyat özeti</strong> — TÜRİB (Mısır 1.Sınıf) ve KTB (Mısır) ağırlıklı ortalama
+        <div id="exchange-summary-banner-text">
+          <strong id="exchange-summary-banner-strong">Mısır fiyat özeti</strong>
+          <span id="exchange-summary-banner-body"> — TÜRİB (Mısır 1.Sınıf) ve KTB (Mısır) ağırlıklı ortalama
           fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Sadece ağırlıklı ortalama gösterilir, alt/üst
-          limit yok.
+          limit yok.</span>
         </div>
         <span class="wasde-release-badge" id="exchange-summary-asof-badge">Yükleniyor…</span>
       </div>
@@ -199,7 +200,7 @@
 
       <section class="card">
         <div class="card-head">
-          <h2>Mısır fiyat eğilimi</h2>
+          <h2 id="exchange-summary-chart-title">Mısır fiyat eğilimi</h2>
           <div class="segmented" id="exchange-currency-toggle" role="group" aria-label="Para birimi">
             <button class="seg active" type="button" data-currency="try">TL</button>
             <button class="seg" type="button" data-currency="usd">USD</button>
@@ -211,7 +212,7 @@
 
       <section class="card">
         <div class="card-head">
-          <h2>Günlük veriler</h2>
+          <h2 id="exchange-summary-table-title">Günlük veriler</h2>
           <div class="table-controls">
             <div class="segmented" id="exchange-summary-row-limit">
               <button class="seg active" type="button" data-limit="10">10</button>
@@ -230,12 +231,12 @@
           <table class="pivot" id="exchange-summary-table">
             <thead>
               <tr>
-                <th>Tarih</th>
-                <th class="num-col">USD/TRY (TCMB)</th>
-                <th class="num-col">TÜRİB Mısır (TL/ton)</th>
-                <th class="num-col">TÜRİB Mısır (USD/ton)</th>
-                <th class="num-col">KTB Mısır (TL/ton)</th>
-                <th class="num-col">KTB Mısır (USD/ton)</th>
+                <th id="exchange-summary-th-date">Tarih</th>
+                <th class="num-col" id="exchange-summary-th-usd">USD/TRY (TCMB)</th>
+                <th class="num-col" id="exchange-summary-th-turib-tl">TÜRİB Mısır (TL/ton)</th>
+                <th class="num-col" id="exchange-summary-th-turib-usd">TÜRİB Mısır (USD/ton)</th>
+                <th class="num-col" id="exchange-summary-th-ktb-tl">KTB Mısır (TL/ton)</th>
+                <th class="num-col" id="exchange-summary-th-ktb-usd">KTB Mısır (USD/ton)</th>
               </tr>
             </thead>
             <tbody id="exchange-summary-tbody"></tbody>
@@ -246,35 +247,36 @@
 
     <div id="turib-section" hidden>
       <div class="wasde-banner">
-        <div>
-          <strong>TÜRİB (Türkiye Ürün İhtisas Borsası) günlük bülteni</strong> — Normal Seans elektronik
+        <div id="turib-banner-text">
+          <strong id="turib-banner-strong">TÜRİB (Türkiye Ürün İhtisas Borsası) günlük bülteni</strong>
+          <span id="turib-banner-body"> — Normal Seans elektronik
           ürün senedi (ELÜS) işlemleri, her iş günü 18:00'da o günün bülteni çekilir. Ağırlıklı ortalama
-          fiyat, aynı gün içindeki tüm işlemlerin miktar-ağırlıklı ortalamasıdır.
+          fiyat, aynı gün içindeki tüm işlemlerin miktar-ağırlıklı ortalamasıdır.</span>
         </div>
         <span class="wasde-release-badge" id="turib-asof-badge">Yükleniyor…</span>
       </div>
 
       <section class="filters" aria-label="TÜRİB filtreleri">
         <div class="filter-group product-filter-group">
-          <span class="filter-label">Ürün Grubu</span>
+          <span class="filter-label" id="turib-label-grup">Ürün Grubu</span>
           <div class="chip-multi" id="turib-grup" role="group" aria-label="Ürün Grubu"></div>
         </div>
         <div class="filter-group product-filter-group" id="turib-alttip-group" hidden>
-          <span class="filter-label">Tip</span>
+          <span class="filter-label" id="turib-label-alttip">Tip</span>
           <div class="chip-multi" id="turib-alttip" role="group" aria-label="Tip"></div>
         </div>
         <div class="filter-group product-filter-group">
-          <span class="filter-label">Sınıf</span>
+          <span class="filter-label" id="turib-label-sinif">Sınıf</span>
           <div class="chip-multi" id="turib-sinif" role="group" aria-label="Sınıf"></div>
         </div>
         <div class="filter-group country-box">
-          <span class="filter-label">LİDAŞ</span>
+          <span class="filter-label" id="turib-label-lidas">LİDAŞ</span>
           <input type="text" class="text-input" id="turib-lidas-search" placeholder="Tümü — LİDAŞ aramak için yazın…" autocomplete="off">
           <div class="suggestions" id="turib-lidas-suggestions"></div>
           <div class="country-selected" id="turib-lidas-selected"></div>
         </div>
         <div class="filter-group">
-          <span class="filter-label">Tarih Aralığı</span>
+          <span class="filter-label" id="turib-label-daterange">Tarih Aralığı</span>
           <div class="period-row">
             <input type="date" class="text-input" id="turib-date-start">
             <span class="period-sep">–</span>
@@ -282,7 +284,7 @@
           </div>
         </div>
         <div class="filter-group">
-          <span class="filter-label">Hızlı seçim</span>
+          <span class="filter-label" id="turib-label-quickselect">Hızlı seçim</span>
           <div class="segmented" id="turib-period-presets" role="group" aria-label="Dönem hazır seçimleri">
             <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
             <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
@@ -299,7 +301,7 @@
         </div>
         <div class="legend" id="turib-price-legend"></div>
         <svg class="chart" id="turib-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
-        <h3 class="price-chart-title">Günlük işlem hacmi (ton)</h3>
+        <h3 class="price-chart-title" id="turib-tonnage-title">Günlük işlem hacmi (ton)</h3>
         <svg class="chart" id="turib-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
       </section>
 
@@ -333,17 +335,18 @@
 
     <div id="uztb-section" hidden>
       <div class="wasde-banner">
-        <div>
-          <strong>UZTB (Uzunköprü Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong> — her iş günü
+        <div id="uztb-banner-text">
+          <strong id="uztb-banner-strong">UZTB (Uzunköprü Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
+          <span id="uztb-banner-body"> — her iş günü
           18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
-          toplam miktar, ortalama rutubet) çekilir.
+          toplam miktar, ortalama rutubet) çekilir.</span>
         </div>
         <span class="wasde-release-badge" id="uztb-asof-badge">Yükleniyor…</span>
       </div>
 
       <section class="filters" aria-label="UZTB filtreleri">
         <div class="filter-group">
-          <span class="filter-label">Tarih Aralığı</span>
+          <span class="filter-label" id="uztb-label-daterange">Tarih Aralığı</span>
           <div class="period-row">
             <input type="date" class="text-input" id="uztb-date-start">
             <span class="period-sep">–</span>
@@ -351,7 +354,7 @@
           </div>
         </div>
         <div class="filter-group">
-          <span class="filter-label">Hızlı seçim</span>
+          <span class="filter-label" id="uztb-label-quickselect">Hızlı seçim</span>
           <div class="segmented" id="uztb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
             <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
             <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
@@ -368,7 +371,7 @@
         </div>
         <div class="legend" id="uztb-price-legend"></div>
         <svg class="chart" id="uztb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
-        <h3 class="price-chart-title">Günlük işlem hacmi (ton)</h3>
+        <h3 class="price-chart-title" id="uztb-tonnage-title">Günlük işlem hacmi (ton)</h3>
         <svg class="chart" id="uztb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
       </section>
 

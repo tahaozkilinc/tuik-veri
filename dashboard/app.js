@@ -1945,9 +1945,58 @@ window.__tabManager = (function () {
   const KTB_COLOR = "var(--series-import)";
   const CHART_W = 960, CHART_H = 260, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
 
+  // ---------- i18n (TR/EN/RU) — site geneli window.__registerI18nPanel'e
+  // kayıtlı. Bu panelin bütün metinleri sabit/kompoze (TÜRİB/KTB/TCMB/
+  // USD/TRY kısaltmaları hariç — bunlar kurum/kod kısaltması, çevrilmiyor),
+  // bu yüzden her dil için hazır tam cümleler tutuluyor.
+  const SUMMARY_LOCALES = { tr: "tr-TR", en: "en-US", ru: "ru-RU" };
+  const SUMMARY_STRINGS = {
+    tr: {
+      bannerStrong: "Mısır fiyat özeti",
+      bannerBody: " — TÜRİB (Mısır 1.Sınıf) ve KTB (Mısır) ağırlıklı ortalama fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Sadece ağırlıklı ortalama gösterilir, alt/üst limit yok.",
+      chartTitle: "Mısır fiyat eğilimi", tableTitle: "Günlük veriler",
+      legendTurib: "TÜRİB Mısır (1.Sınıf)", legendKtb: "KTB Mısır",
+      kpiTurib: "TÜRİB Mısır (son)", kpiKtb: "KTB Mısır (son)", kpiUsd: "USD/TRY (TCMB, son)",
+      thDate: "Tarih", thUsd: "USD/TRY (TCMB)", thTuribTl: "TÜRİB Mısır (TL/ton)", thTuribUsd: "TÜRİB Mısır (USD/ton)", thKtbTl: "KTB Mısır (TL/ton)", thKtbUsd: "KTB Mısır (USD/ton)",
+      exportBtn: "Excel'e aktar (CSV)", prevPageTitle: "Önceki sayfa", nextPageTitle: "Sonraki sayfa",
+      noDataChart: "Henüz veri yok.", noDataRangeUsd: "Bu aralıkta USD kuru eşleşen veri yok.", noDataRange: "Bu aralıkta veri yok.",
+      tooltipTurib: "TÜRİB Mısır", tooltipKtb: "KTB Mısır", tooltipUsd: "USD/TRY",
+      asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi", asofLoading: "Yükleniyor…",
+      priceSuffix: " TL/ton",
+    },
+    en: {
+      bannerStrong: "Corn price summary",
+      bannerBody: " — TÜRİB (Corn Class 1) and KTB (Corn) weighted average prices, together with TCMB's daily USD/TRY rate. Only the weighted average is shown, no low/high range.",
+      chartTitle: "Corn price trend", tableTitle: "Daily data",
+      legendTurib: "TÜRİB Corn (Class 1)", legendKtb: "KTB Corn",
+      kpiTurib: "TÜRİB Corn (latest)", kpiKtb: "KTB Corn (latest)", kpiUsd: "USD/TRY (TCMB, latest)",
+      thDate: "Date", thUsd: "USD/TRY (TCMB)", thTuribTl: "TÜRİB Corn (TRY/ton)", thTuribUsd: "TÜRİB Corn (USD/ton)", thKtbTl: "KTB Corn (TRY/ton)", thKtbUsd: "KTB Corn (USD/ton)",
+      exportBtn: "Export to Excel (CSV)", prevPageTitle: "Previous page", nextPageTitle: "Next page",
+      noDataChart: "No data yet.", noDataRangeUsd: "No USD-matched data in this range.", noDataRange: "No data in this range.",
+      tooltipTurib: "TÜRİB Corn", tooltipKtb: "KTB Corn", tooltipUsd: "USD/TRY",
+      asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data", asofLoading: "Loading…",
+      priceSuffix: " TRY/ton",
+    },
+    ru: {
+      bannerStrong: "Сводка цен на кукурузу",
+      bannerBody: " — средневзвешенные цены TÜRİB (кукуруза, 1 класс) и KTB (кукуруза), вместе с дневным курсом USD/TRY ЦБ Турции (TCMB). Показана только средневзвешенная цена, без минимума/максимума.",
+      chartTitle: "Динамика цены на кукурузу", tableTitle: "Суточные данные",
+      legendTurib: "TÜRİB Кукуруза (1 класс)", legendKtb: "KTB Кукуруза",
+      kpiTurib: "TÜRİB Кукуруза (посл.)", kpiKtb: "KTB Кукуруза (посл.)", kpiUsd: "USD/TRY (TCMB, посл.)",
+      thDate: "Дата", thUsd: "USD/TRY (TCMB)", thTuribTl: "TÜRİB Кукуруза (TRY/т)", thTuribUsd: "TÜRİB Кукуруза (USD/т)", thKtbTl: "KTB Кукуруза (TRY/т)", thKtbUsd: "KTB Кукуруза (USD/т)",
+      exportBtn: "Экспорт в Excel (CSV)", prevPageTitle: "Предыдущая страница", nextPageTitle: "Следующая страница",
+      noDataChart: "Пока нет данных.", noDataRangeUsd: "В этом диапазоне нет данных с курсом USD.", noDataRange: "Нет данных в этом диапазоне.",
+      tooltipTurib: "TÜRİB Кукуруза", tooltipKtb: "KTB Кукуруза", tooltipUsd: "USD/TRY",
+      asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные", asofLoading: "Загрузка…",
+      priceSuffix: " TRY/т",
+    },
+  };
+  let lang = "tr";
+  function tt(key) { return SUMMARY_STRINGS[lang][key]; }
+
   function fmtPriceTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " TL/ton";
+    return v.toLocaleString(SUMMARY_LOCALES[lang], { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + tt("priceSuffix");
   }
   function fmtUsdTon(v) {
     if (v == null || isNaN(v)) return "—";
@@ -1955,13 +2004,13 @@ window.__tabManager = (function () {
   }
   function fmtUsdTry(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString("tr-TR", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+    return v.toLocaleString(SUMMARY_LOCALES[lang], { minimumFractionDigits: 4, maximumFractionDigits: 4 });
   }
   function fmtDateShort(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(SUMMARY_LOCALES[lang], { day: "2-digit", month: "short" });
   }
   function fmtDateFull(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(SUMMARY_LOCALES[lang], { day: "numeric", month: "long", year: "numeric" });
   }
 
   const CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3 saat — kaynaklar günde bir güncelleniyor
@@ -2088,7 +2137,7 @@ window.__tabManager = (function () {
   function renderLegend() {
     const el = document.getElementById("exchange-summary-legend");
     el.textContent = "";
-    [["TÜRİB Mısır (1.Sınıf)", TURIB_COLOR], ["KTB Mısır", KTB_COLOR]].forEach(([label, color]) => {
+    [[tt("legendTurib"), TURIB_COLOR], [tt("legendKtb"), KTB_COLOR]].forEach(([label, color]) => {
       const key = document.createElement("span");
       key.className = "key";
       const sw = document.createElement("span");
@@ -2109,7 +2158,7 @@ window.__tabManager = (function () {
     if (!points.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
-      t.textContent = "Henüz veri yok.";
+      t.textContent = tt("noDataChart");
       svg.appendChild(t);
       return;
     }
@@ -2121,7 +2170,7 @@ window.__tabManager = (function () {
     if (!allVals.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
-      t.textContent = currency === "usd" ? "Bu aralıkta USD kuru eşleşen veri yok." : "Bu aralıkta veri yok.";
+      t.textContent = currency === "usd" ? tt("noDataRangeUsd") : tt("noDataRange");
       svg.appendChild(t);
       return;
     }
@@ -2143,7 +2192,7 @@ window.__tabManager = (function () {
       const val = maxVal + yPad - (g * (span + 2 * yPad)) / 3;
       t.textContent = currency === "usd"
         ? "$" + Math.round(val).toLocaleString("en-US")
-        : Math.round(val).toLocaleString("tr-TR");
+        : Math.round(val).toLocaleString(SUMMARY_LOCALES[lang]);
       svg.appendChild(t);
     }
 
@@ -2202,11 +2251,11 @@ window.__tabManager = (function () {
           row.appendChild(l); row.appendChild(v);
           wrap.appendChild(row);
         };
-        addRow("TÜRİB Mısır", p.turibTl, p.turibUsd);
-        addRow("KTB Mısır", p.ktbTl, p.ktbUsd);
+        addRow(tt("tooltipTurib"), p.turibTl, p.turibUsd);
+        addRow(tt("tooltipKtb"), p.ktbTl, p.ktbUsd);
         if (p.usd != null) {
           const row = document.createElement("div"); row.className = "row";
-          const l = document.createElement("span"); l.textContent = "USD/TRY: ";
+          const l = document.createElement("span"); l.textContent = tt("tooltipUsd") + ": ";
           const v = document.createElement("span"); v.className = "val"; v.textContent = fmtUsdTry(p.usd);
           row.appendChild(l); row.appendChild(v);
           wrap.appendChild(row);
@@ -2227,9 +2276,9 @@ window.__tabManager = (function () {
     el.textContent = "";
     const last = points[points.length - 1];
     const tiles = [
-      ["TÜRİB Mısır (son)", last ? fmtPriceTon(last.turibTl) : "—"],
-      ["KTB Mısır (son)", last ? fmtPriceTon(last.ktbTl) : "—"],
-      ["USD/TRY (TCMB, son)", last ? fmtUsdTry(last.usd) : "—"],
+      [tt("kpiTurib"), last ? fmtPriceTon(last.turibTl) : "—"],
+      [tt("kpiKtb"), last ? fmtPriceTon(last.ktbTl) : "—"],
+      [tt("kpiUsd"), last ? fmtUsdTry(last.usd) : "—"],
     ];
     tiles.forEach(([label, value]) => {
       const tile = document.createElement("div");
@@ -2325,6 +2374,35 @@ window.__tabManager = (function () {
     exportCsv(merged);
   });
 
+  function updateAsofBadge() {
+    const badge = document.getElementById("exchange-summary-asof-badge");
+    badge.textContent = merged.length ? tt("asofPrefix") + fmtDateFull(merged[merged.length - 1].date) : tt("asofNoData");
+  }
+
+  // Dil değişince sabit metinler (banner/başlıklar/tablo başlıkları/buton/
+  // pager) yeniden yazılır, veri varsa grafik/legend/KPI/tablo da tt()
+  // ile yeniden render edilir — TÜRİB/KTB/TCMB/USD/TRY kurum/kod
+  // kısaltmaları özel isim sayılıp hiçbir dilde değiştirilmiyor.
+  function applyLanguage(newLang) {
+    lang = newLang;
+    document.getElementById("exchange-summary-banner-strong").textContent = tt("bannerStrong");
+    document.getElementById("exchange-summary-banner-body").textContent = tt("bannerBody");
+    document.getElementById("exchange-summary-chart-title").textContent = tt("chartTitle");
+    document.getElementById("exchange-summary-table-title").textContent = tt("tableTitle");
+    document.getElementById("exchange-summary-th-date").textContent = tt("thDate");
+    document.getElementById("exchange-summary-th-usd").textContent = tt("thUsd");
+    document.getElementById("exchange-summary-th-turib-tl").textContent = tt("thTuribTl");
+    document.getElementById("exchange-summary-th-turib-usd").textContent = tt("thTuribUsd");
+    document.getElementById("exchange-summary-th-ktb-tl").textContent = tt("thKtbTl");
+    document.getElementById("exchange-summary-th-ktb-usd").textContent = tt("thKtbUsd");
+    document.getElementById("exchange-summary-export-btn").textContent = tt("exportBtn");
+    document.getElementById("exchange-summary-page-prev").title = tt("prevPageTitle");
+    document.getElementById("exchange-summary-page-next").title = tt("nextPageTitle");
+    updateAsofBadge();
+    renderAll();
+  }
+  window.__registerI18nPanel(applyLanguage);
+
   const SUMMARY_CACHE_KEYS = ["summary-turib", "summary-ktb", "summary-tcmb"];
 
   let loaded = false;
@@ -2335,14 +2413,14 @@ window.__tabManager = (function () {
     Promise.all([fetchTuribMisir(), fetchKtbMisir(), fetchTcmbRates()])
       .then(([turibRows, ktbRows, tcmbRows]) => {
         window.__updateStatusFromCache(SUMMARY_CACHE_KEYS);
+        lang = window.__appLang || "tr";
         merged = buildMerged(turibDailyMap(turibRows), ktbDailyMap(ktbRows), tcmbDailyMap(tcmbRows));
-        const badge = document.getElementById("exchange-summary-asof-badge");
-        badge.textContent = merged.length ? "Son veri: " + fmtDateFull(merged[merged.length - 1].date) : "Veri yok";
+        updateAsofBadge();
         renderAll();
       })
       .catch(err => {
         console.error(err);
-        document.getElementById("exchange-summary-asof-badge").textContent = "Veri çekilemedi";
+        document.getElementById("exchange-summary-asof-badge").textContent = tt("asofError");
       });
   });
 
@@ -2380,6 +2458,115 @@ window.__tabManager = (function () {
   const CHART_W = 960, CHART_H = 240, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
   const DEFAULT_PRODUCT = "MISIR 1.SINIF";
 
+  // ---------- i18n (TR/EN/RU) — site geneli window.__registerI18nPanel'e
+  // kayıtlı. "Türkiye Ürün İhtisas Borsası" kurumun resmi adı/özel isim
+  // olduğundan hiçbir dilde değiştirilmiyor; LİDAŞ (lisanslı depo işletmesi)
+  // şirket adları da gerçek kurum adı olduğundan Türkçe kalıyor. Grup/Tip/
+  // Sınıf ürün etiketleri (MISIR, BUĞDAY, 1.SINIF gibi) kapalı/sabit bir
+  // küme olduğundan KTB'nin ürün grubu çevirisiyle aynı mantıkla çevriliyor
+  // — state içindeki ham Türkçe değerler değişmiyor, sadece görünüm.
+  const TURIB_LOCALES = { tr: "tr-TR", en: "en-US", ru: "ru-RU" };
+  const TURIB_STRINGS = {
+    tr: {
+      bannerStrong: "TÜRİB (Türkiye Ürün İhtisas Borsası) günlük bülteni",
+      bannerBody: " — Normal Seans elektronik ürün senedi (ELÜS) işlemleri, her iş günü 18:00'da o günün bülteni çekilir. Ağırlıklı ortalama fiyat, aynı gün içindeki tüm işlemlerin miktar-ağırlıklı ortalamasıdır.",
+      labelGrup: "Ürün Grubu", labelAltTip: "Tip", labelSinif: "Sınıf", labelLidas: "LİDAŞ",
+      lidasPlaceholder: "Tümü — LİDAŞ aramak için yazın…", tableSearchPlaceholder: "Tabloda LİDAŞ/il/ilçe ara…",
+      labelDateRange: "Tarih Aralığı", labelQuickSelect: "Hızlı seçim",
+      preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
+      chartTitlePrefix: "Fiyat eğilimi (TL/ton)", tonnageChartTitle: "Günlük işlem hacmi (ton)",
+      tableTitle: "Günlük işlemler",
+      exportBtn: "Excel'e aktar (CSV)", prevPageTitle: "Önceki sayfa", nextPageTitle: "Sonraki sayfa",
+      legendAvg: "Ağırlıklı Ortalama", legendMax: "En Yüksek", legendMin: "En Düşük",
+      tooltipAvg: "Ağırlıklı Ort.", tooltipMax: "En Yüksek", tooltipMin: "En Düşük",
+      noDataChart: "Bu filtrede veri yok.",
+      kpiAvgPrice: "Ağırlıklı ortalama fiyat (seçili dönem)", kpiLastPrice: "Son fiyat",
+      kpiTotalVolume: "Toplam işlem hacmi", kpiTotalValue: "Toplam işlem değeri",
+      thDate: "Tarih", thClass: "Sınıf", thLidas: "LİDAŞ Adı", thIl: "İl", thIlce: "İlçe",
+      thAvg: "Ağ. Ort. Fiyat", thQty: "İşlem Miktarı", thValue: "İşlem Hacmi", thCount: "İşlem Adedi",
+      noResults: "Sonuç yok",
+      asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi",
+      tonSuffix: " ton", priceSuffix: " TL/ton",
+    },
+    en: {
+      bannerStrong: "TÜRİB (Türkiye Ürün İhtisas Borsası) daily bulletin",
+      bannerBody: " — Normal Session electronic product note (ELÜS) trades; the day's bulletin is fetched every business day at 18:00 (TR time). The weighted average price is the quantity-weighted average of all that day's trades.",
+      labelGrup: "Product Group", labelAltTip: "Type", labelSinif: "Class", labelLidas: "LİDAŞ",
+      lidasPlaceholder: "All — type to search LİDAŞ…", tableSearchPlaceholder: "Search LİDAŞ/province/district in table…",
+      labelDateRange: "Date Range", labelQuickSelect: "Quick select",
+      preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
+      chartTitlePrefix: "Price trend (TRY/ton)", tonnageChartTitle: "Daily trade volume (ton)",
+      tableTitle: "Daily trades",
+      exportBtn: "Export to Excel (CSV)", prevPageTitle: "Previous page", nextPageTitle: "Next page",
+      legendAvg: "Weighted Average", legendMax: "Highest", legendMin: "Lowest",
+      tooltipAvg: "Weighted Avg.", tooltipMax: "Highest", tooltipMin: "Lowest",
+      noDataChart: "No data for this filter.",
+      kpiAvgPrice: "Weighted average price (selected period)", kpiLastPrice: "Last price",
+      kpiTotalVolume: "Total trade volume", kpiTotalValue: "Total trade value",
+      thDate: "Date", thClass: "Class", thLidas: "LİDAŞ Name", thIl: "Province", thIlce: "District",
+      thAvg: "Weighted Avg. Price", thQty: "Quantity", thValue: "Trade Value", thCount: "Trade Count",
+      noResults: "No results",
+      asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data",
+      tonSuffix: " ton", priceSuffix: " TRY/ton",
+    },
+    ru: {
+      bannerStrong: "TÜRİB (Türkiye Ürün İhtisas Borsası) — суточный бюллетень",
+      bannerBody: " — сделки с электронными товарными расписками (ELÜS) основной сессии; бюллетень за день загружается каждый рабочий день в 18:00 (время Турции). Средневзвешенная цена — это средняя по объёму цена всех сделок дня.",
+      labelGrup: "Товарная группа", labelAltTip: "Тип", labelSinif: "Класс", labelLidas: "LİDAŞ",
+      lidasPlaceholder: "Все — введите для поиска LİDAŞ…", tableSearchPlaceholder: "Поиск LİDAŞ/области/района в таблице…",
+      labelDateRange: "Период", labelQuickSelect: "Быстрый выбор",
+      preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
+      chartTitlePrefix: "Динамика цены (TRY/т)", tonnageChartTitle: "Суточный объём торгов (т)",
+      tableTitle: "Суточные сделки",
+      exportBtn: "Экспорт в Excel (CSV)", prevPageTitle: "Предыдущая страница", nextPageTitle: "Следующая страница",
+      legendAvg: "Средневзвешенная", legendMax: "Максимум", legendMin: "Минимум",
+      tooltipAvg: "Средневзв.", tooltipMax: "Максимум", tooltipMin: "Минимум",
+      noDataChart: "Нет данных для этого фильтра.",
+      kpiAvgPrice: "Средневзвешенная цена (за период)", kpiLastPrice: "Последняя цена",
+      kpiTotalVolume: "Общий объём торгов", kpiTotalValue: "Общая стоимость торгов",
+      thDate: "Дата", thClass: "Класс", thLidas: "Название LİDAŞ", thIl: "Область", thIlce: "Район",
+      thAvg: "Сред. взв. цена", thQty: "Объём", thValue: "Стоимость", thCount: "Число сделок",
+      noResults: "Нет результатов",
+      asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные",
+      tonSuffix: " т", priceSuffix: " TRY/т",
+    },
+  };
+  // Grup/Tip/Sınıf: kapalı küme — KTB'nin ürün grubu çevirisiyle aynı yaklaşım.
+  const GRUP_NAMES_I18N = {
+    "ARPA": { en: "Barley", ru: "Ячмень" },
+    "BUĞDAY": { en: "Wheat", ru: "Пшеница" },
+    "ÇAVDAR": { en: "Rye", ru: "Рожь" },
+    "MISIR": { en: "Corn", ru: "Кукуруза" },
+    "SOYA FASULYESİ": { en: "Soybeans", ru: "Соевые бобы" },
+    "YULAF BEYAZ": { en: "White Oats", ru: "Белый овёс" },
+  };
+  const ALTTIP_NAMES_I18N = {
+    "EKMEKLİK BEYAZ": { en: "Bread Wheat, White", ru: "Хлебная, белая" },
+    "EKMEKLİK KIRMIZI": { en: "Bread Wheat, Red", ru: "Хлебная, красная" },
+    "MAKARNALIK": { en: "Durum (Pasta)", ru: "Твёрдая (макаронная)" },
+  };
+  const SINIF_NAMES_I18N = {
+    "1.SINIF": { en: "Class 1", ru: "1 класс" },
+    "2.SINIF": { en: "Class 2", ru: "2 класс" },
+    "3.SINIF": { en: "Class 3", ru: "3 класс" },
+    "DÜŞÜK VASIFLI": { en: "Low Quality", ru: "Низкое качество" },
+  };
+  let lang = "tr";
+  function tt(key) { return TURIB_STRINGS[lang][key]; }
+  function translateGrup(g) { if (lang === "tr" || !g) return g; return (GRUP_NAMES_I18N[g] && GRUP_NAMES_I18N[g][lang]) || g; }
+  function translateAltTip(a) { if (lang === "tr" || !a) return a; return (ALTTIP_NAMES_I18N[a] && ALTTIP_NAMES_I18N[a][lang]) || a; }
+  function translateSinif(s) { if (lang === "tr" || !s) return s; return (SINIF_NAMES_I18N[s] && SINIF_NAMES_I18N[s][lang]) || s; }
+  // full: "MISIR 1.SINIF" / "BUĞDAY EKMEKLİK BEYAZ 1.SINIF" gibi ham değer —
+  // parseProductName ile parçalanıp her parça çevrilip yeniden birleştirilir.
+  function translateProductFull(full) {
+    if (lang === "tr" || !full) return full;
+    const p = parseProductName(full);
+    const parts = [translateGrup(p.grup)];
+    if (p.altTip) parts.push(translateAltTip(p.altTip));
+    if (p.sinif) parts.push(translateSinif(p.sinif));
+    return parts.join(" ");
+  }
+
   function fmtKg(v) {
     if (v == null || isNaN(v)) return "—";
     const a = Math.abs(v);
@@ -2389,7 +2576,7 @@ window.__tabManager = (function () {
   }
   function fmtTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return (v / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+    return (v / 1000).toLocaleString(TURIB_LOCALES[lang], { maximumFractionDigits: 1 }) + tt("tonSuffix");
   }
   function fmtTl(v) {
     if (v == null || isNaN(v)) return "—";
@@ -2403,13 +2590,13 @@ window.__tabManager = (function () {
   // taraf ×1000 yapmalı (bkz. tablo satırları).
   function fmtPriceTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " TL/ton";
+    return v.toLocaleString(TURIB_LOCALES[lang], { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + tt("priceSuffix");
   }
   function fmtDateShort(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(TURIB_LOCALES[lang], { day: "2-digit", month: "short" });
   }
   function fmtDateFull(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(TURIB_LOCALES[lang], { day: "numeric", month: "long", year: "numeric" });
   }
 
   const CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3 saat — veri günde bir (18:00) güncelleniyor
@@ -2555,15 +2742,15 @@ window.__tabManager = (function () {
         sw.className = "swatch-line";
         sw.style.background = s.color; sw.style.borderColor = s.color;
         key.appendChild(sw);
-        key.appendChild(document.createTextNode(s.product));
+        key.appendChild(document.createTextNode(translateProductFull(s.product)));
         el.appendChild(key);
       });
       return;
     }
     [
-      ["Ağırlıklı Ortalama", false],
-      ["En Yüksek", true],
-      ["En Düşük", true],
+      [tt("legendAvg"), false],
+      [tt("legendMax"), true],
+      [tt("legendMin"), true],
     ].forEach(([label, dashed]) => {
       const key = document.createElement("span");
       key.className = "key";
@@ -2605,7 +2792,7 @@ window.__tabManager = (function () {
     if (!allDates.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
-      t.textContent = "Bu filtrede veri yok.";
+      t.textContent = tt("noDataChart");
       svg.appendChild(t);
       return;
     }
@@ -2762,7 +2949,7 @@ window.__tabManager = (function () {
         wrap.appendChild(ttl);
         if (!multi) {
           const p = aligned[0].points[i];
-          [["Ağırlıklı Ort.", p.price], ["En Yüksek", p.maxPrice], ["En Düşük", p.minPrice]].forEach(([label, val]) => {
+          [[tt("tooltipAvg"), p.price], [tt("tooltipMax"), p.maxPrice], [tt("tooltipMin"), p.minPrice]].forEach(([label, val]) => {
             const row = document.createElement("div"); row.className = "row";
             const l = document.createElement("span"); l.textContent = label + ": ";
             const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
@@ -2777,7 +2964,7 @@ window.__tabManager = (function () {
             const l = document.createElement("span");
             const dot = document.createElement("span"); dot.textContent = "● "; dot.style.color = s.color;
             l.appendChild(dot);
-            l.appendChild(document.createTextNode(s.product + ": "));
+            l.appendChild(document.createTextNode(translateProductFull(s.product) + ": "));
             const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(p.price);
             row.appendChild(l); row.appendChild(v);
             wrap.appendChild(row);
@@ -2803,7 +2990,7 @@ window.__tabManager = (function () {
     if (!points.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", TON_CHART_H / 2); t.setAttribute("class", "axis-label");
-      t.textContent = "Bu filtrede veri yok.";
+      t.textContent = tt("noDataChart");
       svg.appendChild(t);
       return;
     }
@@ -2889,11 +3076,12 @@ window.__tabManager = (function () {
     const tiles = [];
     perProduct.forEach(s => {
       const prodRows = rowsForProduct(s.product);
-      tiles.push({ color: multi ? s.color : null, label: (multi ? s.product + " — " : "") + "Ağırlıklı ortalama fiyat (seçili dönem)", value: fmtPriceTon(overallWeightedAvg(prodRows)) });
-      tiles.push({ color: multi ? s.color : null, label: (multi ? s.product + " — " : "") + "Son fiyat", value: s.points.length ? fmtPriceTon(s.points[s.points.length - 1].price) : "—" });
+      const prefix = multi ? translateProductFull(s.product) + " — " : "";
+      tiles.push({ color: multi ? s.color : null, label: prefix + tt("kpiAvgPrice"), value: fmtPriceTon(overallWeightedAvg(prodRows)) });
+      tiles.push({ color: multi ? s.color : null, label: prefix + tt("kpiLastPrice"), value: s.points.length ? fmtPriceTon(s.points[s.points.length - 1].price) : "—" });
     });
-    tiles.push({ color: null, label: "Toplam işlem hacmi", value: fmtTon(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0)) });
-    tiles.push({ color: null, label: "Toplam işlem değeri", value: fmtTl(rows.reduce((s, r) => s + (r.islem_hacmi_tl || 0), 0)) });
+    tiles.push({ color: null, label: tt("kpiTotalVolume"), value: fmtTon(rows.reduce((s, r) => s + (r.islem_miktari_kg || 0), 0)) });
+    tiles.push({ color: null, label: tt("kpiTotalValue"), value: fmtTl(rows.reduce((s, r) => s + (r.islem_hacmi_tl || 0), 0)) });
     tiles.forEach(t => {
       const tile = document.createElement("div");
       tile.className = "stat-tile";
@@ -2919,8 +3107,8 @@ window.__tabManager = (function () {
     thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
     const multi = state.products.size > 1;
     const cols = multi
-      ? ["Tarih", "Sınıf", "LİDAŞ Adı", "İl", "İlçe", "Ağ. Ort. Fiyat", "İşlem Miktarı", "İşlem Hacmi", "İşlem Adedi"]
-      : ["Tarih", "LİDAŞ Adı", "İl", "İlçe", "Ağ. Ort. Fiyat", "İşlem Miktarı", "İşlem Hacmi", "İşlem Adedi"];
+      ? [tt("thDate"), tt("thClass"), tt("thLidas"), tt("thIl"), tt("thIlce"), tt("thAvg"), tt("thQty"), tt("thValue"), tt("thCount")]
+      : [tt("thDate"), tt("thLidas"), tt("thIl"), tt("thIlce"), tt("thAvg"), tt("thQty"), tt("thValue"), tt("thCount")];
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
     const q = state.tableSearch.toLocaleLowerCase("tr");
@@ -2928,13 +3116,13 @@ window.__tabManager = (function () {
       ? rows.filter(r => [r.lidas_adi, r.il, r.ilce].some(v => v && v.toLocaleLowerCase("tr").includes(q)))
       : rows;
     const sorted = [...filtered].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.lidas_adi || "").localeCompare(b.lidas_adi || "", "tr"));
-    document.getElementById("turib-table-title").textContent = "Günlük işlemler";
+    document.getElementById("turib-table-title").textContent = tt("tableTitle");
     const info = paginateRows(sorted, tablePage, rowLimit);
     tablePage = info.page;
     info.slice.forEach(r => {
       const tr = document.createElement("tr");
       const cells = [fmtDateFull(r.trade_date)];
-      if (multi) cells.push(parseProductName(r.enstruman_sinifi).sinif);
+      if (multi) cells.push(translateSinif(parseProductName(r.enstruman_sinifi).sinif));
       cells.push(
         r.lidas_adi || "—", r.il || "—", r.ilce || "—",
         fmtPriceTon(r.agirlikli_ortalama_fiyat != null ? r.agirlikli_ortalama_fiyat * 1000 : null), fmtKg(r.islem_miktari_kg), fmtTl(r.islem_hacmi_tl), String(r.islem_adedi ?? "—"),
@@ -2973,7 +3161,7 @@ window.__tabManager = (function () {
       color: colorForProduct(product),
       points: dailyWeightedSeries(rowsForProduct(product)),
     }));
-    document.getElementById("turib-chart-title").textContent = "Fiyat eğilimi (TL/ton) — " + selected.join(" + ") + (state.lidas ? " · " + state.lidas : "");
+    document.getElementById("turib-chart-title").textContent = tt("chartTitlePrefix") + " — " + selected.map(translateProductFull).join(" + ") + (state.lidas ? " · " + state.lidas : "");
     renderPriceLegend(perProduct);
     drawPriceChart(perProduct);
     drawTonnageChart(combinedSeries);
@@ -3045,13 +3233,13 @@ window.__tabManager = (function () {
     return { full: name, grup: prefix, altTip: null, sinif };
   }
 
-  function renderChipRow(wrapId, options, activeValue, onPick) {
+  function renderChipRow(wrapId, options, activeValue, onPick, displayFn) {
     const wrap = document.getElementById(wrapId);
     wrap.textContent = "";
     options.forEach(opt => {
       const btn = document.createElement("button");
       btn.className = "chip" + (opt === activeValue ? " active" : "");
-      btn.type = "button"; btn.textContent = opt;
+      btn.type = "button"; btn.textContent = displayFn ? displayFn(opt) : opt;
       btn.addEventListener("click", () => onPick(opt));
       wrap.appendChild(btn);
     });
@@ -3080,7 +3268,7 @@ window.__tabManager = (function () {
         sw.style.background = colorForProduct(entry.full);
         btn.appendChild(sw);
       }
-      btn.appendChild(document.createTextNode(entry.sinif));
+      btn.appendChild(document.createTextNode(translateSinif(entry.sinif)));
       btn.addEventListener("click", () => onToggle(entry));
       wrap.appendChild(btn);
     });
@@ -3121,7 +3309,7 @@ window.__tabManager = (function () {
       state.products = pickDefaultForCandidates(scoped);
       buildProductControls();
       renderAll();
-    });
+    }, translateGrup);
 
     // 2. kademe: Tip (yalnızca seçili grubun alt tipi varsa gösterilir — Buğday)
     const altTipGroup = document.getElementById("turib-alttip-group");
@@ -3135,7 +3323,7 @@ window.__tabManager = (function () {
         state.products = pickDefaultForCandidates(scoped);
         buildProductControls();
         renderAll();
-      });
+      }, translateAltTip);
     } else {
       altTipGroup.hidden = true;
       document.getElementById("turib-alttip").textContent = "";
@@ -3180,7 +3368,7 @@ window.__tabManager = (function () {
       const names = q ? allNames.filter(n => n.toLocaleLowerCase("tr").includes(q)) : allNames;
       box.textContent = "";
       if (!names.length) {
-        const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = "Sonuç yok";
+        const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = tt("noResults");
         box.appendChild(empty);
       } else {
         names.forEach(name => {
@@ -3205,6 +3393,45 @@ window.__tabManager = (function () {
     input.addEventListener("blur", () => setTimeout(closeBox, 120));
   }
 
+  function updateAsofBadge() {
+    const badge = document.getElementById("turib-asof-badge");
+    badge.textContent = allRows.length
+      ? tt("asofPrefix") + fmtDateFull(allRows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), allRows[0].trade_date))
+      : tt("asofNoData");
+  }
+
+  // Dil değişince sabit metinler (banner/etiketler/placeholder/preset/
+  // başlıklar/buton/pager) yeniden yazılır; veri varsa ürün çipleri (Grup/
+  // Tip/Sınıf çevirisi) + grafik/legend/KPI/tablo da tt()/translateXxx ile
+  // yeniden render edilir. "Türkiye Ürün İhtisas Borsası" ve LİDAŞ şirket
+  // adları özel isim olduğundan hiçbir dilde değiştirilmiyor.
+  function applyLanguage(newLang) {
+    lang = newLang;
+    document.getElementById("turib-banner-strong").textContent = tt("bannerStrong");
+    document.getElementById("turib-banner-body").textContent = tt("bannerBody");
+    document.getElementById("turib-label-grup").textContent = tt("labelGrup");
+    document.getElementById("turib-label-alttip").textContent = tt("labelAltTip");
+    document.getElementById("turib-label-sinif").textContent = tt("labelSinif");
+    document.getElementById("turib-label-lidas").textContent = tt("labelLidas");
+    document.getElementById("turib-lidas-search").placeholder = tt("lidasPlaceholder");
+    document.getElementById("turib-table-search").placeholder = tt("tableSearchPlaceholder");
+    document.getElementById("turib-label-daterange").textContent = tt("labelDateRange");
+    document.getElementById("turib-label-quickselect").textContent = tt("labelQuickSelect");
+    document.querySelector('#turib-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
+    document.querySelector('#turib-period-presets .seg[data-preset="90"]').textContent = tt("preset90");
+    document.querySelector('#turib-period-presets .seg[data-preset="all"]').textContent = tt("presetAll");
+    document.getElementById("turib-tonnage-title").textContent = tt("tonnageChartTitle");
+    document.getElementById("turib-export-btn").textContent = tt("exportBtn");
+    document.getElementById("turib-page-prev").title = tt("prevPageTitle");
+    document.getElementById("turib-page-next").title = tt("nextPageTitle");
+    updateAsofBadge();
+    if (allRows.length) {
+      buildProductControls();
+      renderAll();
+    }
+  }
+  window.__registerI18nPanel(applyLanguage);
+
   let loaded = false;
   window.__turibTab = {
     onActivate() {
@@ -3213,17 +3440,16 @@ window.__tabManager = (function () {
       fetchTuribRows()
         .then(rows => {
           window.__updateStatusFromCache("turib");
+          lang = window.__appLang || "tr";
           allRows = rows;
-          document.getElementById("turib-asof-badge").textContent = rows.length
-            ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
-            : "Veri yok";
+          updateAsofBadge();
           buildProductControls();
           buildDateControls();
           renderAll();
         })
         .catch(err => {
           console.error(err);
-          document.getElementById("turib-asof-badge").textContent = "Veri çekilemedi";
+          document.getElementById("turib-asof-badge").textContent = tt("asofError");
         });
     },
   };
@@ -3277,23 +3503,85 @@ window.__tabManager = (function () {
   let rowLimit = 10;
   let tablePage = 0;
 
+  // ---------- i18n (TR/EN/RU) — site geneli window.__registerI18nPanel'e
+  // kayıtlı. "Uzunköprü Ticaret Borsası" kurumun resmi adı/özel isim
+  // olduğundan hiçbir dilde değiştirilmiyor; geri kalan açıklama metni
+  // çevriliyor. UZTB tek bir ürün (Ayçiçek) için günlük özet sunduğundan
+  // ürün adı seçimi/çevirisi yok.
+  const UZTB_LOCALES = { tr: "tr-TR", en: "en-US", ru: "ru-RU" };
+  const UZTB_STRINGS = {
+    tr: {
+      bannerStrong: "UZTB (Uzunköprü Ticaret Borsası) günlük Salon Satışı fiyat özeti",
+      bannerBody: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
+      dateRangeLabel: "Tarih Aralığı", quickSelectLabel: "Hızlı seçim",
+      preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
+      chartTitle: "Fiyat eğilimi (TL/ton)", tonnageChartTitle: "Günlük işlem hacmi (ton)",
+      tableTitle: "Günlük özet",
+      exportBtn: "Excel'e aktar (CSV)", prevPageTitle: "Önceki sayfa", nextPageTitle: "Sonraki sayfa",
+      legendAvg: "Ağırlıklı Ortalama", legendMax: "En Yüksek", legendMin: "En Düşük",
+      tooltipAvg: "Ağırlıklı Ort.", tooltipMax: "En Yüksek", tooltipMin: "En Düşük",
+      noDataChart: "Bu filtrede veri yok.",
+      kpiAvgPrice: "Ağırlıklı ortalama fiyat (seçili dönem)", kpiLastPrice: "Son fiyat",
+      kpiTotalVolume: "Toplam işlem hacmi", kpiAvgRutubet: "Ortalama rutubet",
+      thDate: "Tarih", thMin: "En Düşük", thMax: "En Yüksek", thAvg: "Ağ. Ort. Fiyat", thQty: "Toplam Miktar", thCount: "İşlem Adedi", thRutubet: "Ort. Rutubet",
+      asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi",
+      tonSuffix: " ton", priceSuffix: " TL/ton",
+    },
+    en: {
+      bannerStrong: "UZTB (Uzunköprü Ticaret Borsası) daily Trading Hall price summary",
+      bannerBody: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
+      dateRangeLabel: "Date Range", quickSelectLabel: "Quick select",
+      preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
+      chartTitle: "Price trend (TRY/ton)", tonnageChartTitle: "Daily trade volume (ton)",
+      tableTitle: "Daily summary",
+      exportBtn: "Export to Excel (CSV)", prevPageTitle: "Previous page", nextPageTitle: "Next page",
+      legendAvg: "Weighted Average", legendMax: "Highest", legendMin: "Lowest",
+      tooltipAvg: "Weighted Avg.", tooltipMax: "Highest", tooltipMin: "Lowest",
+      noDataChart: "No data for this filter.",
+      kpiAvgPrice: "Weighted average price (selected period)", kpiLastPrice: "Last price",
+      kpiTotalVolume: "Total trade volume", kpiAvgRutubet: "Average moisture",
+      thDate: "Date", thMin: "Lowest", thMax: "Highest", thAvg: "Weighted Avg. Price", thQty: "Total Quantity", thCount: "Trade Count", thRutubet: "Avg. Moisture",
+      asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data",
+      tonSuffix: " ton", priceSuffix: " TRY/ton",
+    },
+    ru: {
+      bannerStrong: "УЗТБ (Uzunköprü Ticaret Borsası) — суточная сводка цен торгового зала",
+      bannerBody: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+      dateRangeLabel: "Период", quickSelectLabel: "Быстрый выбор",
+      preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
+      chartTitle: "Динамика цены (TRY/т)", tonnageChartTitle: "Суточный объём торгов (т)",
+      tableTitle: "Суточная сводка",
+      exportBtn: "Экспорт в Excel (CSV)", prevPageTitle: "Предыдущая страница", nextPageTitle: "Следующая страница",
+      legendAvg: "Средневзвешенная", legendMax: "Максимум", legendMin: "Минимум",
+      tooltipAvg: "Средневзв.", tooltipMax: "Максимум", tooltipMin: "Минимум",
+      noDataChart: "Нет данных для этого фильтра.",
+      kpiAvgPrice: "Средневзвешенная цена (за период)", kpiLastPrice: "Последняя цена",
+      kpiTotalVolume: "Общий объём торгов", kpiAvgRutubet: "Средняя влажность",
+      thDate: "Дата", thMin: "Минимум", thMax: "Максимум", thAvg: "Сред. взв. цена", thQty: "Общий объём", thCount: "Число сделок", thRutubet: "Сред. влажность",
+      asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные",
+      tonSuffix: " т", priceSuffix: " TRY/т",
+    },
+  };
+  let lang = "tr";
+  function tt(key) { return UZTB_STRINGS[lang][key]; }
+
   function fmtPriceTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " TL/ton";
+    return v.toLocaleString(UZTB_LOCALES[lang], { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + tt("priceSuffix");
   }
   function fmtTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " ton";
+    return v.toLocaleString(UZTB_LOCALES[lang], { maximumFractionDigits: 1 }) + tt("tonSuffix");
   }
   function fmtPct(v) {
     if (v == null || isNaN(v)) return "—";
-    return "%" + v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return "%" + v.toLocaleString(UZTB_LOCALES[lang], { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function fmtDateShort(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(UZTB_LOCALES[lang], { day: "2-digit", month: "short" });
   }
   function fmtDateFull(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(UZTB_LOCALES[lang], { day: "numeric", month: "long", year: "numeric" });
   }
 
   const CACHE_TTL_MS = 3 * 60 * 60 * 1000;
@@ -3367,7 +3655,7 @@ window.__tabManager = (function () {
   function renderPriceLegend() {
     const el = document.getElementById("uztb-price-legend");
     el.textContent = "";
-    [["Ağırlıklı Ortalama", false], ["En Yüksek", true], ["En Düşük", true]].forEach(([label, dashed]) => {
+    [[tt("legendAvg"), false], [tt("legendMax"), true], [tt("legendMin"), true]].forEach(([label, dashed]) => {
       const key = document.createElement("span");
       key.className = "key";
       const sw = document.createElement("span");
@@ -3399,7 +3687,7 @@ window.__tabManager = (function () {
     if (!points.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
-      t.textContent = "Bu filtrede veri yok.";
+      t.textContent = tt("noDataChart");
       svg.appendChild(t);
       return;
     }
@@ -3513,7 +3801,7 @@ window.__tabManager = (function () {
         const wrap = document.createElement("div");
         const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
         wrap.appendChild(ttl);
-        [["Ağırlıklı Ort.", p.price], ["En Yüksek", p.maxPrice], ["En Düşük", p.minPrice]].forEach(([label, val]) => {
+        [[tt("tooltipAvg"), p.price], [tt("tooltipMax"), p.maxPrice], [tt("tooltipMin"), p.minPrice]].forEach(([label, val]) => {
           const row = document.createElement("div"); row.className = "row";
           const l = document.createElement("span"); l.textContent = label + ": ";
           const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
@@ -3538,7 +3826,7 @@ window.__tabManager = (function () {
     if (!points.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", TON_CHART_H / 2); t.setAttribute("class", "axis-label");
-      t.textContent = "Bu filtrede veri yok.";
+      t.textContent = tt("noDataChart");
       svg.appendChild(t);
       return;
     }
@@ -3621,10 +3909,10 @@ window.__tabManager = (function () {
       ? rutubetVals.reduce((s, r) => s + r.ort_rutubet, 0) / rutubetVals.length
       : null;
     const tiles = [
-      ["Ağırlıklı ortalama fiyat (seçili dönem)", fmtPriceTon(overallWeightedAvg(rows))],
-      ["Son fiyat", series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
-      ["Toplam işlem hacmi", fmtTon(rows.reduce((s, r) => s + (r.toplam_kilo || 0) / 1000, 0))],
-      ["Ortalama rutubet", fmtPct(avgRutubet)],
+      [tt("kpiAvgPrice"), fmtPriceTon(overallWeightedAvg(rows))],
+      [tt("kpiLastPrice"), series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
+      [tt("kpiTotalVolume"), fmtTon(rows.reduce((s, r) => s + (r.toplam_kilo || 0) / 1000, 0))],
+      [tt("kpiAvgRutubet"), fmtPct(avgRutubet)],
     ];
     tiles.forEach(([label, value]) => {
       const tile = document.createElement("div");
@@ -3641,7 +3929,7 @@ window.__tabManager = (function () {
     const tbody = document.getElementById("uztb-tbody");
     const foot = document.getElementById("uztb-table-foot");
     thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
-    const cols = ["Tarih", "En Düşük", "En Yüksek", "Ağ. Ort. Fiyat", "Toplam Miktar", "İşlem Adedi", "Ort. Rutubet"];
+    const cols = [tt("thDate"), tt("thMin"), tt("thMax"), tt("thAvg"), tt("thQty"), tt("thCount"), tt("thRutubet")];
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
     const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
@@ -3729,6 +4017,37 @@ window.__tabManager = (function () {
     applyPreset("90");
   }
 
+  function updateAsofBadge() {
+    const badge = document.getElementById("uztb-asof-badge");
+    badge.textContent = allRows.length
+      ? tt("asofPrefix") + fmtDateFull(allRows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), allRows[0].trade_date))
+      : tt("asofNoData");
+  }
+
+  // Dil değişince sabit metinler (banner/etiketler/başlıklar/buton/pager)
+  // yeniden yazılır, veri varsa legend/grafik/KPI/tablo da tt() ile
+  // yeniden render edilir — "Uzunköprü Ticaret Borsası" özel isim olduğundan
+  // hiçbir dilde değiştirilmiyor (bkz. UZTB_STRINGS).
+  function applyLanguage(newLang) {
+    lang = newLang;
+    document.getElementById("uztb-banner-strong").textContent = tt("bannerStrong");
+    document.getElementById("uztb-banner-body").textContent = tt("bannerBody");
+    document.getElementById("uztb-label-daterange").textContent = tt("dateRangeLabel");
+    document.getElementById("uztb-label-quickselect").textContent = tt("quickSelectLabel");
+    document.querySelector('#uztb-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
+    document.querySelector('#uztb-period-presets .seg[data-preset="90"]').textContent = tt("preset90");
+    document.querySelector('#uztb-period-presets .seg[data-preset="all"]').textContent = tt("presetAll");
+    document.getElementById("uztb-chart-title").textContent = tt("chartTitle");
+    document.getElementById("uztb-tonnage-title").textContent = tt("tonnageChartTitle");
+    document.getElementById("uztb-table-title").textContent = tt("tableTitle");
+    document.getElementById("uztb-export-btn").textContent = tt("exportBtn");
+    document.getElementById("uztb-page-prev").title = tt("prevPageTitle");
+    document.getElementById("uztb-page-next").title = tt("nextPageTitle");
+    updateAsofBadge();
+    if (allRows.length) renderAll();
+  }
+  window.__registerI18nPanel(applyLanguage);
+
   let loaded = false;
   window.__uztbTab = {
     onActivate() {
@@ -3737,16 +4056,15 @@ window.__tabManager = (function () {
       fetchUztbRows()
         .then(rows => {
           window.__updateStatusFromCache("uztb");
+          lang = window.__appLang || "tr";
           allRows = rows;
-          document.getElementById("uztb-asof-badge").textContent = rows.length
-            ? "Son veri: " + fmtDateFull(rows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), rows[0].trade_date))
-            : "Veri yok";
+          updateAsofBadge();
           buildDateControls();
           renderAll();
         })
         .catch(err => {
           console.error(err);
-          document.getElementById("uztb-asof-badge").textContent = "Veri çekilemedi";
+          document.getElementById("uztb-asof-badge").textContent = tt("asofError");
         });
     },
   };
@@ -3828,7 +4146,7 @@ window.__tabManager = (function () {
       tonSuffix: " ton", priceSuffix: " TL/ton",
     },
     en: {
-      bannerStrong: "KTB (Konya Commodity Exchange) daily Sales Hall bulletin",
+      bannerStrong: "KTB (Konya Ticaret Borsası) daily Sales Hall bulletin",
       bannerBody: " — the day's bulletin is fetched every business day at 18:00 (TR time). Prices are the quantity-weighted average, lowest and highest across all classes (quality grades) of the selected product group that day.",
       productGroupLabel: "Product Group",
       dateRangeLabel: "Date Range",
@@ -3853,7 +4171,7 @@ window.__tabManager = (function () {
       tonSuffix: " ton", priceSuffix: " TRY/ton",
     },
     ru: {
-      bannerStrong: "КТБ (Конийская товарная биржа) — ежедневный бюллетень торгового зала",
+      bannerStrong: "КТБ (Konya Ticaret Borsası) — ежедневный бюллетень торгового зала",
       bannerBody: " — бюллетень за день загружается каждый рабочий день в 18:00 (время Турции). Цены — это средневзвешенная, минимальная и максимальная цена по всем классам (сортам) выбранной товарной группы за этот день.",
       productGroupLabel: "Товарная группа",
       dateRangeLabel: "Период",
