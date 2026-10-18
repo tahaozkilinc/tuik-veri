@@ -1955,6 +1955,8 @@ window.__tabManager = (function () {
       bannerStrong: "Mısır fiyat özeti",
       bannerBody: " — TÜRİB (Mısır 1.Sınıf) ve KTB (Mısır) ağırlıklı ortalama fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Sadece ağırlıklı ortalama gösterilir, alt/üst limit yok.",
       chartTitle: "Mısır fiyat eğilimi", tableTitle: "Günlük veriler",
+      labelDateRange: "Tarih Aralığı", labelQuickSelect: "Hızlı seçim",
+      preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
       legendTurib: "TÜRİB Mısır (1.Sınıf)", legendKtb: "KTB Mısır",
       kpiTurib: "TÜRİB Mısır (son)", kpiKtb: "KTB Mısır (son)", kpiUsd: "USD/TRY (TCMB, son)",
       thDate: "Tarih", thUsd: "USD/TRY (TCMB)", thTuribTl: "TÜRİB Mısır (TL/ton)", thTuribUsd: "TÜRİB Mısır (USD/ton)", thKtbTl: "KTB Mısır (TL/ton)", thKtbUsd: "KTB Mısır (USD/ton)",
@@ -1968,6 +1970,8 @@ window.__tabManager = (function () {
       bannerStrong: "Corn price summary",
       bannerBody: " — TÜRİB (Corn Class 1) and KTB (Corn) weighted average prices, together with TCMB's daily USD/TRY rate. Only the weighted average is shown, no low/high range.",
       chartTitle: "Corn price trend", tableTitle: "Daily data",
+      labelDateRange: "Date Range", labelQuickSelect: "Quick select",
+      preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
       legendTurib: "TÜRİB Corn (Class 1)", legendKtb: "KTB Corn",
       kpiTurib: "TÜRİB Corn (latest)", kpiKtb: "KTB Corn (latest)", kpiUsd: "USD/TRY (TCMB, latest)",
       thDate: "Date", thUsd: "USD/TRY (TCMB)", thTuribTl: "TÜRİB Corn (TRY/ton)", thTuribUsd: "TÜRİB Corn (USD/ton)", thKtbTl: "KTB Corn (TRY/ton)", thKtbUsd: "KTB Corn (USD/ton)",
@@ -1981,6 +1985,8 @@ window.__tabManager = (function () {
       bannerStrong: "Сводка цен на кукурузу",
       bannerBody: " — средневзвешенные цены TÜRİB (кукуруза, 1 класс) и KTB (кукуруза), вместе с дневным курсом USD/TRY ЦБ Турции (TCMB). Показана только средневзвешенная цена, без минимума/максимума.",
       chartTitle: "Динамика цены на кукурузу", tableTitle: "Суточные данные",
+      labelDateRange: "Период", labelQuickSelect: "Быстрый выбор",
+      preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
       legendTurib: "TÜRİB Кукуруза (1 класс)", legendKtb: "KTB Кукуруза",
       kpiTurib: "TÜRİB Кукуруза (посл.)", kpiKtb: "KTB Кукуруза (посл.)", kpiUsd: "USD/TRY (TCMB, посл.)",
       thDate: "Дата", thUsd: "USD/TRY (TCMB)", thTuribTl: "TÜRİB Кукуруза (TRY/т)", thTuribUsd: "TÜRİB Кукуруза (USD/т)", thKtbTl: "KTB Кукуруза (TRY/т)", thKtbUsd: "KTB Кукуруза (USD/т)",
@@ -2339,20 +2345,84 @@ window.__tabManager = (function () {
   let currency = "try";
   let rowLimit = 10;
   let exchangePage = 0;
+  let dateStart = null;
+  let dateEnd = null;
+
+  // Grafik/tablo/KPI seçili tarih aralığına göre filtrelenmiş veriyi
+  // kullanır; "Son veri" rozeti ve CSV dışa aktarım ayrı ele alınıyor
+  // (bkz. updateAsofBadge ve export butonu — diğer panellerle aynı mantık).
+  function filteredMerged() {
+    return merged.filter(p => {
+      if (dateStart && p.date < dateStart) return false;
+      if (dateEnd && p.date > dateEnd) return false;
+      return true;
+    });
+  }
 
   function renderAll() {
-    renderKpis(merged, currency);
+    exchangePage = 0; // filtre değişince sayfa 1'e dönülür — eski sayfa artık anlamsız
+    const rows = filteredMerged();
+    renderKpis(rows, currency);
     renderLegend();
-    drawChart(merged, currency);
-    renderTable(merged, rowLimit, exchangePage);
+    drawChart(rows, currency);
+    renderTable(rows, rowLimit, exchangePage);
+  }
+
+  function buildDateControls() {
+    const startInput = document.getElementById("exchange-summary-date-start");
+    const endInput = document.getElementById("exchange-summary-date-end");
+    if (!merged.length) { renderAll(); return; }
+    const allDates = merged.map(p => p.date).sort();
+    const minDate = allDates[0], maxDate = allDates[allDates.length - 1];
+    startInput.min = minDate; startInput.max = maxDate;
+    endInput.min = minDate; endInput.max = maxDate;
+    startInput.value = minDate; endInput.value = maxDate;
+
+    function setActivePreset(btn) {
+      document.querySelectorAll("#exchange-summary-period-presets .seg").forEach(b => b.classList.toggle("active", b === btn));
+    }
+
+    function applyPreset(preset) {
+      if (preset === "all") {
+        dateStart = null; dateEnd = null;
+        startInput.value = minDate; endInput.value = maxDate;
+      } else {
+        const end = new Date(maxDate + "T00:00:00");
+        const start = new Date(end);
+        start.setDate(start.getDate() - Number(preset) + 1);
+        const startIso = start.toISOString().slice(0, 10);
+        dateStart = startIso < minDate ? minDate : startIso;
+        dateEnd = maxDate;
+        startInput.value = dateStart; endInput.value = dateEnd;
+      }
+      renderAll();
+    }
+
+    document.querySelectorAll("#exchange-summary-period-presets .seg").forEach(btn => {
+      btn.addEventListener("click", () => { setActivePreset(btn); applyPreset(btn.dataset.preset); });
+    });
+    startInput.addEventListener("change", () => {
+      dateStart = startInput.value || null;
+      setActivePreset(null);
+      renderAll();
+    });
+    endInput.addEventListener("change", () => {
+      dateEnd = endInput.value || null;
+      setActivePreset(null);
+      renderAll();
+    });
+
+    setActivePreset(document.querySelector('#exchange-summary-period-presets .seg[data-preset="90"]'));
+    applyPreset("90");
   }
 
   document.getElementById("exchange-currency-toggle").querySelectorAll(".seg").forEach(btn => {
     btn.addEventListener("click", () => {
       currency = btn.dataset.currency;
       document.getElementById("exchange-currency-toggle").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
-      renderKpis(merged, currency);
-      drawChart(merged, currency);
+      const rows = filteredMerged();
+      renderKpis(rows, currency);
+      drawChart(rows, currency);
     });
   });
   document.getElementById("exchange-summary-row-limit").querySelectorAll(".seg").forEach(btn => {
@@ -2360,20 +2430,21 @@ window.__tabManager = (function () {
       rowLimit = Number(btn.dataset.limit);
       exchangePage = 0;
       document.getElementById("exchange-summary-row-limit").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
-      renderTable(merged, rowLimit, exchangePage);
+      renderTable(filteredMerged(), rowLimit, exchangePage);
     });
   });
   document.getElementById("exchange-summary-page-prev").addEventListener("click", () => {
     exchangePage -= 1;
-    renderTable(merged, rowLimit, exchangePage);
+    renderTable(filteredMerged(), rowLimit, exchangePage);
   });
   document.getElementById("exchange-summary-page-next").addEventListener("click", () => {
     exchangePage += 1;
-    renderTable(merged, rowLimit, exchangePage);
+    renderTable(filteredMerged(), rowLimit, exchangePage);
   });
   document.getElementById("exchange-summary-export-btn").addEventListener("click", () => {
-    if (!merged.length) return;
-    exportCsv(merged);
+    const rows = filteredMerged();
+    if (!rows.length) return;
+    exportCsv(rows);
   });
 
   function updateAsofBadge() {
@@ -2391,6 +2462,11 @@ window.__tabManager = (function () {
     document.getElementById("exchange-summary-banner-body").textContent = tt("bannerBody");
     document.getElementById("exchange-summary-chart-title").textContent = tt("chartTitle");
     document.getElementById("exchange-summary-table-title").textContent = tt("tableTitle");
+    document.getElementById("exchange-summary-label-daterange").textContent = tt("labelDateRange");
+    document.getElementById("exchange-summary-label-quickselect").textContent = tt("labelQuickSelect");
+    document.querySelector('#exchange-summary-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
+    document.querySelector('#exchange-summary-period-presets .seg[data-preset="90"]').textContent = tt("preset90");
+    document.querySelector('#exchange-summary-period-presets .seg[data-preset="all"]').textContent = tt("presetAll");
     document.getElementById("exchange-summary-th-date").textContent = tt("thDate");
     document.getElementById("exchange-summary-th-usd").textContent = tt("thUsd");
     document.getElementById("exchange-summary-th-turib-tl").textContent = tt("thTuribTl");
@@ -2418,7 +2494,7 @@ window.__tabManager = (function () {
         lang = window.__appLang || "tr";
         merged = buildMerged(turibDailyMap(turibRows), ktbDailyMap(ktbRows), tcmbDailyMap(tcmbRows));
         updateAsofBadge();
-        renderAll();
+        buildDateControls(); // "Son 90 Gün" varsayılanını uygular ve renderAll() çağırır
       })
       .catch(err => {
         console.error(err);

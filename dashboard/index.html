@@ -205,6 +205,25 @@
         <span class="wasde-release-badge" id="exchange-summary-asof-badge">Yükleniyor…</span>
       </div>
 
+      <section class="filters" aria-label="Özet filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="exchange-summary-label-daterange">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="exchange-summary-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="exchange-summary-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label" id="exchange-summary-label-quickselect">Hızlı seçim</span>
+          <div class="segmented" id="exchange-summary-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
       <section class="kpi-row" id="exchange-summary-kpi-row" aria-label="Özet göstergeler"></section>
 
       <section class="card">
