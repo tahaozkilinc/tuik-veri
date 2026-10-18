@@ -472,7 +472,7 @@ function updatePagerUI(prefix, info) {
       tooltipTotalValue: "toplam değer", tooltipTotalQty: "toplam miktar",
       dimProduct: "Ürün", dimCountry: "Ülke", dimYear: "Yıl", dimMonth: "Ay", dimFlow: "Yön",
       kpiTotalExport: "Toplam İhracat", kpiTotalImport: "Toplam İthalat", kpiNet: "Net (İhracat − İthalat)",
-      kpiCountries: "Kapsanan ülke", kpiProducts: "Kapsanan ürün", kpiTotalTonnage: "Toplam Tonaj",
+      kpiTotalTonnage: "Toplam Tonaj",
       yoySuffix: "YoY",
       thRank: "#", thQty: "Toplam Miktar", thValue: "Toplam Değer", thUnitPrice: "Birim Fiyat", thShare: "Pay",
       tableCountLimited: (n, total) => `İlk ${n} satır gösteriliyor · toplam ${total.toLocaleString("tr-TR")} satır`,
@@ -501,7 +501,7 @@ function updatePagerUI(prefix, info) {
       tooltipTotalValue: "total value", tooltipTotalQty: "total quantity",
       dimProduct: "Product", dimCountry: "Country", dimYear: "Year", dimMonth: "Month", dimFlow: "Direction",
       kpiTotalExport: "Total Exports", kpiTotalImport: "Total Imports", kpiNet: "Net (Exports − Imports)",
-      kpiCountries: "Countries covered", kpiProducts: "Products covered", kpiTotalTonnage: "Total Tonnage",
+      kpiTotalTonnage: "Total Tonnage",
       yoySuffix: "YoY",
       thRank: "#", thQty: "Total Quantity", thValue: "Total Value", thUnitPrice: "Unit Price", thShare: "Share",
       tableCountLimited: (n, total) => `Showing first ${n} rows · ${total.toLocaleString("en-US")} rows total`,
@@ -530,7 +530,7 @@ function updatePagerUI(prefix, info) {
       tooltipTotalValue: "общая стоимость", tooltipTotalQty: "общее количество",
       dimProduct: "Продукт", dimCountry: "Страна", dimYear: "Год", dimMonth: "Месяц", dimFlow: "Направление",
       kpiTotalExport: "Общий экспорт", kpiTotalImport: "Общий импорт", kpiNet: "Нетто (экспорт − импорт)",
-      kpiCountries: "Охвачено стран", kpiProducts: "Охвачено продуктов", kpiTotalTonnage: "Общий тоннаж",
+      kpiTotalTonnage: "Общий тоннаж",
       yoySuffix: "г/г",
       thRank: "#", thQty: "Общее количество", thValue: "Общая стоимость", thUnitPrice: "Цена за ед.", thShare: "Доля",
       tableCountLimited: (n, total) => `Показаны первые ${n} строк · всего ${total.toLocaleString("ru-RU")} строк`,
@@ -733,16 +733,12 @@ function updatePagerUI(prefix, info) {
       const yoyExp = prevExp ? ((exp - prevExp) / prevExp) * 100 : null;
       const yoyImp = prevImp ? ((imp - prevImp) / prevImp) * 100 : null;
 
-      const countries = new Set(rows.map(r => r[3])).size;
-      const products = new Set(rows.map(r => r[2])).size;
       const rangeLabel = " (" + periodRangeLabel() + ")";
 
       const tiles = [
         { label: tt("kpiTotalExport") + rangeLabel, value: fmtUsd(exp), delta: yoyExp },
         { label: tt("kpiTotalImport") + rangeLabel, value: fmtUsd(imp), delta: yoyImp },
         { label: tt("kpiNet"), value: (net >= 0 ? "+" : "") + fmtUsd(net), delta: null },
-        { label: tt("kpiCountries"), value: String(countries), delta: null },
-        { label: tt("kpiProducts"), value: String(products), delta: null },
         { label: tt("kpiTotalTonnage"), value: fmtKg(kg), delta: null },
       ];
 
