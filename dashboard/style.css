@@ -301,7 +301,22 @@
     font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-2);
     border: 1px solid var(--border-strong); border-radius: 9px; padding: 7px 12px; min-width: 220px;
   }
-  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+  /* overflow-x: auto'nun tek başına sağladığı kaydırma mobilde keşfedilemiyor
+     (sağdaki kolonların kırpıldığı belli olmuyor) — kenarlarda ince bir
+     gölge/soluklaşma ipucu ekleyen klasik CSS-only "scroll shadow" tekniği:
+     kaydırılacak içerik varsa kenarda görünür, tamamen kaydırılınca kaybolur. */
+  .table-scroll {
+    overflow-x: auto; border: 1px solid var(--border); border-radius: 12px;
+    background:
+      linear-gradient(to right, var(--surface-1) 30%, rgba(255,255,255,0)),
+      linear-gradient(to left, var(--surface-1) 30%, rgba(255,255,255,0)) 100% 0,
+      linear-gradient(to right, rgba(11,11,11,0.09), rgba(11,11,11,0)),
+      linear-gradient(to left, rgba(11,11,11,0.09), rgba(11,11,11,0)) 100% 0;
+    background-repeat: no-repeat;
+    background-color: var(--surface-1);
+    background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
   table.pivot { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 560px; }
   table.pivot thead th {
     position: sticky; top: 0; background: var(--surface-2); text-align: left; font-weight: 600;
@@ -337,26 +352,11 @@
   .tooltip .val { font-weight: 700; font-family: "IBM Plex Mono", monospace; }
   .tooltip .ttl { font-weight: 600; margin-bottom: 4px; opacity: 0.85; }
 
-  /* ---------- daily report (rendered markdown) ---------- */
-  #report-body { display: flex; flex-direction: column; }
-  #report-body .report-h1 {
-    font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 10px;
-  }
-  #report-body .report-h2 {
-    font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 16px 0 4px;
-  }
-  #report-body .report-h2:first-of-type { margin-top: 0; }
-  #report-body .report-h3 {
-    font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;
-    letter-spacing: 0.05em; margin: 10px 0 4px;
-  }
-  #report-body .report-list { margin: 0 0 4px; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
-  #report-body .report-list li { font-size: 13px; color: var(--text-secondary); }
-  #report-body p { margin: 0 0 4px; font-size: 13px; color: var(--text-secondary); }
-  #report-body strong { color: var(--text-primary); font-weight: 700; font-family: "IBM Plex Mono", monospace; }
-
   @media (max-width: 560px) {
     .brand h1 { font-size: 21px; }
     .filters { gap: 12px; }
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    /* tek başına kalan son kutu (tek/üç/beş kutulu panellerde) yarım
+       genişlikte yetim durmasın diye tüm satırı kaplasın */
+    .stat-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
   }
