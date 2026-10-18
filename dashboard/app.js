@@ -1517,21 +1517,123 @@ window.__tabManager = (function () {
 
   const cfg = window.TUIK_DASHBOARD_CONFIG;
 
-  const COMMODITIES = [
-    { key: "corn", label: "Mısır" },
-    { key: "soybeans", label: "Soya Fasulyesi" },
-    { key: "soybean_meal", label: "Soya Küspesi" },
-    { key: "soybean_oil", label: "Soya Yağı" },
-  ];
+  // ---------- i18n (TR/EN/RU) — site geneli window.__registerI18nPanel'e
+  // kayıtlı. Commodity/region adları ve tablo satır başlıkları (measure) +
+  // birimler (unit) sabit/kapalı kümeler (USDA'nın kendi kodları) olduğu
+  // için kod bazlı çeviri sözlükleriyle çevriliyor; DB'nin kendi Türkçe
+  // metni (measure_label_tr/unit_label_tr) sadece TR'de ve sözlükte
+  // karşılığı olmayan (yeni/beklenmeyen) kodlarda yedek olarak kullanılıyor.
+  let lang = "tr";
+  const COMMODITY_LABELS = {
+    tr: { corn: "Mısır", soybeans: "Soya Fasulyesi", soybean_meal: "Soya Küspesi", soybean_oil: "Soya Yağı" },
+    en: { corn: "Corn", soybeans: "Soybeans", soybean_meal: "Soybean Meal", soybean_oil: "Soybean Oil" },
+    ru: { corn: "Кукуруза", soybeans: "Соевые бобы", soybean_meal: "Соевый шрот", soybean_oil: "Соевое масло" },
+  };
+  const REGION_LABELS = {
+    tr: { world: "Dünya", world_less_china: "Dünya (Çin Hariç)", united_states: "ABD", total_foreign: "ABD Dışı Toplam", china: "Çin" },
+    en: { world: "World", world_less_china: "World (Excl. China)", united_states: "United States", total_foreign: "Total Foreign", china: "China" },
+    ru: { world: "Мир", world_less_china: "Мир (без Китая)", united_states: "США", total_foreign: "Всего за рубежом", china: "Китай" },
+  };
+  const SCOPE_LABELS = {
+    tr: { us: "ABD", world: "Dünya" },
+    en: { us: "US", world: "World" },
+    ru: { us: "США", world: "Мир" },
+  };
+  const MEASURE_LABELS = {
+    tr: {
+      area_harvested: "Hasat Edilen Alan", area_planted: "Ekilen Alan", avg_price: "Ortalama Fiyat",
+      beginning_stocks: "Devreden Stok (Dönem Başı)", biofuel: "Biyoyakıt Kullanımı",
+      crush: "Kırma (İşleme) Kullanımı (Yurtiçi)", crushings: "Kırma (İşleme) Miktarı",
+      domestic_disappearance: "Yurtiçi Tüketim", domestic_total: "Toplam Yurtiçi Kullanım",
+      ending_stocks: "Dönem Sonu Stok (Devreden Stok)", ethanol_byproducts: "Etanol ve Yan Ürün Kullanımı",
+      exports: "İhracat", feed: "Yem Kullanımı (Yurtiçi)", feed_and_residual: "Yem ve Diğer Kullanım",
+      food_feed_other_industrial: "Gıda, Yem ve Diğer Sanayi Kullanımı", food_seed_industrial: "Gıda, Tohumluk ve Sanayi Kullanımı",
+      imports: "İthalat", production: "Üretim", residual: "Diğer/Artık Kullanım", seed: "Tohumluk Kullanımı",
+      supply_total: "Toplam Arz", use_total: "Toplam Kullanım", yield_per_acre: "Dekar (Acre) Verimi",
+    },
+    en: {
+      area_harvested: "Area Harvested", area_planted: "Area Planted", avg_price: "Average Price",
+      beginning_stocks: "Beginning Stocks", biofuel: "Biofuel Use",
+      crush: "Crush (Domestic) Use", crushings: "Crushings",
+      domestic_disappearance: "Domestic Disappearance", domestic_total: "Total Domestic Use",
+      ending_stocks: "Ending Stocks", ethanol_byproducts: "Ethanol & By-product Use",
+      exports: "Exports", feed: "Feed (Domestic) Use", feed_and_residual: "Feed and Residual",
+      food_feed_other_industrial: "Food, Feed & Other Industrial Use", food_seed_industrial: "Food, Seed & Industrial Use",
+      imports: "Imports", production: "Production", residual: "Residual Use", seed: "Seed Use",
+      supply_total: "Total Supply", use_total: "Total Use", yield_per_acre: "Yield per Acre",
+    },
+    ru: {
+      area_harvested: "Убранная площадь", area_planted: "Посевная площадь", avg_price: "Средняя цена",
+      beginning_stocks: "Начальные запасы", biofuel: "Использование на биотопливо",
+      crush: "Переработка (внутр.)", crushings: "Объём переработки",
+      domestic_disappearance: "Внутреннее потребление", domestic_total: "Общее внутр. потребление",
+      ending_stocks: "Конечные запасы", ethanol_byproducts: "Этанол и побочные продукты",
+      exports: "Экспорт", feed: "Использование на корм (внутр.)", feed_and_residual: "Корм и прочее",
+      food_feed_other_industrial: "Продовольствие, корм и промышленность", food_seed_industrial: "Продовольствие, семена и пром.",
+      imports: "Импорт", production: "Производство", residual: "Прочее использование", seed: "Использование на семена",
+      supply_total: "Общее предложение", use_total: "Общее использование", yield_per_acre: "Урожайность с акра",
+    },
+  };
+  const UNIT_LABELS = {
+    tr: { dollars_per_ton: "$ / Ton", metric_tons_per_hectare: "Ton / Hektar", million_acres: "Milyon Acre", million_metric_tons: "Milyon Metrik Ton", percent: "%" },
+    en: { dollars_per_ton: "$/ton", metric_tons_per_hectare: "ton/hectare", million_acres: "million acres", million_metric_tons: "million metric tons", percent: "%" },
+    ru: { dollars_per_ton: "$/т", metric_tons_per_hectare: "т/га", million_acres: "млн акров", million_metric_tons: "млн метр. тонн", percent: "%" },
+  };
+  const WASDE_STRINGS = {
+    tr: {
+      bannerStrong: "WASDE, TÜİK'ten tamamen ayrı bir sistem.",
+      bannerBody: "TÜİK Türkiye'nin gerçek gümrük ihracat/ithalat rakamlarını verir; WASDE ise ABD Tarım Bakanlığı'nın her ay yayınladığı, Türkiye'ye özgü olmayan küresel üretim/arz/talep/stok <em>tahminidir</em>. İkisi aynı birimde veya aynı kapsamda değildir, doğrudan toplanıp çıkarılamaz.",
+      labelProduct: "Ürün", labelScope: "Kapsam", labelRegion: "Bölge",
+      tableTitle: "Bilanço tablosu",
+      noDataYet: "Henüz veri yok", tableNoDataYet: "Bilanço tablosu — henüz veri yüklenmedi",
+      fetchError: "Veri çekilemedi", tableFetchError: "Bilanço tablosu yüklenemedi — Supabase bağlantısını kontrol edin",
+      worldUnavailableTitle: "WASDE bu ürün için Dünya tablosu yayınlamıyor (sadece ABD)",
+      momLabel: "Önceki rapora göre", yoyLabel: "Önceki yıla göre",
+      tableTitlePattern: (commodity, scope) => `${commodity} — ${scope} Arz-Talep Bilançosu`,
+      thItem: "Kalem", thMom: "Bir Önceki Rapora Göre", thYoy: "Bir Önceki Yıla Göre",
+      noDataCombo: "Bu kombinasyon için veri yok.",
+    },
+    en: {
+      bannerStrong: "WASDE is a completely separate system from TurkStat.",
+      bannerBody: "TurkStat gives Turkey's actual customs export/import figures; WASDE is the US Department of Agriculture's monthly <em>estimate</em> of global production/supply/demand/stocks, not specific to Turkey. The two are not in the same unit or scope and cannot be directly added or subtracted.",
+      labelProduct: "Product", labelScope: "Scope", labelRegion: "Region",
+      tableTitle: "Balance sheet",
+      noDataYet: "No data yet", tableNoDataYet: "Balance sheet — no data loaded yet",
+      fetchError: "Failed to fetch data", tableFetchError: "Failed to load balance sheet — check the Supabase connection",
+      worldUnavailableTitle: "WASDE does not publish a World table for this commodity (US only)",
+      momLabel: "vs. previous report", yoyLabel: "vs. previous year",
+      tableTitlePattern: (commodity, scope) => `${commodity} — ${scope} Supply & Demand Balance`,
+      thItem: "Item", thMom: "vs. Previous Report", thYoy: "vs. Previous Year",
+      noDataCombo: "No data for this combination.",
+    },
+    ru: {
+      bannerStrong: "WASDE — система, полностью отдельная от TurkStat.",
+      bannerBody: "TurkStat даёт реальные таможенные данные Турции по экспорту/импорту; WASDE — это ежемесячная <em>оценка</em> Минсельхоза США мирового производства/предложения/спроса/запасов, не специфичная для Турции. Они не в одной единице измерения и не в одном охвате, их нельзя напрямую складывать или вычитать.",
+      labelProduct: "Продукт", labelScope: "Охват", labelRegion: "Регион",
+      tableTitle: "Балансовая таблица",
+      noDataYet: "Пока нет данных", tableNoDataYet: "Балансовая таблица — данные ещё не загружены",
+      fetchError: "Не удалось загрузить данные", tableFetchError: "Не удалось загрузить балансовую таблицу — проверьте подключение к Supabase",
+      worldUnavailableTitle: "WASDE не публикует мировую таблицу для этого продукта (только США)",
+      momLabel: "к пред. отчёту", yoyLabel: "к пред. году",
+      tableTitlePattern: (commodity, scope) => `${commodity} — Баланс спроса и предложения (${scope})`,
+      thItem: "Показатель", thMom: "К пред. отчёту", thYoy: "К пред. году",
+      noDataCombo: "Нет данных для этой комбинации.",
+    },
+  };
+  function tt(key) { return WASDE_STRINGS[lang][key]; }
+  function translateMeasure(code, fallbackTr) {
+    if (lang === "tr") return fallbackTr;
+    return (MEASURE_LABELS[lang] && MEASURE_LABELS[lang][code]) || fallbackTr;
+  }
+  function translateUnit(code, fallbackTr) {
+    if (lang === "tr") return fallbackTr;
+    return (UNIT_LABELS[lang] && UNIT_LABELS[lang][code]) || fallbackTr;
+  }
+
+  const COMMODITIES = ["corn", "soybeans", "soybean_meal", "soybean_oil"];
   // Soya Yağı için WASDE'de sadece ABD tablosu var, Dünya tablosu yok.
   const WORLD_AVAILABLE = { corn: true, soybeans: true, soybean_meal: true, soybean_oil: false };
-  const REGIONS = [
-    { key: "world", label: "Dünya" },
-    { key: "world_less_china", label: "Dünya (Çin Hariç)" },
-    { key: "united_states", label: "ABD" },
-    { key: "total_foreign", label: "ABD Dışı Toplam" },
-    { key: "china", label: "Çin" },
-  ];
+  const REGIONS = ["world", "world_less_china", "united_states", "total_foreign", "china"];
   const MEASURE_ORDER = [
     "area_planted", "area_harvested", "yield_per_acre",
     "beginning_stocks", "production", "imports", "supply_total",
@@ -1550,12 +1652,12 @@ window.__tabManager = (function () {
     return my + "_" + String(monthIdx + 1).padStart(2, "0");
   }
 
-  function fmtWasdeValue(value, unitLabelTr) {
+  function fmtWasdeValue(value, unitLabel) {
     if (value == null || isNaN(value)) return "—";
     const num = Math.abs(value) >= 100
       ? value.toLocaleString("tr-TR", { maximumFractionDigits: 0 })
       : value.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
-    return num + " " + unitLabelTr;
+    return num + " " + unitLabel;
   }
 
   function fmtPct(value) {
@@ -1591,8 +1693,8 @@ window.__tabManager = (function () {
 
   function init(allRows) {
     if (!allRows.length) {
-      document.getElementById("wasde-release-badge").textContent = "Henüz veri yok";
-      document.getElementById("wasde-table-title").textContent = "Bilanço tablosu — henüz veri yüklenmedi";
+      document.getElementById("wasde-release-badge").textContent = tt("noDataYet");
+      document.getElementById("wasde-table-title").textContent = tt("tableNoDataYet");
       return;
     }
 
@@ -1600,9 +1702,12 @@ window.__tabManager = (function () {
     const rows = allRows.filter(r => r.report_date === latestReportDate);
     const latestRelease = rows[0].release_number;
 
-    const badge = document.getElementById("wasde-release-badge");
-    const d = new Date(latestReportDate + "T00:00:00");
-    badge.textContent = `WASDE-${latestRelease} · ${d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`;
+    function updateBadge() {
+      const d = new Date(latestReportDate + "T00:00:00");
+      const dateLocale = lang === "tr" ? "tr-TR" : lang === "ru" ? "ru-RU" : "en-US";
+      document.getElementById("wasde-release-badge").textContent = `WASDE-${latestRelease} · ${d.toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" })}`;
+    }
+    updateBadge();
 
     const state = { commodity: "corn", scope: "us", region: "world" };
 
@@ -1623,14 +1728,14 @@ window.__tabManager = (function () {
     function buildCommodityControls() {
       const wrap = document.getElementById("wasde-commodity");
       wrap.textContent = "";
-      COMMODITIES.forEach(c => {
+      COMMODITIES.forEach(key => {
         const btn = document.createElement("button");
-        btn.className = "seg" + (state.commodity === c.key ? " active" : "");
+        btn.className = "seg" + (state.commodity === key ? " active" : "");
         btn.type = "button";
-        btn.textContent = c.label;
+        btn.textContent = COMMODITY_LABELS[lang][key];
         btn.addEventListener("click", () => {
-          state.commodity = c.key;
-          if (state.scope === "world" && !WORLD_AVAILABLE[c.key]) {
+          state.commodity = key;
+          if (state.scope === "world" && !WORLD_AVAILABLE[key]) {
             state.scope = "us";
             document.querySelectorAll("#wasde-scope .seg").forEach(b => b.classList.toggle("active", b.dataset.value === "us"));
           }
@@ -1656,13 +1761,13 @@ window.__tabManager = (function () {
     function buildRegionControls() {
       const wrap = document.getElementById("wasde-region");
       wrap.textContent = "";
-      REGIONS.forEach(r => {
+      REGIONS.forEach(key => {
         const btn = document.createElement("button");
-        btn.className = "seg" + (state.region === r.key ? " active" : "");
+        btn.className = "seg" + (state.region === key ? " active" : "");
         btn.type = "button";
-        btn.textContent = r.label;
+        btn.textContent = REGION_LABELS[lang][key];
         btn.addEventListener("click", () => {
-          state.region = r.key;
+          state.region = key;
           wrap.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
           renderAll();
         });
@@ -1674,7 +1779,7 @@ window.__tabManager = (function () {
       document.getElementById("wasde-region-group").style.display = state.scope === "world" ? "" : "none";
       const worldBtn = document.querySelector('#wasde-scope .seg[data-value="world"]');
       worldBtn.disabled = !WORLD_AVAILABLE[state.commodity];
-      worldBtn.title = WORLD_AVAILABLE[state.commodity] ? "" : "WASDE bu ürün için Dünya tablosu yayınlamıyor (sadece ABD)";
+      worldBtn.title = WORLD_AVAILABLE[state.commodity] ? "" : tt("worldUnavailableTitle");
     }
 
     function renderKpis() {
@@ -1693,15 +1798,15 @@ window.__tabManager = (function () {
         const tile = document.createElement("div");
         tile.className = "stat-tile";
         const label = document.createElement("div");
-        label.className = "label"; label.textContent = cell.measure_label_tr + " (" + latestPeriod + ")";
+        label.className = "label"; label.textContent = translateMeasure(measure, cell.measure_label_tr) + " (" + latestPeriod + ")";
         const value = document.createElement("div");
-        value.className = "value num"; value.textContent = fmtWasdeValue(cell.value, cell.unit_label_tr);
+        value.className = "value num"; value.textContent = fmtWasdeValue(cell.value, translateUnit(cell.unit, cell.unit_label_tr));
         tile.appendChild(label); tile.appendChild(value);
 
         if (measure === "ending_stocks") {
           const mom = byMeasure["ending_stocks_mom_change_pct"] && byMeasure["ending_stocks_mom_change_pct"][latestPeriod];
           const yoy = byMeasure["ending_stocks_yoy_change_pct"] && byMeasure["ending_stocks_yoy_change_pct"][latestPeriod];
-          [["Önceki rapora göre", mom], ["Önceki yıla göre", yoy]].forEach(([suffix, r]) => {
+          [[tt("momLabel"), mom], [tt("yoyLabel"), yoy]].forEach(([suffix, r]) => {
             if (!r) return;
             const d2 = document.createElement("div");
             const dir = r.value > 0.05 ? "up" : r.value < -0.05 ? "down" : "flat";
@@ -1720,7 +1825,7 @@ window.__tabManager = (function () {
       const byMeasure = new Map();
       rs.forEach(r => {
         if (r.measure.endsWith("_change_pct")) return;
-        if (!byMeasure.has(r.measure)) byMeasure.set(r.measure, { label: r.measure_label_tr, unit: r.unit_label_tr, byPeriod: {} });
+        if (!byMeasure.has(r.measure)) byMeasure.set(r.measure, { label: translateMeasure(r.measure, r.measure_label_tr), unit: translateUnit(r.unit, r.unit_label_tr), byPeriod: {} });
         byMeasure.get(r.measure).byPeriod[r.period_label] = r.value;
       });
       const momByPeriod = {}, yoyByPeriod = {};
@@ -1734,17 +1839,17 @@ window.__tabManager = (function () {
         return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
       });
 
-      const commodityLabel = COMMODITIES.find(c => c.key === state.commodity).label;
-      const scopeLabel = state.scope === "us" ? "ABD" : REGIONS.find(r => r.key === state.region).label;
-      document.getElementById("wasde-table-title").textContent = `${commodityLabel} — ${scopeLabel} Arz-Talep Bilançosu`;
+      const commodityLabel = COMMODITY_LABELS[lang][state.commodity];
+      const scopeLabel = state.scope === "us" ? SCOPE_LABELS[lang].us : REGION_LABELS[lang][state.region];
+      document.getElementById("wasde-table-title").textContent = tt("tableTitlePattern")(commodityLabel, scopeLabel);
 
       const thead = document.getElementById("wasde-thead");
       thead.textContent = "";
-      const headCols = ["Kalem"].concat(periods).concat(["Bir Önceki Rapora Göre", "Bir Önceki Yıla Göre"]);
+      const headCols = [tt("thItem")].concat(periods).concat([tt("thMom"), tt("thYoy")]);
       headCols.forEach(label => {
         const th = document.createElement("th");
         th.textContent = label;
-        if (label !== "Kalem") th.classList.add("num-col");
+        if (label !== tt("thItem")) th.classList.add("num-col");
         thead.appendChild(th);
       });
 
@@ -1753,7 +1858,7 @@ window.__tabManager = (function () {
       if (!measures.length) {
         const tr = document.createElement("tr");
         const td = document.createElement("td");
-        td.textContent = "Bu kombinasyon için veri yok.";
+        td.textContent = tt("noDataCombo");
         td.colSpan = headCols.length;
         tr.appendChild(td);
         tbody.appendChild(tr);
@@ -1796,10 +1901,24 @@ window.__tabManager = (function () {
       renderTable();
     }
 
-    buildCommodityControls();
+    function applyLanguage(newLang) {
+      lang = newLang;
+      document.getElementById("wasde-banner-strong").textContent = tt("bannerStrong");
+      document.getElementById("wasde-banner-body").innerHTML = tt("bannerBody");
+      document.getElementById("wasde-label-product").textContent = tt("labelProduct");
+      document.getElementById("wasde-label-scope").textContent = tt("labelScope");
+      document.getElementById("wasde-label-region").textContent = tt("labelRegion");
+      document.querySelector('#wasde-scope .seg[data-value="us"]').textContent = SCOPE_LABELS[lang].us;
+      document.querySelector('#wasde-scope .seg[data-value="world"]').textContent = SCOPE_LABELS[lang].world;
+      updateBadge();
+      buildCommodityControls();
+      buildRegionControls();
+      renderAll();
+    }
+    window.__registerI18nPanel(applyLanguage);
+
     buildScopeControls();
-    buildRegionControls();
-    renderAll();
+    applyLanguage(lang);
   }
 
   let loaded = false;
@@ -1808,11 +1927,11 @@ window.__tabManager = (function () {
     if (loaded) return;
     loaded = true;
     fetchWasdeRows()
-      .then(rows => { window.__updateStatusFromCache("wasde"); init(rows); })
+      .then(rows => { window.__updateStatusFromCache("wasde"); lang = window.__appLang || "tr"; init(rows); })
       .catch(err => {
         console.error(err);
-        document.getElementById("wasde-release-badge").textContent = "Veri çekilemedi";
-        document.getElementById("wasde-table-title").textContent = "Bilanço tablosu yüklenemedi — Supabase bağlantısını kontrol edin";
+        document.getElementById("wasde-release-badge").textContent = tt("fetchError");
+        document.getElementById("wasde-table-title").textContent = tt("tableFetchError");
       });
   });
 })();

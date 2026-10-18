@@ -133,28 +133,28 @@
   <div id="wasde-panel" hidden>
     <div class="wasde-banner">
       <div>
-        <strong>WASDE, TÜİK'ten tamamen ayrı bir sistem.</strong>
-        TÜİK Türkiye'nin gerçek gümrük ihracat/ithalat rakamlarını verir; WASDE ise ABD Tarım Bakanlığı'nın
+        <strong id="wasde-banner-strong">WASDE, TÜİK'ten tamamen ayrı bir sistem.</strong>
+        <span id="wasde-banner-body">TÜİK Türkiye'nin gerçek gümrük ihracat/ithalat rakamlarını verir; WASDE ise ABD Tarım Bakanlığı'nın
         her ay yayınladığı, Türkiye'ye özgü olmayan küresel üretim/arz/talep/stok <em>tahminidir</em>. İkisi
-        aynı birimde veya aynı kapsamda değildir, doğrudan toplanıp çıkarılamaz.
+        aynı birimde veya aynı kapsamda değildir, doğrudan toplanıp çıkarılamaz.</span>
       </div>
       <span class="wasde-release-badge" id="wasde-release-badge">Yükleniyor…</span>
     </div>
 
     <section class="filters" aria-label="WASDE filtreleri">
       <div class="filter-group">
-        <span class="filter-label">Ürün</span>
+        <span class="filter-label" id="wasde-label-product">Ürün</span>
         <div class="segmented" id="wasde-commodity" role="group" aria-label="Emtia"></div>
       </div>
       <div class="filter-group">
-        <span class="filter-label">Kapsam</span>
+        <span class="filter-label" id="wasde-label-scope">Kapsam</span>
         <div class="segmented" id="wasde-scope" role="group" aria-label="Kapsam">
           <button class="seg active" data-value="us">ABD</button>
           <button class="seg" data-value="world">Dünya</button>
         </div>
       </div>
       <div class="filter-group" id="wasde-region-group">
-        <span class="filter-label">Bölge</span>
+        <span class="filter-label" id="wasde-label-region">Bölge</span>
         <div class="segmented" id="wasde-region" role="group" aria-label="Bölge"></div>
       </div>
     </section>
