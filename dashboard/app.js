@@ -2271,13 +2271,14 @@ window.__tabManager = (function () {
     svg.appendChild(hitLayer);
   }
 
-  function renderKpis(points) {
+  function renderKpis(points, currency) {
     const el = document.getElementById("exchange-summary-kpi-row");
     el.textContent = "";
     const last = points[points.length - 1];
+    const fmtSelected = v => currency === "usd" ? fmtUsdTon(v) : fmtPriceTon(v);
     const tiles = [
-      [tt("kpiTurib"), last ? fmtPriceTon(last.turibTl) : "—"],
-      [tt("kpiKtb"), last ? fmtPriceTon(last.ktbTl) : "—"],
+      [tt("kpiTurib"), last ? fmtSelected(currency === "usd" ? last.turibUsd : last.turibTl) : "—"],
+      [tt("kpiKtb"), last ? fmtSelected(currency === "usd" ? last.ktbUsd : last.ktbTl) : "—"],
       [tt("kpiUsd"), last ? fmtUsdTry(last.usd) : "—"],
     ];
     tiles.forEach(([label, value]) => {
@@ -2340,7 +2341,7 @@ window.__tabManager = (function () {
   let exchangePage = 0;
 
   function renderAll() {
-    renderKpis(merged);
+    renderKpis(merged, currency);
     renderLegend();
     drawChart(merged, currency);
     renderTable(merged, rowLimit, exchangePage);
@@ -2350,6 +2351,7 @@ window.__tabManager = (function () {
     btn.addEventListener("click", () => {
       currency = btn.dataset.currency;
       document.getElementById("exchange-currency-toggle").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+      renderKpis(merged, currency);
       drawChart(merged, currency);
     });
   });
