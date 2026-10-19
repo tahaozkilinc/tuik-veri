@@ -1,12 +1,22 @@
 """KTB günlük bülten verisini çekip Supabase'e yükleyen CLI giriş noktası.
 
 Kullanım:
-    python -m ktb.run                       # bugünü çek ve yükle
+    python -m ktb.run                       # dünü çek ve yükle
     python -m ktb.run --date 2026-10-13      # belirli bir günü çek
     python -m ktb.run --backfill-days 365    # son N günü tek tek çekip yükle
 
 KTB hafta sonu/tatil günlerinde işlem yapmıyor — o günler için GetGunlukBulten
 boş liste döner, bu bir hata değildir, sadece atlanır.
+
+NOT (2026-10-19'da bulunan gerçek hata): varsayılan tarih kasıtlı olarak
+BUGÜN değil DÜN — KTB'nin günlük bülteni, kaynağın kendi yayın sürecine göre
+aynı günün akşamı geç saatlerde (gözlemlenen: ~23:30 TR civarı, bazen daha
+geç) yayınlanıyor. Cron ister akşam ister gece erken saatte çalışsın, "bugünü"
+istemek yayından önce yakalanıp hep 0 satır dönme riski taşıyor — ve bu satır
+bir daha asla tekrar denenmediği için o gün kalıcı olarak eksik kalıyor
+(nitekim ilk üç günlük cron çalışması da tam bunu yaşadı). "Dünü" istemek,
+cron ertesi sabah çalıştığı sürece yayının çoktan kesinleşmiş olmasını garanti
+eder (bkz. .github/workflows/ktb-daily.yml'deki zamanlama açıklaması).
 """
 
 from __future__ import annotations
@@ -24,6 +34,10 @@ TR_TZ = dt.timezone(dt.timedelta(hours=3))
 
 def _today_tr() -> dt.date:
     return dt.datetime.now(TR_TZ).date()
+
+
+def _yesterday_tr() -> dt.date:
+    return _today_tr() - dt.timedelta(days=1)
 
 
 def fetch_and_load_day(client, trade_date: dt.date) -> int:
@@ -65,7 +79,7 @@ def main() -> int:
                        error_message=(f"{errors} günde hata oluştu" if errors else None))
             return 0
 
-        day = dt.date.fromisoformat(args.date) if args.date else _today_tr()
+        day = dt.date.fromisoformat(args.date) if args.date else _yesterday_tr()
         rows = fetch_and_load_day(client, day)
         print(f"{day.isoformat()}: {rows} satır yazıldı.")
         finish_run(client, run_id, status="success", rows_upserted=rows)

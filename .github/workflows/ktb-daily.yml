@@ -2,14 +2,20 @@ name: Daily KTB Bulletin Fetch
 
 on:
   schedule:
-    # KTB günlük bülteni günün seansları bittikten sonra kesinleşir.
-    # 15:00 UTC = 18:00 Türkiye saati (TR daimi UTC+3, DST yok).
-    # Hafta sonu KTB işlem yapmıyor, bu yüzden sadece Pzt-Cuma çalışıyor.
-    - cron: "0 15 * * 1-5"
+    # 2026-10-19'da bulunan hata: KTB günlük bülteni aynı günün akşamı GEÇ
+    # saatte (gözlemlenen: ~23:30 TR civarı, bazen daha geç) yayınlanıyor —
+    # eskiden burada 15:00 UTC/18:00 TR'de "bugünü" istiyorduk, bu da hep
+    # yayından ÖNCE yakalanıp 0 satır dönüyordu (ve bir daha denenmediği için
+    # o gün kalıcı eksik kalıyordu). Artık her sabah erken saatte "dünü"
+    # istiyoruz — 04:00 UTC = 07:00 TR, o saatte dünün bülteni kesinleşmiş
+    # oluyor. Hafta sonu/tatil günleri ktb.run zaten boş liste alıp sessizce
+    # atlıyor, bu yüzden her gün çalıştırmak zararsız (Pazartesi sabahı
+    # Pazar'ı, Cumartesi sabahı Cuma'yı vb. ister).
+    - cron: "0 4 * * *"
   workflow_dispatch:
     inputs:
       date:
-        description: "Tek bir günü çek (YYYY-MM-DD), boş bırakılırsa bugün"
+        description: "Tek bir günü çek (YYYY-MM-DD), boş bırakılırsa dün"
         required: false
         default: ""
       backfill_days:

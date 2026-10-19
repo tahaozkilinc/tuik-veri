@@ -145,7 +145,15 @@
   }
   .tab:hover { color: var(--text-primary); }
   .tab.active { color: var(--text-primary); border-bottom-color: var(--focus); }
-  .subtab-bar { margin-bottom: 16px; }
+  /* Ticaret Borsası alt sekme çubuğu 8 öğeye çıktı (Özet/TÜRİB/UZTB/KTB/
+     GTB/PTB/ETB/EDTB) — dar ekranda sığmayıp sıkışmak/taşmak yerine yatay
+     kaydırılabilir olsun; her sekme küçülmeden (flex: none) sabit
+     genişlikte kalır, dokunma hedefi daralmaz. */
+  .subtab-bar {
+    margin-bottom: 16px; overflow-x: auto; flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+  }
+  .subtab-bar .tab { flex: none; }
 
   /* ---------- WASDE panel ---------- */
   .wasde-banner {
