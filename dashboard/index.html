@@ -192,6 +192,10 @@
       <button class="tab" id="subtab-turib" type="button" role="tab" aria-selected="false">TÜRİB</button>
       <button class="tab" id="subtab-uztb" type="button" role="tab" aria-selected="false">UZTB</button>
       <button class="tab" id="subtab-ktb" type="button" role="tab" aria-selected="false">KTB</button>
+      <button class="tab" id="subtab-gtb" type="button" role="tab" aria-selected="false">GTB</button>
+      <button class="tab" id="subtab-ptb" type="button" role="tab" aria-selected="false">PTB</button>
+      <button class="tab" id="subtab-etb" type="button" role="tab" aria-selected="false">ETB</button>
+      <button class="tab" id="subtab-edtb" type="button" role="tab" aria-selected="false">EDTB</button>
     </div>
 
     <div id="exchange-summary-section">
@@ -427,6 +431,282 @@
           </table>
         </div>
         <div class="table-foot" id="uztb-table-foot"></div>
+      </section>
+    </div>
+
+    <div id="gtb-section" hidden>
+      <div class="wasde-banner">
+        <div id="gtb-banner-text">
+          <strong id="gtb-banner-strong">GTB (Gaziantep Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
+          <span id="gtb-banner-body"> — her iş günü
+          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
+          toplam miktar, ortalama rutubet) çekilir.</span>
+        </div>
+        <span class="wasde-release-badge" id="gtb-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="GTB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="gtb-label-daterange">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="gtb-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="gtb-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label" id="gtb-label-quickselect">Hızlı seçim</span>
+          <div class="segmented" id="gtb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-row" id="gtb-kpi-row" aria-label="GTB özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="gtb-chart-title">Fiyat eğilimi (TL/ton)</h2>
+        </div>
+        <div class="legend" id="gtb-price-legend"></div>
+        <svg class="chart" id="gtb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
+        <h3 class="price-chart-title" id="gtb-tonnage-title">Günlük işlem hacmi (ton)</h3>
+        <svg class="chart" id="gtb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="gtb-table-title">Günlük özet</h2>
+          <div class="table-controls">
+            <div class="segmented" id="gtb-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="gtb-pager">
+              <button class="pan-btn" id="gtb-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="gtb-pager-label"></span>
+              <button class="pan-btn" id="gtb-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="gtb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="gtb-table">
+            <thead><tr id="gtb-thead"></tr></thead>
+            <tbody id="gtb-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-foot" id="gtb-table-foot"></div>
+      </section>
+    </div>
+
+    <div id="ptb-section" hidden>
+      <div class="wasde-banner">
+        <div id="ptb-banner-text">
+          <strong id="ptb-banner-strong">PTB (Polatlı Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
+          <span id="ptb-banner-body"> — her iş günü
+          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
+          toplam miktar, ortalama rutubet) çekilir.</span>
+        </div>
+        <span class="wasde-release-badge" id="ptb-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="PTB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="ptb-label-daterange">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="ptb-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="ptb-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label" id="ptb-label-quickselect">Hızlı seçim</span>
+          <div class="segmented" id="ptb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-row" id="ptb-kpi-row" aria-label="PTB özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="ptb-chart-title">Fiyat eğilimi (TL/ton)</h2>
+        </div>
+        <div class="legend" id="ptb-price-legend"></div>
+        <svg class="chart" id="ptb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
+        <h3 class="price-chart-title" id="ptb-tonnage-title">Günlük işlem hacmi (ton)</h3>
+        <svg class="chart" id="ptb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="ptb-table-title">Günlük özet</h2>
+          <div class="table-controls">
+            <div class="segmented" id="ptb-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="ptb-pager">
+              <button class="pan-btn" id="ptb-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="ptb-pager-label"></span>
+              <button class="pan-btn" id="ptb-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="ptb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="ptb-table">
+            <thead><tr id="ptb-thead"></tr></thead>
+            <tbody id="ptb-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-foot" id="ptb-table-foot"></div>
+      </section>
+    </div>
+
+    <div id="etb-section" hidden>
+      <div class="wasde-banner">
+        <div id="etb-banner-text">
+          <strong id="etb-banner-strong">ETB (Eskişehir Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
+          <span id="etb-banner-body"> — her iş günü
+          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
+          toplam miktar, ortalama rutubet) çekilir.</span>
+        </div>
+        <span class="wasde-release-badge" id="etb-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="ETB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="etb-label-daterange">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="etb-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="etb-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label" id="etb-label-quickselect">Hızlı seçim</span>
+          <div class="segmented" id="etb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-row" id="etb-kpi-row" aria-label="ETB özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="etb-chart-title">Fiyat eğilimi (TL/ton)</h2>
+        </div>
+        <div class="legend" id="etb-price-legend"></div>
+        <svg class="chart" id="etb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
+        <h3 class="price-chart-title" id="etb-tonnage-title">Günlük işlem hacmi (ton)</h3>
+        <svg class="chart" id="etb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="etb-table-title">Günlük özet</h2>
+          <div class="table-controls">
+            <div class="segmented" id="etb-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="etb-pager">
+              <button class="pan-btn" id="etb-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="etb-pager-label"></span>
+              <button class="pan-btn" id="etb-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="etb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="etb-table">
+            <thead><tr id="etb-thead"></tr></thead>
+            <tbody id="etb-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-foot" id="etb-table-foot"></div>
+      </section>
+    </div>
+
+    <div id="edtb-section" hidden>
+      <div class="wasde-banner">
+        <div id="edtb-banner-text">
+          <strong id="edtb-banner-strong">EDTB (Edirne Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
+          <span id="edtb-banner-body"> — her iş günü
+          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
+          toplam miktar, ortalama rutubet) çekilir.</span>
+        </div>
+        <span class="wasde-release-badge" id="edtb-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="EDTB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="edtb-label-daterange">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="edtb-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="edtb-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label" id="edtb-label-quickselect">Hızlı seçim</span>
+          <div class="segmented" id="edtb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-row" id="edtb-kpi-row" aria-label="EDTB özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="edtb-chart-title">Fiyat eğilimi (TL/ton)</h2>
+        </div>
+        <div class="legend" id="edtb-price-legend"></div>
+        <svg class="chart" id="edtb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
+        <h3 class="price-chart-title" id="edtb-tonnage-title">Günlük işlem hacmi (ton)</h3>
+        <svg class="chart" id="edtb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="edtb-table-title">Günlük özet</h2>
+          <div class="table-controls">
+            <div class="segmented" id="edtb-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="edtb-pager">
+              <button class="pan-btn" id="edtb-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="edtb-pager-label"></span>
+              <button class="pan-btn" id="edtb-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="edtb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="edtb-table">
+            <thead><tr id="edtb-thead"></tr></thead>
+            <tbody id="edtb-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-foot" id="edtb-table-foot"></div>
       </section>
     </div>
 

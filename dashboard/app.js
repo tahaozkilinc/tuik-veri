@@ -2502,12 +2502,22 @@ window.__tabManager = (function () {
       });
   });
 
-  // ---------- Ticaret Borsası alt sekmesi: Özet / TÜRİB / UZTB / KTB ----------
+  // ---------- Ticaret Borsası alt sekmesi: Özet / TÜRİB / UZTB / KTB / GTB / PTB / ETB / EDTB ----------
+  // Tek-emtialı günlük özet borsaları (uztb/gtb/ptb/etb/edtb) hepsi aynı
+  // initDailySummaryBorsaPanel fabrikasından geldiği için window.__<id>Tab
+  // sözleşmesi ortak — burada tekrar etmemek için küçük bir yardımcıyla kaydediliyor.
+  function dailyBorsaSubtab(id) {
+    return { tabId: `subtab-${id}`, sectionId: `${id}-section`, onActivate: () => { window[`__${id}Tab`] && window[`__${id}Tab`].onActivate(); window.__updateStatusFromCache(id); } };
+  }
   const EXCHANGE_SUBTABS = {
     summary: { tabId: "subtab-summary", sectionId: "exchange-summary-section", onActivate: () => window.__updateStatusFromCache(SUMMARY_CACHE_KEYS) },
     turib: { tabId: "subtab-turib", sectionId: "turib-section", onActivate: () => { window.__turibTab && window.__turibTab.onActivate(); window.__updateStatusFromCache("turib"); } },
-    uztb: { tabId: "subtab-uztb", sectionId: "uztb-section", onActivate: () => { window.__uztbTab && window.__uztbTab.onActivate(); window.__updateStatusFromCache("uztb"); } },
+    uztb: dailyBorsaSubtab("uztb"),
     ktb: { tabId: "subtab-ktb", sectionId: "ktb-section", onActivate: () => { window.__ktbTab && window.__ktbTab.onActivate(); window.__updateStatusFromCache("ktb"); } },
+    gtb: dailyBorsaSubtab("gtb"),
+    ptb: dailyBorsaSubtab("ptb"),
+    etb: dailyBorsaSubtab("etb"),
+    edtb: dailyBorsaSubtab("edtb"),
   };
   Object.entries(EXCHANGE_SUBTABS).forEach(([key, cfgSub]) => {
     document.getElementById(cfgSub.tabId).addEventListener("click", () => showExchangeSubtab(key));
@@ -3565,116 +3575,115 @@ window.__tabManager = (function () {
 })();
 
 // ---------------------------------------------------------------------------
-// UZTB (Uzunköprü Ticaret Borsası) alt sekmesi — Ticaret Borsası sekmesinin
-// içinde üçüncü bir kaynak. TÜRİB'den farkı: kaynakta geçmiş veri için
+// Tek-emtialı, günlük özet yayınlayan ticaret borsaları (UZTB ve benzeri
+// küçük borsalar) için ortak panel fabrikası — kaynakta geçmiş veri için
 // tarih parametreli bir API yok, bu yüzden DB zaten GÜNLÜK ÖZET satırları
 // tutuyor (bir gün = bir satır: min/maks/ağırlıklı ortalama fiyat, toplam
-// kilo, ortalama rutubet) — burada TÜRİB'deki gibi ayrıca günlük toplama
-// yapmaya gerek yok, satırlar doğrudan grafik noktasına dönüşüyor.
-(function () {
-  "use strict";
+// kilo, ortalama rutubet), satırlar doğrudan grafik noktasına dönüşüyor.
+// Her borsa kendi element id öneki + Supabase tablosu + banner metniyle
+// initDailySummaryBorsaPanel(cfg) çağrısıyla kaydoluyor (bkz. dosya sonu).
+const DAILY_BORSA_COMMON_STRINGS = {
+  tr: {
+    dateRangeLabel: "Tarih Aralığı", quickSelectLabel: "Hızlı seçim",
+    preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
+    chartTitle: "Fiyat eğilimi (TL/ton)", tonnageChartTitle: "Günlük işlem hacmi (ton)",
+    tableTitle: "Günlük özet",
+    exportBtn: "Excel'e aktar (CSV)", prevPageTitle: "Önceki sayfa", nextPageTitle: "Sonraki sayfa",
+    legendAvg: "Ağırlıklı Ortalama", legendMax: "En Yüksek", legendMin: "En Düşük",
+    tooltipAvg: "Ağırlıklı Ort.", tooltipMax: "En Yüksek", tooltipMin: "En Düşük",
+    noDataChart: "Bu filtrede veri yok.",
+    kpiAvgPrice: "Ağırlıklı ortalama fiyat (seçili dönem)", kpiLastPrice: "Son fiyat",
+    kpiTotalVolume: "Toplam işlem hacmi", kpiAvgRutubet: "Ortalama rutubet",
+    thDate: "Tarih", thMin: "En Düşük", thMax: "En Yüksek", thAvg: "Ağ. Ort. Fiyat", thQty: "Toplam Miktar", thCount: "İşlem Adedi", thRutubet: "Ort. Rutubet",
+    asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi",
+    tonSuffix: " ton", priceSuffix: " TL/ton",
+  },
+  en: {
+    dateRangeLabel: "Date Range", quickSelectLabel: "Quick select",
+    preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
+    chartTitle: "Price trend (TRY/ton)", tonnageChartTitle: "Daily trade volume (ton)",
+    tableTitle: "Daily summary",
+    exportBtn: "Export to Excel (CSV)", prevPageTitle: "Previous page", nextPageTitle: "Next page",
+    legendAvg: "Weighted Average", legendMax: "Highest", legendMin: "Lowest",
+    tooltipAvg: "Weighted Avg.", tooltipMax: "Highest", tooltipMin: "Lowest",
+    noDataChart: "No data for this filter.",
+    kpiAvgPrice: "Weighted average price (selected period)", kpiLastPrice: "Last price",
+    kpiTotalVolume: "Total trade volume", kpiAvgRutubet: "Average moisture",
+    thDate: "Date", thMin: "Lowest", thMax: "Highest", thAvg: "Weighted Avg. Price", thQty: "Total Quantity", thCount: "Trade Count", thRutubet: "Avg. Moisture",
+    asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data",
+    tonSuffix: " ton", priceSuffix: " TRY/ton",
+  },
+  ru: {
+    dateRangeLabel: "Период", quickSelectLabel: "Быстрый выбор",
+    preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
+    chartTitle: "Динамика цены (TRY/т)", tonnageChartTitle: "Суточный объём торгов (т)",
+    tableTitle: "Суточная сводка",
+    exportBtn: "Экспорт в Excel (CSV)", prevPageTitle: "Предыдущая страница", nextPageTitle: "Следующая страница",
+    legendAvg: "Средневзвешенная", legendMax: "Максимум", legendMin: "Минимум",
+    tooltipAvg: "Средневзв.", tooltipMax: "Максимум", tooltipMin: "Минимум",
+    noDataChart: "Нет данных для этого фильтра.",
+    kpiAvgPrice: "Средневзвешенная цена (за период)", kpiLastPrice: "Последняя цена",
+    kpiTotalVolume: "Общий объём торгов", kpiAvgRutubet: "Средняя влажность",
+    thDate: "Дата", thMin: "Минимум", thMax: "Максимум", thAvg: "Сред. взв. цена", thQty: "Общий объём", thCount: "Число сделок", thRutubet: "Сред. влажность",
+    asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные",
+    tonSuffix: " т", priceSuffix: " TRY/т",
+  },
+};
 
-  const cfg = window.TUIK_DASHBOARD_CONFIG;
-  const LINE_COLOR = "var(--series-import)";
+// cfg: { id, table, lineColorVar, bannerStrong: {tr,en,ru}, bannerBody: {tr,en,ru} }
+// "id" her DOM id'sinin öneki ve Supabase cache anahtarı; kurumun resmi adı
+// (bannerStrong içinde) özel isim sayılıp hiçbir dilde değiştirilmiyor —
+// sadece açıklama cümlesi (bannerBody) çevriliyor (bkz. KTB/TÜRİB/UZTB'deki
+// aynı kural).
+function initDailySummaryBorsaPanel(cfg) {
+  const id = cfg.id;
+  const appCfg = window.TUIK_DASHBOARD_CONFIG;
+  const LINE_COLOR = cfg.lineColorVar;
   const CHART_W = 960, CHART_H = 240, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
   const TON_CHART_H = 110, TON_PADT = 10, TON_PADB = 24;
   let rowLimit = 10;
   let tablePage = 0;
 
-  // ---------- i18n (TR/EN/RU) — site geneli window.__registerI18nPanel'e
-  // kayıtlı. "Uzunköprü Ticaret Borsası" kurumun resmi adı/özel isim
-  // olduğundan hiçbir dilde değiştirilmiyor; geri kalan açıklama metni
-  // çevriliyor. UZTB tek bir ürün (Ayçiçek) için günlük özet sunduğundan
-  // ürün adı seçimi/çevirisi yok.
-  const UZTB_LOCALES = { tr: "tr-TR", en: "en-US", ru: "ru-RU" };
-  const UZTB_STRINGS = {
-    tr: {
-      bannerStrong: "UZTB (Uzunköprü Ticaret Borsası) günlük Salon Satışı fiyat özeti",
-      bannerBody: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
-      dateRangeLabel: "Tarih Aralığı", quickSelectLabel: "Hızlı seçim",
-      preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
-      chartTitle: "Fiyat eğilimi (TL/ton)", tonnageChartTitle: "Günlük işlem hacmi (ton)",
-      tableTitle: "Günlük özet",
-      exportBtn: "Excel'e aktar (CSV)", prevPageTitle: "Önceki sayfa", nextPageTitle: "Sonraki sayfa",
-      legendAvg: "Ağırlıklı Ortalama", legendMax: "En Yüksek", legendMin: "En Düşük",
-      tooltipAvg: "Ağırlıklı Ort.", tooltipMax: "En Yüksek", tooltipMin: "En Düşük",
-      noDataChart: "Bu filtrede veri yok.",
-      kpiAvgPrice: "Ağırlıklı ortalama fiyat (seçili dönem)", kpiLastPrice: "Son fiyat",
-      kpiTotalVolume: "Toplam işlem hacmi", kpiAvgRutubet: "Ortalama rutubet",
-      thDate: "Tarih", thMin: "En Düşük", thMax: "En Yüksek", thAvg: "Ağ. Ort. Fiyat", thQty: "Toplam Miktar", thCount: "İşlem Adedi", thRutubet: "Ort. Rutubet",
-      asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi",
-      tonSuffix: " ton", priceSuffix: " TL/ton",
-    },
-    en: {
-      bannerStrong: "UZTB (Uzunköprü Ticaret Borsası) daily Trading Hall price summary",
-      bannerBody: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
-      dateRangeLabel: "Date Range", quickSelectLabel: "Quick select",
-      preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
-      chartTitle: "Price trend (TRY/ton)", tonnageChartTitle: "Daily trade volume (ton)",
-      tableTitle: "Daily summary",
-      exportBtn: "Export to Excel (CSV)", prevPageTitle: "Previous page", nextPageTitle: "Next page",
-      legendAvg: "Weighted Average", legendMax: "Highest", legendMin: "Lowest",
-      tooltipAvg: "Weighted Avg.", tooltipMax: "Highest", tooltipMin: "Lowest",
-      noDataChart: "No data for this filter.",
-      kpiAvgPrice: "Weighted average price (selected period)", kpiLastPrice: "Last price",
-      kpiTotalVolume: "Total trade volume", kpiAvgRutubet: "Average moisture",
-      thDate: "Date", thMin: "Lowest", thMax: "Highest", thAvg: "Weighted Avg. Price", thQty: "Total Quantity", thCount: "Trade Count", thRutubet: "Avg. Moisture",
-      asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data",
-      tonSuffix: " ton", priceSuffix: " TRY/ton",
-    },
-    ru: {
-      bannerStrong: "УЗТБ (Uzunköprü Ticaret Borsası) — суточная сводка цен торгового зала",
-      bannerBody: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
-      dateRangeLabel: "Период", quickSelectLabel: "Быстрый выбор",
-      preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
-      chartTitle: "Динамика цены (TRY/т)", tonnageChartTitle: "Суточный объём торгов (т)",
-      tableTitle: "Суточная сводка",
-      exportBtn: "Экспорт в Excel (CSV)", prevPageTitle: "Предыдущая страница", nextPageTitle: "Следующая страница",
-      legendAvg: "Средневзвешенная", legendMax: "Максимум", legendMin: "Минимум",
-      tooltipAvg: "Средневзв.", tooltipMax: "Максимум", tooltipMin: "Минимум",
-      noDataChart: "Нет данных для этого фильтра.",
-      kpiAvgPrice: "Средневзвешенная цена (за период)", kpiLastPrice: "Последняя цена",
-      kpiTotalVolume: "Общий объём торгов", kpiAvgRutubet: "Средняя влажность",
-      thDate: "Дата", thMin: "Минимум", thMax: "Максимум", thAvg: "Сред. взв. цена", thQty: "Общий объём", thCount: "Число сделок", thRutubet: "Сред. влажность",
-      asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные",
-      tonSuffix: " т", priceSuffix: " TRY/т",
-    },
-  };
+  const LOCALES = { tr: "tr-TR", en: "en-US", ru: "ru-RU" };
+  const STRINGS = {};
+  for (const l of ["tr", "en", "ru"]) {
+    STRINGS[l] = Object.assign({}, DAILY_BORSA_COMMON_STRINGS[l], { bannerStrong: cfg.bannerStrong[l], bannerBody: cfg.bannerBody[l] });
+  }
   let lang = "tr";
-  function tt(key) { return UZTB_STRINGS[lang][key]; }
+  function tt(key) { return STRINGS[lang][key]; }
 
   function fmtPriceTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString(UZTB_LOCALES[lang], { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + tt("priceSuffix");
+    return v.toLocaleString(LOCALES[lang], { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + tt("priceSuffix");
   }
   function fmtTon(v) {
     if (v == null || isNaN(v)) return "—";
-    return v.toLocaleString(UZTB_LOCALES[lang], { maximumFractionDigits: 1 }) + tt("tonSuffix");
+    return v.toLocaleString(LOCALES[lang], { maximumFractionDigits: 1 }) + tt("tonSuffix");
   }
   function fmtPct(v) {
     if (v == null || isNaN(v)) return "—";
-    return "%" + v.toLocaleString(UZTB_LOCALES[lang], { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return "%" + v.toLocaleString(LOCALES[lang], { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function fmtDateShort(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString(UZTB_LOCALES[lang], { day: "2-digit", month: "short" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(LOCALES[lang], { day: "2-digit", month: "short" });
   }
   function fmtDateFull(iso) {
-    return new Date(iso + "T00:00:00").toLocaleDateString(UZTB_LOCALES[lang], { day: "numeric", month: "long", year: "numeric" });
+    return new Date(iso + "T00:00:00").toLocaleDateString(LOCALES[lang], { day: "numeric", month: "long", year: "numeric" });
   }
 
   const CACHE_TTL_MS = 3 * 60 * 60 * 1000;
 
-  async function fetchUztbRows() {
-    const cached = window.__supaCache.get("uztb", CACHE_TTL_MS);
+  async function fetchRows() {
+    const cached = window.__supaCache.get(id, CACHE_TTL_MS);
     if (cached) return cached;
-    const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
+    const headers = { apikey: appCfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${appCfg.SUPABASE_ANON_KEY}` };
     const res = await fetch(
-      `${cfg.SUPABASE_URL}/rest/v1/uztb_fiyat?select=trade_date,urun_adi,min_fiyat,max_fiyat,ort_fiyat,toplam_kilo,islem_adet,ort_rutubet&order=trade_date.asc`,
+      `${appCfg.SUPABASE_URL}/rest/v1/${cfg.table}?select=trade_date,urun_adi,min_fiyat,max_fiyat,ort_fiyat,toplam_kilo,islem_adet,ort_rutubet&order=trade_date.asc`,
       { headers }
     );
     if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
     const rows = await res.json();
-    window.__supaCache.set("uztb", rows);
+    window.__supaCache.set(id, rows);
     return rows;
   }
 
@@ -3731,7 +3740,7 @@ window.__tabManager = (function () {
   }
 
   function renderPriceLegend() {
-    const el = document.getElementById("uztb-price-legend");
+    const el = document.getElementById(`${id}-price-legend`);
     el.textContent = "";
     [[tt("legendAvg"), false], [tt("legendMax"), true], [tt("legendMin"), true]].forEach(([label, dashed]) => {
       const key = document.createElement("span");
@@ -3759,7 +3768,7 @@ window.__tabManager = (function () {
   }
 
   function drawPriceChart(points) {
-    const svg = document.getElementById("uztb-chart");
+    const svg = document.getElementById(`${id}-chart`);
     svg.textContent = "";
     svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
     if (!points.length) {
@@ -3787,7 +3796,7 @@ window.__tabManager = (function () {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
       t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
-      t.textContent = Math.round(maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString("tr-TR");
+      t.textContent = Math.round(maxVal + yPad - (g * (span + 2 * yPad)) / 3).toLocaleString(LOCALES[lang]);
       svg.appendChild(t);
     }
 
@@ -3820,7 +3829,7 @@ window.__tabManager = (function () {
       dot.setAttribute("fill", LINE_COLOR);
       svg.appendChild(dot);
     } else {
-      const gradId = "uztbAreaGradient";
+      const gradId = `${id}AreaGradient`;
       const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
       const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
       grad.setAttribute("id", gradId);
@@ -3898,7 +3907,7 @@ window.__tabManager = (function () {
   }
 
   function drawTonnageChart(points) {
-    const svg = document.getElementById("uztb-tonnage-chart");
+    const svg = document.getElementById(`${id}-tonnage-chart`);
     svg.textContent = "";
     svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + TON_CHART_H);
     if (!points.length) {
@@ -3980,7 +3989,7 @@ window.__tabManager = (function () {
   }
 
   function renderKpis(rows, series) {
-    const el = document.getElementById("uztb-kpi-row");
+    const el = document.getElementById(`${id}-kpi-row`);
     el.textContent = "";
     const rutubetVals = rows.filter(r => r.ort_rutubet != null);
     const avgRutubet = rutubetVals.length
@@ -4003,9 +4012,9 @@ window.__tabManager = (function () {
   }
 
   function renderTable(rows) {
-    const thead = document.getElementById("uztb-thead");
-    const tbody = document.getElementById("uztb-tbody");
-    const foot = document.getElementById("uztb-table-foot");
+    const thead = document.getElementById(`${id}-thead`);
+    const tbody = document.getElementById(`${id}-tbody`);
+    const foot = document.getElementById(`${id}-table-foot`);
     thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
     const cols = [tt("thDate"), tt("thMin"), tt("thMax"), tt("thAvg"), tt("thQty"), tt("thCount"), tt("thRutubet")];
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
@@ -4025,10 +4034,10 @@ window.__tabManager = (function () {
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
-    updatePagerUI("uztb", info);
+    updatePagerUI(id, info);
   }
 
-  function exportUztbCsv(rows) {
+  function exportCsv(rows) {
     const cols = ["trade_date", "urun_adi", "min_fiyat", "max_fiyat", "ort_fiyat", "toplam_kilo", "islem_adet", "ort_rutubet"];
     const esc = v => {
       const s = v == null ? "" : String(v);
@@ -4039,7 +4048,7 @@ window.__tabManager = (function () {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "uztb-gunluk-ozet-" + new Date().toISOString().slice(0, 10) + ".csv";
+    a.download = `${id}-gunluk-ozet-` + new Date().toISOString().slice(0, 10) + ".csv";
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -4058,9 +4067,9 @@ window.__tabManager = (function () {
   }
 
   function buildDateControls() {
-    const startInput = document.getElementById("uztb-date-start");
-    const endInput = document.getElementById("uztb-date-end");
-    if (!allRows.length) return;
+    const startInput = document.getElementById(`${id}-date-start`);
+    const endInput = document.getElementById(`${id}-date-end`);
+    if (!allRows.length) { renderAll(); return; }
     const allDates = allRows.map(r => r.trade_date).sort();
     const minDate = allDates[0], maxDate = allDates[allDates.length - 1];
     startInput.min = minDate; startInput.max = maxDate;
@@ -4068,7 +4077,7 @@ window.__tabManager = (function () {
     startInput.value = minDate; endInput.value = maxDate;
 
     function setActivePreset(btn) {
-      document.querySelectorAll("#uztb-period-presets .seg").forEach(b => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(`#${id}-period-presets .seg`).forEach(b => b.classList.toggle("active", b === btn));
     }
     function applyPreset(preset) {
       if (preset === "all") {
@@ -4085,18 +4094,18 @@ window.__tabManager = (function () {
       }
       renderAll();
     }
-    document.querySelectorAll("#uztb-period-presets .seg").forEach(btn => {
+    document.querySelectorAll(`#${id}-period-presets .seg`).forEach(btn => {
       btn.addEventListener("click", () => { setActivePreset(btn); applyPreset(btn.dataset.preset); });
     });
     startInput.addEventListener("change", () => { state.dateStart = startInput.value || null; setActivePreset(null); renderAll(); });
     endInput.addEventListener("change", () => { state.dateEnd = endInput.value || null; setActivePreset(null); renderAll(); });
 
-    setActivePreset(document.querySelector('#uztb-period-presets .seg[data-preset="90"]'));
+    setActivePreset(document.querySelector(`#${id}-period-presets .seg[data-preset="90"]`));
     applyPreset("90");
   }
 
   function updateAsofBadge() {
-    const badge = document.getElementById("uztb-asof-badge");
+    const badge = document.getElementById(`${id}-asof-badge`);
     badge.textContent = allRows.length
       ? tt("asofPrefix") + fmtDateFull(allRows.reduce((max, r) => (r.trade_date > max ? r.trade_date : max), allRows[0].trade_date))
       : tt("asofNoData");
@@ -4104,72 +4113,147 @@ window.__tabManager = (function () {
 
   // Dil değişince sabit metinler (banner/etiketler/başlıklar/buton/pager)
   // yeniden yazılır, veri varsa legend/grafik/KPI/tablo da tt() ile
-  // yeniden render edilir — "Uzunköprü Ticaret Borsası" özel isim olduğundan
-  // hiçbir dilde değiştirilmiyor (bkz. UZTB_STRINGS).
+  // yeniden render edilir — kurumun resmi adı özel isim olduğundan hiçbir
+  // dilde değiştirilmiyor (bkz. cfg.bannerStrong).
   function applyLanguage(newLang) {
     lang = newLang;
-    document.getElementById("uztb-banner-strong").textContent = tt("bannerStrong");
-    document.getElementById("uztb-banner-body").textContent = tt("bannerBody");
-    document.getElementById("uztb-label-daterange").textContent = tt("dateRangeLabel");
-    document.getElementById("uztb-label-quickselect").textContent = tt("quickSelectLabel");
-    document.querySelector('#uztb-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
-    document.querySelector('#uztb-period-presets .seg[data-preset="90"]').textContent = tt("preset90");
-    document.querySelector('#uztb-period-presets .seg[data-preset="all"]').textContent = tt("presetAll");
-    document.getElementById("uztb-chart-title").textContent = tt("chartTitle");
-    document.getElementById("uztb-tonnage-title").textContent = tt("tonnageChartTitle");
-    document.getElementById("uztb-table-title").textContent = tt("tableTitle");
-    document.getElementById("uztb-export-btn").textContent = tt("exportBtn");
-    document.getElementById("uztb-page-prev").title = tt("prevPageTitle");
-    document.getElementById("uztb-page-next").title = tt("nextPageTitle");
+    document.getElementById(`${id}-banner-strong`).textContent = tt("bannerStrong");
+    document.getElementById(`${id}-banner-body`).textContent = tt("bannerBody");
+    document.getElementById(`${id}-label-daterange`).textContent = tt("dateRangeLabel");
+    document.getElementById(`${id}-label-quickselect`).textContent = tt("quickSelectLabel");
+    document.querySelector(`#${id}-period-presets .seg[data-preset="30"]`).textContent = tt("preset30");
+    document.querySelector(`#${id}-period-presets .seg[data-preset="90"]`).textContent = tt("preset90");
+    document.querySelector(`#${id}-period-presets .seg[data-preset="all"]`).textContent = tt("presetAll");
+    document.getElementById(`${id}-chart-title`).textContent = tt("chartTitle");
+    document.getElementById(`${id}-tonnage-title`).textContent = tt("tonnageChartTitle");
+    document.getElementById(`${id}-table-title`).textContent = tt("tableTitle");
+    document.getElementById(`${id}-export-btn`).textContent = tt("exportBtn");
+    document.getElementById(`${id}-page-prev`).title = tt("prevPageTitle");
+    document.getElementById(`${id}-page-next`).title = tt("nextPageTitle");
     updateAsofBadge();
     if (allRows.length) renderAll();
   }
   window.__registerI18nPanel(applyLanguage);
 
   let loaded = false;
-  window.__uztbTab = {
+  window[`__${id}Tab`] = {
     onActivate() {
       if (loaded) return;
       loaded = true;
-      fetchUztbRows()
+      fetchRows()
         .then(rows => {
-          window.__updateStatusFromCache("uztb");
+          window.__updateStatusFromCache(id);
           lang = window.__appLang || "tr";
           allRows = rows;
           updateAsofBadge();
           buildDateControls();
-          renderAll();
         })
         .catch(err => {
           console.error(err);
-          document.getElementById("uztb-asof-badge").textContent = tt("asofError");
+          document.getElementById(`${id}-asof-badge`).textContent = tt("asofError");
         });
     },
   };
 
-  document.getElementById("uztb-row-limit").querySelectorAll(".seg").forEach(btn => {
+  document.getElementById(`${id}-row-limit`).querySelectorAll(".seg").forEach(btn => {
     btn.addEventListener("click", () => {
       rowLimit = Number(btn.dataset.limit);
       tablePage = 0;
-      document.getElementById("uztb-row-limit").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+      document.getElementById(`${id}-row-limit`).querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
       renderTable(currentRows());
     });
   });
-  document.getElementById("uztb-page-prev").addEventListener("click", () => {
+  document.getElementById(`${id}-page-prev`).addEventListener("click", () => {
     tablePage -= 1;
     renderTable(currentRows());
   });
-  document.getElementById("uztb-page-next").addEventListener("click", () => {
+  document.getElementById(`${id}-page-next`).addEventListener("click", () => {
     tablePage += 1;
     renderTable(currentRows());
   });
 
-  document.getElementById("uztb-export-btn").addEventListener("click", () => {
+  document.getElementById(`${id}-export-btn`).addEventListener("click", () => {
     const rows = currentRows();
     if (!rows.length) return;
-    exportUztbCsv(rows);
+    exportCsv(rows);
   });
-})();
+}
+
+initDailySummaryBorsaPanel({
+  id: "uztb", table: "uztb_fiyat", lineColorVar: "var(--series-import)",
+  bannerStrong: {
+    tr: "UZTB (Uzunköprü Ticaret Borsası) günlük Salon Satışı fiyat özeti",
+    en: "UZTB (Uzunköprü Ticaret Borsası) daily Trading Hall price summary",
+    ru: "УЗТБ (Uzunköprü Ticaret Borsası) — суточная сводка цен торгового зала",
+  },
+  bannerBody: {
+    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+  },
+});
+
+// NOT: GTB/PTB/ETB/EDTB için veri kaynağı henüz belirlenmedi — kaynak
+// sağlandığında bu panel adı/sütun eşlemesi (select=... alan adları)
+// gerçek API'nin şekline göre güncellenecek. Şimdilik UZTB ile AYNI
+// formatta (günlük tek satır özet) varsayılıp aynı "*_fiyat" tablo adı
+// deseniyle kaydedildi; tablo henüz Supabase'de yoksa sekme "Veri
+// çekilemedi" gösterir, bu beklenen bir durumdur.
+initDailySummaryBorsaPanel({
+  id: "gtb", table: "gtb_fiyat", lineColorVar: "var(--cat-3)",
+  bannerStrong: {
+    tr: "GTB (Gaziantep Ticaret Borsası) günlük Salon Satışı fiyat özeti",
+    en: "GTB (Gaziantep Ticaret Borsası) daily Trading Hall price summary",
+    ru: "ГТБ (Gaziantep Ticaret Borsası) — суточная сводка цен торгового зала",
+  },
+  bannerBody: {
+    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+  },
+});
+
+initDailySummaryBorsaPanel({
+  id: "ptb", table: "ptb_fiyat", lineColorVar: "var(--cat-4)",
+  bannerStrong: {
+    tr: "PTB (Polatlı Ticaret Borsası) günlük Salon Satışı fiyat özeti",
+    en: "PTB (Polatlı Ticaret Borsası) daily Trading Hall price summary",
+    ru: "ПТБ (Polatlı Ticaret Borsası) — суточная сводка цен торгового зала",
+  },
+  bannerBody: {
+    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+  },
+});
+
+initDailySummaryBorsaPanel({
+  id: "etb", table: "etb_fiyat", lineColorVar: "var(--cat-6)",
+  bannerStrong: {
+    tr: "ETB (Eskişehir Ticaret Borsası) günlük Salon Satışı fiyat özeti",
+    en: "ETB (Eskişehir Ticaret Borsası) daily Trading Hall price summary",
+    ru: "ЭТБ (Eskişehir Ticaret Borsası) — суточная сводка цен торгового зала",
+  },
+  bannerBody: {
+    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+  },
+});
+
+initDailySummaryBorsaPanel({
+  id: "edtb", table: "edtb_fiyat", lineColorVar: "var(--cat-8)",
+  bannerStrong: {
+    tr: "EDTB (Edirne Ticaret Borsası) günlük Salon Satışı fiyat özeti",
+    en: "EDTB (Edirne Ticaret Borsası) daily Trading Hall price summary",
+    ru: "ЭДТБ (Edirne Ticaret Borsası) — суточная сводка цен торгового зала",
+  },
+  bannerBody: {
+    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+  },
+});
 
 // ---------------------------------------------------------------------------
 // KTB (Konya Ticaret Borsası) alt sekmesi — Ticaret Borsası sekmesinin
