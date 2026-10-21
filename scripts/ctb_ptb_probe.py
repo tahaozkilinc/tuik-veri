@@ -1,114 +1,49 @@
-"""Geçici araştırma scripti #2: ÇTB ve PTB'nin tarih filtresi FORM/JS
-etkileşimiyle nasıl çalışıyor (ilk probe ?tarih= query param'ının işe
-yaramadığını gösterdi) — filtre alanlarını doldurup "Ara"ya basarak/tarih
-seçerek tetiklenen ağ isteklerini (JSON API olabilir) ve sonuç tablosunun
-tam satır sayısını/aralığını yakalıyor."""
-from playwright.sync_api import sync_playwright
+"""Geçici araştırma scripti #3: ÇTB'nin /Bulten/Aralik?baslangic=&bitis=
+JSON API'si (tek güne daraltılınca günlük özet mi veriyor?) ve PTB'nin
+BultenGunluk.ashx?tarih= uç noktası (ne döndürüyor: HTML mi JSON mu) plain
+urllib ile (Playwright'sız) test ediliyor — 1 yıl önceki bir gün dahil."""
+import json
+import urllib.request
 
-print("=" * 20, "ÇTB: tarih aralığı filtresi deneniyor", "=" * 20)
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_page()
-    xhr_hits = []
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; tuik-veri-research/1.0)"}
 
-    def on_request(req):
-        if req.resource_type in ("xhr", "fetch"):
-            xhr_hits.append(("REQ", req.method, req.url, req.post_data))
 
-    def on_response(resp):
-        ctype = resp.headers.get("content-type", "")
-        if "json" in ctype:
-            try:
-                body = resp.text()
-            except Exception:
-                body = "<okunamadı>"
-            xhr_hits.append(("RES", resp.status, resp.url, body[:1000]))
+def fetch(url):
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return resp.status, resp.headers.get("content-type", ""), resp.read().decode("utf-8", errors="replace")
 
-    page.on("request", on_request)
-    page.on("response", on_response)
-    page.goto("https://www.corumtb.org.tr/Bulten", wait_until="networkidle", timeout=45000)
-    page.wait_for_timeout(1000)
 
-    # Varsayılan sayfada table[0]'ın toplam satır sayısı / tarih aralığı nedir?
-    row_count = page.locator("table").first.locator("tbody tr").count()
-    dates = page.locator("table").first.locator("tbody tr td:first-child strong").all_inner_texts()
-    print(f"Varsayılan yükte table[0] satır sayısı: {row_count}, tarihler: {dates}")
-
+print("=" * 20, "ÇTB /Bulten/Aralik — tek güne daraltılmış sorgu", "=" * 20)
+for baslangic, bitis, label in [
+    ("2026-10-20", "2026-10-20", "tek gün (bugüne yakın)"),
+    ("2025-10-21", "2025-10-21", "tek gün (1 yıl önce)"),
+    ("2026-10-18", "2026-10-18", "tek gün (Pazar — işlem olmamalı)"),
+]:
+    url = f"https://www.corumtb.org.tr/Bulten/Aralik?baslangic={baslangic}&bitis={bitis}"
     try:
-        page.fill("#filterBaslangic", "2026-01-01")
-        page.fill("#filterBitis", "2026-10-20")
-        print("Tarih inputları dolduruldu, 'Ara' butonu aranıyor...")
-        ara_btn = page.get_by_text("Ara", exact=True)
-        print("Ara buton sayısı:", ara_btn.count())
-        ara_btn.first.click()
-        page.wait_for_timeout(2500)
+        status, ctype, body = fetch(url)
+        print(f"\n--- {label} ({baslangic}) ---")
+        print(f"status={status} content-type={ctype}")
+        data = json.loads(body)
+        urunler = data.get("data", {}).get("urunler", [])
+        print(f"basarili={data.get('basarili')}, ürün sayısı={len(urunler)}")
+        for u in urunler[:3]:
+            print(" ", u)
     except Exception as exc:
-        print("Form doldurma/tıklama hatası:", exc)
+        print(f"{label}: HATA — {exc}")
 
-    print(f"Yakalanan XHR/fetch olay sayısı: {len(xhr_hits)}")
-    for item in xhr_hits[:15]:
-        print(" ", item)
-
-    row_count_after = page.locator("table").first.locator("tbody tr").count()
-    dates_after = page.locator("table").first.locator("tbody tr td:first-child strong").all_inner_texts()
-    print(f"Filtre sonrası table[0] satır sayısı: {row_count_after}, tarihler (ilk 20): {dates_after[:20]}")
-    print(f"Toplam tarih sayısı: {len(dates_after)}")
-
-    body_text_after = page.inner_text("body")
-    print("Filtre sonrası body metni (ilk 800 char):\n", body_text_after[:800])
-
-    browser.close()
-
-print("\n" + "=" * 20 + " PTB: tarih seçici deneniyor " + "=" * 20)
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_page()
-    xhr_hits = []
-
-    def on_request(req):
-        if req.resource_type in ("xhr", "fetch"):
-            xhr_hits.append(("REQ", req.method, req.url, req.post_data))
-
-    def on_response(resp):
-        ctype = resp.headers.get("content-type", "")
-        if "json" in ctype:
-            try:
-                body = resp.text()
-            except Exception:
-                body = "<okunamadı>"
-            xhr_hits.append(("RES", resp.status, resp.url, body[:1000]))
-
-    page.on("request", on_request)
-    page.on("response", on_response)
-    page.goto("https://bulten.polatliborsa.org.tr/gunluk-bulten.html", wait_until="networkidle", timeout=45000)
-    page.wait_for_timeout(1000)
-
+print("\n\n" + "=" * 20 + " PTB BultenGunluk.ashx — doğrudan urllib ile " + "=" * 20)
+for tarih, label in [
+    ("20.10.2026", "dün (bugüne yakın)"),
+    ("21.10.2025", "1 yıl önce"),
+    ("18.10.2026", "Pazar — işlem olmamalı"),
+]:
+    url = f"https://bulten.polatliborsa.org.tr/BultenGunluk.ashx?tarih={tarih}"
     try:
-        date_input = page.locator("#gunlukDate")
-        print("gunlukDate mevcut değer:", date_input.input_value())
-        date_input.click()
-        date_input.fill("20.10.2025")
-        date_input.press("Enter")
-        page.wait_for_timeout(2500)
+        status, ctype, body = fetch(url)
+        print(f"\n--- {label} ({tarih}) ---")
+        print(f"status={status} content-type={ctype} body uzunluğu={len(body)}")
+        print("İlk 1500 char:\n", body[:1500])
     except Exception as exc:
-        print("Tarih seçici hatası:", exc)
-
-    print(f"Yakalanan XHR/fetch olay sayısı: {len(xhr_hits)}")
-    for item in xhr_hits[:15]:
-        print(" ", item)
-
-    body_text_after = page.inner_text("body")
-    print("Tarih seçimi sonrası body metni (ilk 800 char):\n", body_text_after[:800])
-
-    browser.close()
-
-print("\n" + "=" * 20 + " PTB: olası arşiv/haftalık bülten linkleri " + "=" * 20)
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_page()
-    page.goto("https://bulten.polatliborsa.org.tr/", wait_until="networkidle", timeout=45000)
-    page.wait_for_timeout(1000)
-    links = page.locator("a").evaluate_all("els => els.map(e => ({href: e.href, text: e.innerText.trim()})).filter(x => x.text)")
-    for l in links[:40]:
-        print(" ", l)
-    browser.close()
+        print(f"{label}: HATA — {exc}")
