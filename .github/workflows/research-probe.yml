@@ -18,4 +18,6 @@ jobs:
           python-version: "3.11"
 
       - name: Run GTB client/records probe
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: python scripts/gtb_probe.py
