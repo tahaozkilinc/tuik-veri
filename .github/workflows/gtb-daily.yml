@@ -1,0 +1,51 @@
+name: Daily GTB Price Fetch
+
+on:
+  schedule:
+    # KTB'de yaşanan "aynı günün akşamı için çok erken 'bugünü' isteme"
+    # hatasından ders alınarak (bkz. ktb-daily.yml) GTB'de de baştan "dünü"
+    # istiyoruz — kaynağın kendi yayın saati bağımsız doğrulanmadı, erken
+    # sabah "dünü" çekmek her ihtimalde güvenli. 05:00 UTC = 08:00 TR.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Tek bir günü çek (YYYY-MM-DD), boş bırakılırsa dün"
+        required: false
+        default: ""
+      backfill_days:
+        description: "Son N günü tek tek çek (1 yıllık geçmiş doldurmak için 365 yazın)"
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install supabase==2.31.0
+
+      - name: Fetch + parse + load GTB salon satış fiyatları
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GTB_DATE: ${{ github.event.inputs.date }}
+          GTB_BACKFILL_DAYS: ${{ github.event.inputs.backfill_days }}
+        run: |
+          if [ -n "$GTB_BACKFILL_DAYS" ] && [ "$GTB_BACKFILL_DAYS" != "0" ]; then
+            python -m gtb.run --backfill-days "$GTB_BACKFILL_DAYS"
+          elif [ -n "$GTB_DATE" ]; then
+            python -m gtb.run --date "$GTB_DATE"
+          else
+            python -m gtb.run
+          fi

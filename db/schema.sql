@@ -271,6 +271,33 @@ drop policy if exists "public read ktb_bulletin" on ktb_bulletin;
 create policy "public read ktb_bulletin" on ktb_bulletin for select using (true);
 revoke insert, update, delete, truncate on ktb_bulletin from anon, authenticated;
 
+-- Gaziantep Ticaret Borsası (GTB) — Salon Satışı günlük fiyat özeti.
+-- www.gtb.org.tr/salon-satis-fiyatlari?tarih=YYYY-MM-DD sunucu tarafında
+-- render edilen düz HTML sayfası (KTB/TÜRİB'in aksine SPA değil). Her ürün
+-- günde bir satır — KAYNAKTA ortalama/ağırlıklı ortalama, hacim (kg) veya
+-- işlem sayısı YOK, sadece en az/en çok. ort_fiyat bu yüzden (min+max)/2
+-- olarak TÜRETİLİYOR (kullanıcının talimatı). Fiyatlar TL/TON cinsinden
+-- (UZTB/KTB/TÜRİB'deki TL/kg'den FARKLI — dashboard bu tabloyu çekerken
+-- ×1000 dönüşümü UYGULAMAMALI).
+create table if not exists gtb_fiyat (
+    id           bigint generated always as identity primary key,
+    trade_date   date not null,
+    urun_kodu    text not null,   -- kaynağın /salon-satis-urun/{kod}/7 kodu, örn '990100'
+    urun_adi     text not null,   -- örn 'MISIR (1. GRUP - NATUREL)'
+    min_fiyat    numeric,         -- TL/ton
+    max_fiyat    numeric,         -- TL/ton
+    ort_fiyat    numeric,         -- TL/ton — (min_fiyat + max_fiyat) / 2, kaynaktan gelmiyor
+    fetched_at   timestamptz not null default now(),
+    unique (trade_date, urun_kodu)
+);
+
+create index if not exists idx_gtb_fiyat_lookup on gtb_fiyat (urun_kodu, trade_date desc);
+
+alter table gtb_fiyat enable row level security;
+drop policy if exists "public read gtb_fiyat" on gtb_fiyat;
+create policy "public read gtb_fiyat" on gtb_fiyat for select using (true);
+revoke insert, update, delete, truncate on gtb_fiyat from anon, authenticated;
+
 -- TCMB (Türkiye Cumhuriyet Merkez Bankası) günlük USD/TRY kuru.
 -- Kaynak: www.tcmb.gov.tr/kurlar/{YYYYMM}/{DDMMYYYY}.xml (bugün için
 -- /kurlar/today.xml). Hafta sonu/resmi tatillerde TCMB yayın yapmıyor —
