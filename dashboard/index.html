@@ -202,8 +202,8 @@
       <div class="wasde-banner">
         <div id="exchange-summary-banner-text">
           <strong id="exchange-summary-banner-strong">Mısır fiyat özeti</strong>
-          <span id="exchange-summary-banner-body"> — TÜRİB (Mısır 1.Sınıf) ve KTB (Mısır) ağırlıklı ortalama
-          fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Sadece ağırlıklı ortalama gösterilir, alt/üst
+          <span id="exchange-summary-banner-body"> — TÜRİB (Mısır 1.Sınıf), KTB (Mısır) ve GTB (Mısır) ortalama
+          fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Sadece ortalama gösterilir, alt/üst
           limit yok.</span>
         </div>
         <span class="wasde-release-badge" id="exchange-summary-asof-badge">Yükleniyor…</span>
@@ -269,6 +269,8 @@
                 <th class="num-col" id="exchange-summary-th-turib-usd">TÜRİB Mısır (USD/ton)</th>
                 <th class="num-col" id="exchange-summary-th-ktb-tl">KTB Mısır (TL/ton)</th>
                 <th class="num-col" id="exchange-summary-th-ktb-usd">KTB Mısır (USD/ton)</th>
+                <th class="num-col" id="exchange-summary-th-gtb-tl">GTB Mısır (TL/ton)</th>
+                <th class="num-col" id="exchange-summary-th-gtb-usd">GTB Mısır (USD/ton)</th>
               </tr>
             </thead>
             <tbody id="exchange-summary-tbody"></tbody>
@@ -438,14 +440,18 @@
       <div class="wasde-banner">
         <div id="gtb-banner-text">
           <strong id="gtb-banner-strong">GTB (Gaziantep Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
-          <span id="gtb-banner-body"> — her iş günü
-          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
-          toplam miktar, ortalama rutubet) çekilir.</span>
+          <span id="gtb-banner-body"> — her sabah bir önceki iş gününün en düşük/en yüksek fiyatları çekilir;
+          kaynakta ağırlıklı ortalama veya işlem hacmi verisi yok, gösterilen ortalama bu en düşük/en yüksek
+          değerlerin ortalamasıdır.</span>
         </div>
         <span class="wasde-release-badge" id="gtb-asof-badge">Yükleniyor…</span>
       </div>
 
       <section class="filters" aria-label="GTB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="gtb-label-product">Ürün</span>
+          <div class="product-picker" id="gtb-product-picker" role="group" aria-label="Ürün seçimi"></div>
+        </div>
         <div class="filter-group">
           <span class="filter-label" id="gtb-label-daterange">Tarih Aralığı</span>
           <div class="period-row">

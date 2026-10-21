@@ -192,6 +192,15 @@
   .seg.active { background: var(--focus); color: #fff; }
   .seg:disabled { opacity: 0.4; cursor: not-allowed; }
   .seg:disabled:hover { background: var(--surface-1); }
+  /* GTB gibi günde çok ürünlü kaynaklarda ürün sayısı sabit değil (JS'te
+     veriden üretiliyor) — .segmented'in overflow:hidden'ı taşan seçenekleri
+     kırpar, burada onun yerine yatay kaydırma kullanıyoruz. */
+  .product-picker {
+    display: flex; border: 1px solid var(--border-strong); border-radius: 9px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+    max-width: 100%;
+  }
+  .product-picker .seg { flex: none; white-space: nowrap; }
   select, .text-input {
     font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-1);
     border: 1px solid var(--border-strong); border-radius: 9px; padding: 7px 10px; min-width: 140px;
