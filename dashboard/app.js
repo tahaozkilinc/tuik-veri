@@ -2542,6 +2542,7 @@ window.__tabManager = (function () {
     ptb: dailyBorsaSubtab("ptb"),
     etb: dailyBorsaSubtab("etb"),
     edtb: dailyBorsaSubtab("edtb"),
+    ctb: dailyBorsaSubtab("ctb"),
   };
   Object.entries(EXCHANGE_SUBTABS).forEach(([key, cfgSub]) => {
     document.getElementById(cfgSub.tabId).addEventListener("click", () => showExchangeSubtab(key));
@@ -4330,25 +4331,30 @@ initDailySummaryBorsaPanel({
   },
 });
 
-// NOT: PTB/ETB/EDTB için veri kaynağı henüz belirlenmedi — kaynak
-// sağlandığında bu panel adı/sütun eşlemesi gerçek API'nin şekline göre
-// güncellenecek (GTB'nin aksine). Şimdilik UZTB ile AYNI formatta (günlük
-// tek satır özet) varsayılıp aynı "*_fiyat" tablo adı deseniyle kaydedildi;
-// tablo henüz Supabase'de yoksa sekme "Veri çekilemedi" gösterir.
+// PTB günde çok ürünlü (BUĞDAY/ARPA/MISIR/YULAF altında birçok kalite
+// sınıfı) — hasProductPicker gerekiyor (GTB'dekiyle aynı mekanizma).
+// Kaynakta miktar + işlem sayısı VAR ama rutubet YOK (ÇTB ile aynı şekil,
+// UZTB/KTB'den farklı) — hasRutubet: false. Fiyatlar TL/kg (TL/ton değil).
 initDailySummaryBorsaPanel({
   id: "ptb", table: "ptb_fiyat", lineColorVar: "var(--cat-4)",
+  hasProductPicker: true, hasRutubet: false,
   bannerStrong: {
     tr: "PTB (Polatlı Ticaret Borsası) günlük Salon Satışı fiyat özeti",
     en: "PTB (Polatlı Ticaret Borsası) daily Trading Hall price summary",
     ru: "ПТБ (Polatlı Ticaret Borsası) — суточная сводка цен торгового зала",
   },
   bannerBody: {
-    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
-    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
-    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+    tr: " — her akşam 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir; kaynakta rutubet verisi yok.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity) computed from that day's trades is fetched every evening at 18:00 (TR time); the source has no moisture data.",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём), рассчитанная по сделкам дня, загружается каждый вечер в 18:00 (время Турции); у источника нет данных о влажности.",
   },
 });
 
+// NOT: ETB/EDTB için veri kaynağı henüz belirlenmedi — kaynak sağlandığında
+// bu panel adı/sütun eşlemesi gerçek API'nin şekline göre güncellenecek.
+// Şimdilik UZTB ile AYNI formatta (günlük tek satır özet) varsayılıp aynı
+// "*_fiyat" tablo adı deseniyle kaydedildi; tablo henüz Supabase'de yoksa
+// sekme "Veri çekilemedi" gösterir.
 initDailySummaryBorsaPanel({
   id: "etb", table: "etb_fiyat", lineColorVar: "var(--cat-6)",
   bannerStrong: {
@@ -4374,6 +4380,24 @@ initDailySummaryBorsaPanel({
     tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
     en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
     ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+  },
+});
+
+// ÇTB (Çorum Ticaret Borsası) — PTB ile aynı şekil: günde çok ürünlü
+// (hasProductPicker), miktar + işlem sayısı var ama rutubet yok
+// (hasRutubet: false), fiyatlar TL/kg.
+initDailySummaryBorsaPanel({
+  id: "ctb", table: "ctb_fiyat", lineColorVar: "var(--cat-5)",
+  hasProductPicker: true, hasRutubet: false,
+  bannerStrong: {
+    tr: "ÇTB (Çorum Ticaret Borsası) günlük ürün fiyat özeti",
+    en: "ÇTB (Çorum Ticaret Borsası) daily product price summary",
+    ru: "ЧТБ (Çorum Ticaret Borsası) — суточная сводка цен",
+  },
+  bannerBody: {
+    tr: " — her akşam 18:00'da o güne ait işlemlerden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir; kaynakta rutubet verisi yok.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity) computed from that day's trades is fetched every evening at 18:00 (TR time); the source has no moisture data.",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём), рассчитанная по сделкам дня, загружается каждый вечер в 18:00 (время Турции); у источника нет данных о влажности.",
   },
 });
 

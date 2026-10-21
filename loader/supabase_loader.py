@@ -130,6 +130,33 @@ def replace_gtb_fiyat(client: Client, trade_date: str, records: list[dict]) -> i
     return total
 
 
+def replace_ctb_fiyat(client: Client, trade_date: str, records: list[dict]) -> int:
+    """Bu `trade_date`'e ait eski ÇTB satırlarını silip yeni veriyi ekler —
+    gtb_fiyat/ktb_bulletin ile aynı mantık: kaynak her çağrıda o günün TAM
+    özetini döndürüyor (artımlı değil), kapsam sadece bu güne sınırlı.
+    """
+    client.table("ctb_fiyat").delete().eq("trade_date", trade_date).execute()
+    total = 0
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i : i + BATCH_SIZE]
+        client.table("ctb_fiyat").insert(batch).execute()
+        total += len(batch)
+    return total
+
+
+def replace_ptb_fiyat(client: Client, trade_date: str, records: list[dict]) -> int:
+    """Bu `trade_date`'e ait eski PTB satırlarını silip yeni veriyi ekler —
+    ctb_fiyat ile aynı mantık.
+    """
+    client.table("ptb_fiyat").delete().eq("trade_date", trade_date).execute()
+    total = 0
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i : i + BATCH_SIZE]
+        client.table("ptb_fiyat").insert(batch).execute()
+        total += len(batch)
+    return total
+
+
 def replace_tcmb_rate(client: Client, trade_date: str, record: dict) -> int:
     """Bu `trade_date`'e ait eski TCMB kur satırını silip yeniden yazar —
     uztb_fiyat'taki tekil sil-ve-ekle ile aynı mantık: her kayıt zaten bir

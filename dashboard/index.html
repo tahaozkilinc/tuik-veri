@@ -196,6 +196,7 @@
       <button class="tab" id="subtab-ptb" type="button" role="tab" aria-selected="false">PTB</button>
       <button class="tab" id="subtab-etb" type="button" role="tab" aria-selected="false">ETB</button>
       <button class="tab" id="subtab-edtb" type="button" role="tab" aria-selected="false">EDTB</button>
+      <button class="tab" id="subtab-ctb" type="button" role="tab" aria-selected="false">ÇTB</button>
     </div>
 
     <div id="exchange-summary-section">
@@ -513,14 +514,17 @@
       <div class="wasde-banner">
         <div id="ptb-banner-text">
           <strong id="ptb-banner-strong">PTB (Polatlı Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
-          <span id="ptb-banner-body"> — her iş günü
-          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
-          toplam miktar, ortalama rutubet) çekilir.</span>
+          <span id="ptb-banner-body"> — her akşam 18:00'da o günün işlemlerinden hesaplanan günlük özet
+          (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir; kaynakta rutubet verisi yok.</span>
         </div>
         <span class="wasde-release-badge" id="ptb-asof-badge">Yükleniyor…</span>
       </div>
 
       <section class="filters" aria-label="PTB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="ptb-label-product">Ürün</span>
+          <div class="product-picker" id="ptb-product-picker" role="group" aria-label="Ürün seçimi"></div>
+        </div>
         <div class="filter-group">
           <span class="filter-label" id="ptb-label-daterange">Tarih Aralığı</span>
           <div class="period-row">
@@ -713,6 +717,78 @@
           </table>
         </div>
         <div class="table-foot" id="edtb-table-foot"></div>
+      </section>
+    </div>
+
+    <div id="ctb-section" hidden>
+      <div class="wasde-banner">
+        <div id="ctb-banner-text">
+          <strong id="ctb-banner-strong">ÇTB (Çorum Ticaret Borsası) günlük ürün fiyat özeti</strong>
+          <span id="ctb-banner-body"> — her akşam 18:00'da o güne ait işlemlerden hesaplanan günlük özet
+          (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir; kaynakta rutubet verisi yok.</span>
+        </div>
+        <span class="wasde-release-badge" id="ctb-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="ÇTB filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="ctb-label-product">Ürün</span>
+          <div class="product-picker" id="ctb-product-picker" role="group" aria-label="Ürün seçimi"></div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label" id="ctb-label-daterange">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="ctb-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="ctb-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label" id="ctb-label-quickselect">Hızlı seçim</span>
+          <div class="segmented" id="ctb-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-row" id="ctb-kpi-row" aria-label="ÇTB özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="ctb-chart-title">Fiyat eğilimi (TL/ton)</h2>
+        </div>
+        <div class="legend" id="ctb-price-legend"></div>
+        <svg class="chart" id="ctb-chart" role="img" aria-label="Ağırlıklı ortalama, en düşük ve en yüksek fiyat eğilimi"></svg>
+        <h3 class="price-chart-title" id="ctb-tonnage-title">Günlük işlem hacmi (ton)</h3>
+        <svg class="chart" id="ctb-tonnage-chart" role="img" aria-label="Günlük işlem tonajı"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="ctb-table-title">Günlük özet</h2>
+          <div class="table-controls">
+            <div class="segmented" id="ctb-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="ctb-pager">
+              <button class="pan-btn" id="ctb-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="ctb-pager-label"></span>
+              <button class="pan-btn" id="ctb-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="ctb-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="ctb-table">
+            <thead><tr id="ctb-thead"></tr></thead>
+            <tbody id="ctb-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-foot" id="ctb-table-foot"></div>
       </section>
     </div>
 

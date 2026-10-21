@@ -298,6 +298,70 @@ drop policy if exists "public read gtb_fiyat" on gtb_fiyat;
 create policy "public read gtb_fiyat" on gtb_fiyat for select using (true);
 revoke insert, update, delete, truncate on gtb_fiyat from anon, authenticated;
 
+-- Çorum Ticaret Borsası (ÇTB) — günlük ürün fiyat özeti.
+-- www.corumtb.org.tr/Bulten/Aralik?baslangic=YYYY-MM-DD&bitis=YYYY-MM-DD bir
+-- JSON API — verilen tarih aralığındaki TÜM işlemlerden ürün bazında
+-- min/ortalama/max fiyat + toplam miktar + işlem sayısı hesaplayıp
+-- döndürüyor (kaynağın kendi "Aralık" filtresi). baslangic=bitis=aynı gün
+-- verilince o GÜNÜN özeti elde ediliyor — günlük veri için bu şekilde
+-- kullanılıyor (aralık bazlı toplu sorgu, geçmiş doldurma için de aynı
+-- endpoint tek seferde tüm aralığı değil, her gün ayrı ayrı çağrılarak
+-- kullanılıyor, çünkü dashboard günlük zaman serisi istiyor).
+-- "ortalamaKgFiyat" kaynağın ağırlıklı ortalaması (toplamFiyat/toplamTonaj) —
+-- "ortalamaFiyat" alanı ayrı bir (işlem bazlı, ağırlıksız) ortalama, biz
+-- ağırlıklı olanı kullanıyoruz (UZTB/KTB'deki ort_fiyat ile aynı anlam).
+-- Fiyatlar TL/KG (UZTB/KTB/TÜRİB ile aynı — GTB'nin TL/ton'undan farklı).
+-- Rutubet verisi YOK.
+create table if not exists ctb_fiyat (
+    id           bigint generated always as identity primary key,
+    trade_date   date not null,
+    urun_adi     text not null,   -- örn 'EKMEKLİK BUĞDAY'
+    min_fiyat    numeric,         -- TL/kg
+    max_fiyat    numeric,         -- TL/kg
+    ort_fiyat    numeric,         -- TL/kg — ağırlıklı ortalama (ortalamaKgFiyat)
+    toplam_kilo  numeric,
+    islem_adet   int,
+    fetched_at   timestamptz not null default now(),
+    unique (trade_date, urun_adi)
+);
+
+create index if not exists idx_ctb_fiyat_lookup on ctb_fiyat (urun_adi, trade_date desc);
+
+alter table ctb_fiyat enable row level security;
+drop policy if exists "public read ctb_fiyat" on ctb_fiyat;
+create policy "public read ctb_fiyat" on ctb_fiyat for select using (true);
+revoke insert, update, delete, truncate on ctb_fiyat from anon, authenticated;
+
+-- Polatlı Ticaret Borsası (PTB) — günlük Salon Satışı fiyat özeti.
+-- bulten.polatliborsa.org.tr/BultenGunluk.ashx?tarih=GG.AA.YYYY bir ASPX
+-- handler — o günün HTML bülten tablosunu döndürüyor (sayfanın kendi JS
+-- tarih seçicisinin AJAX çağrısı). Tablo hem kategori başlığı satırları
+-- (TARIMSAL, BUĞDAY, ARPA... fiyatsız, sadece alt toplamlar) hem gerçek
+-- ürün satırları (fiyatlı) içeriyor — fiyatsız satırlar atlanıyor.
+-- "İşlem Tutarı" o ürünün günlük toplam TL cirosu (miktar × ortalama fiyat
+-- civarı) — ayrıca saklanıyor, dashboard'da kullanılmıyor ama ileride
+-- ciro bazlı analiz için faydalı olabilir. Fiyatlar TL/kg. Rutubet YOK.
+create table if not exists ptb_fiyat (
+    id              bigint generated always as identity primary key,
+    trade_date      date not null,
+    urun_adi        text not null,   -- örn 'KIRMIZI EKMEKLİK BUĞDAY (2.DERECE)'
+    min_fiyat       numeric,         -- TL/kg
+    max_fiyat       numeric,         -- TL/kg
+    ort_fiyat       numeric,         -- TL/kg
+    toplam_kilo     numeric,
+    islem_adet      int,             -- "Muam. Ad" (muamele adedi)
+    islem_tutari_tl numeric,         -- "İşlem Tutarı" — günlük toplam ciro
+    fetched_at      timestamptz not null default now(),
+    unique (trade_date, urun_adi)
+);
+
+create index if not exists idx_ptb_fiyat_lookup on ptb_fiyat (urun_adi, trade_date desc);
+
+alter table ptb_fiyat enable row level security;
+drop policy if exists "public read ptb_fiyat" on ptb_fiyat;
+create policy "public read ptb_fiyat" on ptb_fiyat for select using (true);
+revoke insert, update, delete, truncate on ptb_fiyat from anon, authenticated;
+
 -- TCMB (Türkiye Cumhuriyet Merkez Bankası) günlük USD/TRY kuru.
 -- Kaynak: www.tcmb.gov.tr/kurlar/{YYYYMM}/{DDMMYYYY}.xml (bugün için
 -- /kurlar/today.xml). Hafta sonu/resmi tatillerde TCMB yayın yapmıyor —
