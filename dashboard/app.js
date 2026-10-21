@@ -3619,11 +3619,12 @@ const DAILY_BORSA_COMMON_STRINGS = {
     noDataChart: "Bu filtrede veri yok.",
     kpiAvgPrice: "Ağırlıklı ortalama fiyat (seçili dönem)", kpiLastPrice: "Son fiyat",
     kpiTotalVolume: "Toplam işlem hacmi", kpiAvgRutubet: "Ortalama rutubet",
-    thDate: "Tarih", thMin: "En Düşük", thMax: "En Yüksek", thAvg: "Ağ. Ort. Fiyat", thQty: "Toplam Miktar", thCount: "İşlem Adedi", thRutubet: "Ort. Rutubet",
+    thDate: "Tarih", thMin: "En Düşük", thMax: "En Yüksek", thAvg: "Ağ. Ort. Fiyat", thQty: "Toplam Miktar", thCount: "İşlem Adedi", thRutubet: "Ort. Rutubet", thProduct: "Ürün",
     asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi",
     tonSuffix: " ton", priceSuffix: " TL/ton",
     legendAvgPlain: "Ortalama", kpiAvgPricePlain: "Ortalama fiyat (seçili dönem)",
-    tooltipAvgPlain: "Ort.", thAvgPlain: "Ort. Fiyat", productPickerLabel: "Ürün",
+    tooltipAvgPlain: "Ort.", thAvgPlain: "Ort. Fiyat",
+    productGroupLabel: "Ürün Grubu", productPickerLabel: "Çeşit",
   },
   en: {
     dateRangeLabel: "Date Range", quickSelectLabel: "Quick select",
@@ -3636,11 +3637,12 @@ const DAILY_BORSA_COMMON_STRINGS = {
     noDataChart: "No data for this filter.",
     kpiAvgPrice: "Weighted average price (selected period)", kpiLastPrice: "Last price",
     kpiTotalVolume: "Total trade volume", kpiAvgRutubet: "Average moisture",
-    thDate: "Date", thMin: "Lowest", thMax: "Highest", thAvg: "Weighted Avg. Price", thQty: "Total Quantity", thCount: "Trade Count", thRutubet: "Avg. Moisture",
+    thDate: "Date", thMin: "Lowest", thMax: "Highest", thAvg: "Weighted Avg. Price", thQty: "Total Quantity", thCount: "Trade Count", thRutubet: "Avg. Moisture", thProduct: "Product",
     asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data",
     tonSuffix: " ton", priceSuffix: " TRY/ton",
     legendAvgPlain: "Average", kpiAvgPricePlain: "Average price (selected period)",
-    tooltipAvgPlain: "Avg.", thAvgPlain: "Avg. Price", productPickerLabel: "Product",
+    tooltipAvgPlain: "Avg.", thAvgPlain: "Avg. Price",
+    productGroupLabel: "Product Group", productPickerLabel: "Variant",
   },
   ru: {
     dateRangeLabel: "Период", quickSelectLabel: "Быстрый выбор",
@@ -3653,13 +3655,34 @@ const DAILY_BORSA_COMMON_STRINGS = {
     noDataChart: "Нет данных для этого фильтра.",
     kpiAvgPrice: "Средневзвешенная цена (за период)", kpiLastPrice: "Последняя цена",
     kpiTotalVolume: "Общий объём торгов", kpiAvgRutubet: "Средняя влажность",
-    thDate: "Дата", thMin: "Минимум", thMax: "Максимум", thAvg: "Сред. взв. цена", thQty: "Общий объём", thCount: "Число сделок", thRutubet: "Сред. влажность",
+    thDate: "Дата", thMin: "Минимум", thMax: "Максимум", thAvg: "Сред. взв. цена", thQty: "Общий объём", thCount: "Число сделок", thRutubet: "Сред. влажность", thProduct: "Продукт",
     asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные",
     tonSuffix: " т", priceSuffix: " TRY/т",
     legendAvgPlain: "Среднее", kpiAvgPricePlain: "Средняя цена (за период)",
-    tooltipAvgPlain: "Сред.", thAvgPlain: "Сред. цена", productPickerLabel: "Продукт",
+    tooltipAvgPlain: "Сред.", thAvgPlain: "Сред. цена",
+    productGroupLabel: "Товарная группа", productPickerLabel: "Вид",
   },
 };
+
+// GTB/ÇTB/PTB gibi günde çok ürünlü kaynaklarda TÜRİB'deki gibi gruplanmış
+// çoklu seçim sunuyoruz: ürün adı aşağıdaki temel emtia anahtar
+// kelimelerinden birini içeriyorsa o grup altında toplanıyor (örn.
+// "EKMEKLİK BUĞDAY", "MAKARNALIK BUĞDAY", "SERT BUĞDAY (...)" hepsi
+// "BUĞDAY" grubuna), eşleşme yoksa ürünün kendi adı tek başına bir grup olur.
+const BASE_COMMODITY_KEYWORDS = ["BUĞDAY", "ARPA", "MISIR", "AYÇİÇE", "YULAF", "NOHUT", "MERCİMEK", "FİĞ", "TRİTİKALE"];
+function baseCommodityGroup(name) {
+  for (const kw of BASE_COMMODITY_KEYWORDS) {
+    if (name.includes(kw)) return kw === "AYÇİÇE" ? "AYÇİÇEĞİ" : kw;
+  }
+  return name;
+}
+// Çoklu ürün seçiliyken her birine kendi rengini vermek için TÜRİB panelinin
+// kullandığı aynı palet (bkz. o IIFE'deki CAT_COLORS) — ayrı tanımlanıyor
+// çünkü bu fabrika ayrı bir kapsamda.
+const DAILY_BORSA_CAT_COLORS = [
+  "var(--series-export)", "var(--series-import)", "var(--cat-3)", "var(--cat-4)", "var(--cat-5)",
+  "var(--cat-6)", "var(--cat-7)", "var(--cat-8)", "var(--cat-9)", "var(--cat-10)", "var(--cat-11)",
+];
 
 // cfg: { id, table, lineColorVar, bannerStrong: {tr,en,ru}, bannerBody: {tr,en,ru} }
 // "id" her DOM id'sinin öneki ve Supabase cache anahtarı; kurumun resmi adı
@@ -3761,15 +3784,45 @@ function initDailySummaryBorsaPanel(cfg) {
   function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
 
   let allRows = [];
-  const state = { dateStart: null, dateEnd: null, product: null };
+  // state.products: TÜRİB'deki gibi seçili urun_adi değerlerinin kümesi —
+  // her zaman o anki state.group kapsamının alt kümesi (bkz. buildProductPicker).
+  const state = { dateStart: null, dateEnd: null, products: new Set(), group: null };
 
   function currentRows() {
     return allRows.filter(r => {
-      if (hasProductPicker && state.product && r.urun_adi !== state.product) return false;
+      if (hasProductPicker && state.products.size && !state.products.has(r.urun_adi)) return false;
       if (state.dateStart && r.trade_date < state.dateStart) return false;
       if (state.dateEnd && r.trade_date > state.dateEnd) return false;
       return true;
     });
+  }
+
+  // Seçili ürünleri sabit (alfabetik) bir sırayla döndürür — grafik/legend/
+  // KPI/çip renkleri hep bu sırayla eşleşsin.
+  function selectedSorted() {
+    return [...state.products].sort((a, b) => a.localeCompare(b, "tr"));
+  }
+  // Tek ürün seçiliyken (ya da hasProductPicker yokken) eski tek renkli
+  // görünümü korumak için, çoklu seçimde her ürüne kendi rengini verir.
+  function colorForProduct(product) {
+    if (!hasProductPicker) return LINE_COLOR;
+    const selected = selectedSorted();
+    if (selected.length <= 1) return LINE_COLOR;
+    const idx = selected.indexOf(product);
+    return idx >= 0 ? DAILY_BORSA_CAT_COLORS[idx % DAILY_BORSA_CAT_COLORS.length] : LINE_COLOR;
+  }
+
+  // Tonaj grafiği her zaman seçili TÜM ürünlerin toplamını gösterir (fiyat
+  // serileriyle karışmaz) — her (tarih, ürün) satırının miktarını tarihe
+  // göre topluyoruz.
+  function combinedDateSeries(rows) {
+    const byDate = new Map();
+    rows.forEach(r => {
+      const e = byDate.get(r.trade_date) || { ton: 0 };
+      e.ton += (r.toplam_kilo || 0) / 1000;
+      byDate.set(r.trade_date, e);
+    });
+    return [...byDate.entries()].map(([date, e]) => ({ date, ton: e.ton })).sort((a, b) => a.date.localeCompare(b.date));
   }
 
   // DB zaten günlük özet tuttuğu için satır = grafik noktası; sadece
@@ -3802,9 +3855,22 @@ function initDailySummaryBorsaPanel(cfg) {
     return sumKg > 0 ? scalePrice(sumPriceKg / sumKg) : null;
   }
 
-  function renderPriceLegend() {
+  function renderPriceLegend(perProduct) {
     const el = document.getElementById(`${id}-price-legend`);
     el.textContent = "";
+    if (perProduct.length > 1) {
+      perProduct.forEach(s => {
+        const key = document.createElement("span");
+        key.className = "key";
+        const sw = document.createElement("span");
+        sw.className = "swatch-line";
+        sw.style.background = s.color; sw.style.borderColor = s.color;
+        key.appendChild(sw);
+        key.appendChild(document.createTextNode(s.product));
+        el.appendChild(key);
+      });
+      return;
+    }
     [[ttA("legendAvg"), false], [tt("legendMax"), true], [tt("legendMin"), true]].forEach(([label, dashed]) => {
       const key = document.createElement("span");
       key.className = "key";
@@ -3830,20 +3896,34 @@ function initDailySummaryBorsaPanel(cfg) {
     return d.trim();
   }
 
-  function drawPriceChart(points) {
+  // perProduct: [{ product, color, points }] — tek ürün seçiliyken eski
+  // görünüm (alan dolgusu + kesikli en yüksek/en düşük + kalın ortalama
+  // çizgisi) birebir korunur; birden çok ürün seçiliyken (TÜRİB'deki gibi)
+  // her biri kendi renginde düz bir çizgi olarak çizilir.
+  function drawPriceChart(perProduct) {
     const svg = document.getElementById(`${id}-chart`);
     svg.textContent = "";
     svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
-    if (!points.length) {
+
+    const allDates = [...new Set(perProduct.flatMap(s => s.points.map(p => p.date)))].sort();
+    if (!allDates.length) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
       t.textContent = tt("noDataChart");
       svg.appendChild(t);
       return;
     }
-    const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
-    const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
-    const allVals = points.flatMap(p => [p.price, p.minPrice, p.maxPrice]).filter(v => v != null);
+
+    const multi = perProduct.length > 1;
+    const xStep = allDates.length > 1 ? (CHART_W - PADL - PADR) / (allDates.length - 1) : 0;
+    const xScale = i => allDates.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+
+    const aligned = perProduct.map(s => {
+      const byDate = new Map(s.points.map(p => [p.date, p]));
+      return { product: s.product, color: s.color, points: allDates.map(d => byDate.get(d) || { date: d, price: null, minPrice: null, maxPrice: null }) };
+    });
+
+    const allVals = aligned.flatMap(s => s.points.flatMap(p => multi ? [p.price] : [p.price, p.minPrice, p.maxPrice])).filter(v => v != null);
     const minVal = Math.min(...allVals), maxVal = Math.max(...allVals);
     const span = maxVal - minVal || Math.abs(maxVal) || 1;
     const yPad = span * 0.1;
@@ -3865,17 +3945,17 @@ function initDailySummaryBorsaPanel(cfg) {
 
     const minLabelGap = 56;
     const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
-    points.forEach((p, i) => {
-      const isLast = i === points.length - 1;
+    allDates.forEach((date, i) => {
+      const isLast = i === allDates.length - 1;
       if (i % tickEvery !== 0 && !isLast) return;
-      if (isLast && points.length > 1 && (points.length - 1) % tickEvery !== 0) {
-        const prevShown = Math.floor((points.length - 1) / tickEvery) * tickEvery;
-        if ((points.length - 1 - prevShown) * xStep < minLabelGap) return;
+      if (isLast && allDates.length > 1 && (allDates.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((allDates.length - 1) / tickEvery) * tickEvery;
+        if ((allDates.length - 1 - prevShown) * xStep < minLabelGap) return;
       }
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
       t.setAttribute("x", xScale(i)); t.setAttribute("y", CHART_H - 5);
       t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
-      t.textContent = fmtDateShort(p.date);
+      t.textContent = fmtDateShort(date);
       svg.appendChild(t);
     });
 
@@ -3885,60 +3965,88 @@ function initDailySummaryBorsaPanel(cfg) {
     hoverLine.style.opacity = "0";
     svg.appendChild(hoverLine);
 
-    const avgPts = points.map((p, i) => [xScale(i), yScale(p.price)]);
-    if (avgPts.length === 1) {
-      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      dot.setAttribute("cx", avgPts[0][0]); dot.setAttribute("cy", avgPts[0][1]); dot.setAttribute("r", "4");
-      dot.setAttribute("fill", LINE_COLOR);
-      svg.appendChild(dot);
-    } else {
-      const gradId = `${id}AreaGradient`;
-      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-      const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
-      grad.setAttribute("id", gradId);
-      grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
-      const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-      stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", LINE_COLOR); stop1.setAttribute("stop-opacity", "0.18");
-      const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-      stop2.setAttribute("offset", "100%"); stop2.setAttribute("stop-color", LINE_COLOR); stop2.setAttribute("stop-opacity", "0");
-      grad.appendChild(stop1); grad.appendChild(stop2);
-      defs.appendChild(grad);
-      svg.appendChild(defs);
+    if (!multi) {
+      const points = aligned[0].points;
+      const avgPts = points.map((p, i) => [xScale(i), yScale(p.price)]);
+      if (avgPts.length === 1) {
+        const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        dot.setAttribute("cx", avgPts[0][0]); dot.setAttribute("cy", avgPts[0][1]); dot.setAttribute("r", "4");
+        dot.setAttribute("fill", LINE_COLOR);
+        svg.appendChild(dot);
+      } else {
+        const gradId = `${id}AreaGradient`;
+        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+        grad.setAttribute("id", gradId);
+        grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
+        const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", LINE_COLOR); stop1.setAttribute("stop-opacity", "0.18");
+        const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        stop2.setAttribute("offset", "100%"); stop2.setAttribute("stop-color", LINE_COLOR); stop2.setAttribute("stop-opacity", "0");
+        grad.appendChild(stop1); grad.appendChild(stop2);
+        defs.appendChild(grad);
+        svg.appendChild(defs);
 
-      const baseline = CHART_H - PADB;
-      const areaD = "M" + avgPts[0][0] + "," + baseline + " " + avgPts.map(p => "L" + p[0] + "," + p[1]).join(" ") + " L" + avgPts[avgPts.length - 1][0] + "," + baseline + " Z";
-      const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      area.setAttribute("d", areaD);
-      area.setAttribute("fill", "url(#" + gradId + ")");
-      area.setAttribute("stroke", "none");
-      svg.appendChild(area);
+        const baseline = CHART_H - PADB;
+        const areaD = "M" + avgPts[0][0] + "," + baseline + " " + avgPts.map(p => "L" + p[0] + "," + p[1]).join(" ") + " L" + avgPts[avgPts.length - 1][0] + "," + baseline + " Z";
+        const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        area.setAttribute("d", areaD);
+        area.setAttribute("fill", "url(#" + gradId + ")");
+        area.setAttribute("stroke", "none");
+        svg.appendChild(area);
 
-      ["maxPrice", "minPrice"].forEach(field => {
-        const d = buildGappedPath(points, field, xScale, yScale);
-        if (!d) return;
+        ["maxPrice", "minPrice"].forEach(field => {
+          const d = buildGappedPath(points, field, xScale, yScale);
+          if (!d) return;
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", d);
+          path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "1.5");
+          path.setAttribute("stroke-dasharray", "5 4"); path.setAttribute("opacity", "0.6");
+          path.setAttribute("fill", "none"); path.setAttribute("stroke-linecap", "round");
+          svg.appendChild(path);
+        });
+
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", d);
-        path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "1.5");
-        path.setAttribute("stroke-dasharray", "5 4"); path.setAttribute("opacity", "0.6");
-        path.setAttribute("fill", "none"); path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("d", avgPts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
+        path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "3");
+        path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
         svg.appendChild(path);
+
+        const lastPt = avgPts[avgPts.length - 1];
+        const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        endDot.setAttribute("cx", lastPt[0]); endDot.setAttribute("cy", lastPt[1]); endDot.setAttribute("r", "4.5");
+        endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", LINE_COLOR); endDot.setAttribute("stroke-width", "2.5");
+        svg.appendChild(endDot);
+      }
+    } else {
+      aligned.forEach(s => {
+        let d = ""; let drawing = false;
+        s.points.forEach((p, i) => {
+          if (p.price == null) { drawing = false; return; }
+          d += (drawing ? "L" : "M") + xScale(i) + "," + yScale(p.price) + " ";
+          drawing = true;
+        });
+        if (d.trim()) {
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", d.trim());
+          path.setAttribute("stroke", s.color); path.setAttribute("stroke-width", "2.5");
+          path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+          svg.appendChild(path);
+        }
+        for (let i = s.points.length - 1; i >= 0; i--) {
+          if (s.points[i].price != null) {
+            const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            endDot.setAttribute("cx", xScale(i)); endDot.setAttribute("cy", yScale(s.points[i].price)); endDot.setAttribute("r", "4");
+            endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", s.color); endDot.setAttribute("stroke-width", "2.5");
+            svg.appendChild(endDot);
+            break;
+          }
+        }
       });
-
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", avgPts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" "));
-      path.setAttribute("stroke", LINE_COLOR); path.setAttribute("stroke-width", "3");
-      path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
-      svg.appendChild(path);
-
-      const lastPt = avgPts[avgPts.length - 1];
-      const endDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      endDot.setAttribute("cx", lastPt[0]); endDot.setAttribute("cy", lastPt[1]); endDot.setAttribute("r", "4.5");
-      endDot.setAttribute("fill", "var(--surface-1)"); endDot.setAttribute("stroke", LINE_COLOR); endDot.setAttribute("stroke-width", "2.5");
-      svg.appendChild(endDot);
     }
 
     const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    points.forEach((p, i) => {
+    allDates.forEach((date, i) => {
       const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       const hitW = Math.max(xStep, 6);
       rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", PADT);
@@ -3949,15 +4057,31 @@ function initDailySummaryBorsaPanel(cfg) {
         hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
         hoverLine.style.opacity = "1";
         const wrap = document.createElement("div");
-        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(date);
         wrap.appendChild(ttl);
-        [[ttA("tooltipAvg"), p.price], [tt("tooltipMax"), p.maxPrice], [tt("tooltipMin"), p.minPrice]].forEach(([label, val]) => {
-          const row = document.createElement("div"); row.className = "row";
-          const l = document.createElement("span"); l.textContent = label + ": ";
-          const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
-          row.appendChild(l); row.appendChild(v);
-          wrap.appendChild(row);
-        });
+        if (!multi) {
+          const p = aligned[0].points[i];
+          [[ttA("tooltipAvg"), p.price], [tt("tooltipMax"), p.maxPrice], [tt("tooltipMin"), p.minPrice]].forEach(([label, val]) => {
+            const row = document.createElement("div"); row.className = "row";
+            const l = document.createElement("span"); l.textContent = label + ": ";
+            const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(val);
+            row.appendChild(l); row.appendChild(v);
+            wrap.appendChild(row);
+          });
+        } else {
+          aligned.forEach(s => {
+            const p = s.points[i];
+            if (p.price == null) return;
+            const row = document.createElement("div"); row.className = "row";
+            const l = document.createElement("span");
+            const dot = document.createElement("span"); dot.textContent = "● "; dot.style.color = s.color;
+            l.appendChild(dot);
+            l.appendChild(document.createTextNode(s.product + ": "));
+            const v = document.createElement("span"); v.className = "val"; v.textContent = fmtPriceTon(p.price);
+            row.appendChild(l); row.appendChild(v);
+            wrap.appendChild(row);
+          });
+        }
         showTooltip(evt, wrap);
       };
       rect.addEventListener("pointermove", showFn);
@@ -4051,28 +4175,41 @@ function initDailySummaryBorsaPanel(cfg) {
     svg.appendChild(hitLayer);
   }
 
-  function renderKpis(rows, series) {
+  // rows: o anki filtrelerle TÜM seçili ürünlerin birleşik satırları (toplam
+  // hacim/rutubet için); perProduct: her seçili ürünün kendi fiyat serisi —
+  // birden çok ürün seçiliyken her biri kendi rengiyle etiketli ayrı kutu
+  // (bkz. TÜRİB'deki aynı desen).
+  function renderKpis(rows, perProduct) {
     const el = document.getElementById(`${id}-kpi-row`);
     el.textContent = "";
-    const tiles = [
-      [ttA("kpiAvgPrice"), fmtPriceTon(overallWeightedAvg(rows))],
-      [tt("kpiLastPrice"), series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
-    ];
+    const multi = perProduct.length > 1;
+    const tiles = [];
+    perProduct.forEach(s => {
+      const prodRows = s.product != null ? rows.filter(r => r.urun_adi === s.product) : rows;
+      const prefix = multi ? s.product + " — " : "";
+      tiles.push({ color: multi ? s.color : null, label: prefix + ttA("kpiAvgPrice"), value: fmtPriceTon(overallWeightedAvg(prodRows)) });
+      tiles.push({ color: multi ? s.color : null, label: prefix + tt("kpiLastPrice"), value: s.points.length ? fmtPriceTon(s.points[s.points.length - 1].price) : "—" });
+    });
     if (hasQty) {
-      tiles.push([tt("kpiTotalVolume"), fmtTon(rows.reduce((s, r) => s + (r.toplam_kilo || 0) / 1000, 0))]);
+      tiles.push({ color: null, label: tt("kpiTotalVolume"), value: fmtTon(rows.reduce((s, r) => s + (r.toplam_kilo || 0) / 1000, 0)) });
     }
     if (hasRutubet) {
       const rutubetVals = rows.filter(r => r.ort_rutubet != null);
       const avgRutubet = rutubetVals.length
         ? rutubetVals.reduce((s, r) => s + r.ort_rutubet, 0) / rutubetVals.length
         : null;
-      tiles.push([tt("kpiAvgRutubet"), fmtPct(avgRutubet)]);
+      tiles.push({ color: null, label: tt("kpiAvgRutubet"), value: fmtPct(avgRutubet) });
     }
-    tiles.forEach(([label, value]) => {
+    tiles.forEach(t => {
       const tile = document.createElement("div");
       tile.className = "stat-tile";
-      const l = document.createElement("div"); l.className = "label"; l.textContent = label;
-      const v = document.createElement("div"); v.className = "value num"; v.textContent = value;
+      const l = document.createElement("div"); l.className = "label";
+      if (t.color) {
+        const dot = document.createElement("span"); dot.textContent = "● "; dot.style.color = t.color;
+        l.appendChild(dot);
+      }
+      l.appendChild(document.createTextNode(t.label));
+      const v = document.createElement("div"); v.className = "value num"; v.textContent = t.value;
       tile.appendChild(l); tile.appendChild(v);
       el.appendChild(tile);
     });
@@ -4083,23 +4220,27 @@ function initDailySummaryBorsaPanel(cfg) {
     const tbody = document.getElementById(`${id}-tbody`);
     const foot = document.getElementById(`${id}-table-foot`);
     thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
-    const cols = [tt("thDate"), tt("thMin"), tt("thMax"), ttA("thAvg")]
+    const multi = hasProductPicker && state.products.size > 1;
+    const cols = [tt("thDate")]
+      .concat(multi ? [tt("thProduct")] : [])
+      .concat([tt("thMin"), tt("thMax"), ttA("thAvg")])
       .concat(hasQty ? [tt("thQty")] : [])
       .concat(hasCount ? [tt("thCount")] : [])
       .concat(hasRutubet ? [tt("thRutubet")] : []);
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
-    const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
+    const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.urun_adi || "").localeCompare(b.urun_adi || "", "tr"));
     const info = paginateRows(sorted, tablePage, rowLimit);
     tablePage = info.page;
     info.slice.forEach(r => {
       const tr = document.createElement("tr");
-      const cells = [
-        fmtDateFull(r.trade_date),
-        fmtPriceTon(scalePrice(r.min_fiyat)),
-        fmtPriceTon(scalePrice(r.max_fiyat)),
-        fmtPriceTon(scalePrice(r.ort_fiyat)),
-      ]
+      const cells = [fmtDateFull(r.trade_date)]
+        .concat(multi ? [r.urun_adi] : [])
+        .concat([
+          fmtPriceTon(scalePrice(r.min_fiyat)),
+          fmtPriceTon(scalePrice(r.max_fiyat)),
+          fmtPriceTon(scalePrice(r.ort_fiyat)),
+        ])
         .concat(hasQty ? [fmtTon((r.toplam_kilo || 0) / 1000)] : [])
         .concat(hasCount ? [String(r.islem_adet ?? "—")] : [])
         .concat(hasRutubet ? [fmtPct(r.ort_rutubet)] : []);
@@ -4133,11 +4274,19 @@ function initDailySummaryBorsaPanel(cfg) {
   function renderAll() {
     tablePage = 0; // filtre değişince sayfa 1'e dönülür — eski sayfa artık anlamsız
     const rows = currentRows();
-    const series = toSeries(rows);
-    renderPriceLegend();
-    drawPriceChart(series);
-    if (hasQty) drawTonnageChart(series);
-    renderKpis(rows, series);
+    const selected = hasProductPicker ? selectedSorted() : [null];
+    const perProduct = selected.map(product => ({
+      product,
+      color: colorForProduct(product),
+      points: toSeries(product == null ? rows : rows.filter(r => r.urun_adi === product)),
+    }));
+    if (hasProductPicker) {
+      document.getElementById(`${id}-chart-title`).textContent = tt("chartTitle") + " — " + selected.join(" + ");
+    }
+    renderPriceLegend(perProduct);
+    drawPriceChart(perProduct);
+    if (hasQty) drawTonnageChart(combinedDateSeries(rows));
+    renderKpis(rows, perProduct);
     renderTable(rows);
   }
 
@@ -4148,29 +4297,78 @@ function initDailySummaryBorsaPanel(cfg) {
     document.getElementById(`${id}-tonnage-chart`).style.display = "none";
   }
 
-  // GTB gibi günde çok ürünlü kaynaklarda tek bir ürün seçilip gösteriliyor
-  // (UZTB/KTB/TÜRİB'in tek emtialık varsayımından farklı) — ürün adları
-  // veriden geldiği için seçenekler fetch'ten sonra dinamik oluşturuluyor.
+  // GTB/ÇTB/PTB gibi günde çok ürünlü kaynaklarda TÜRİB'deki gibi kademeli +
+  // çoklu seçim sunuyoruz: önce Ürün Grubu (BUĞDAY/ARPA/MISIR gibi, tek
+  // seçim), sonra o grubun altındaki Çeşitler (çoklu seçim toggle, birden
+  // fazla seçiliyken her biri kendi rengiyle gösterilir — bkz. colorForProduct).
   function buildProductPicker() {
     if (!hasProductPicker) return;
-    const container = document.getElementById(`${id}-product-picker`);
-    if (!container || !allRows.length) return;
-    const products = [...new Set(allRows.map(r => r.urun_adi))].sort((a, b) => a.localeCompare(b, "tr"));
-    if (!products.length) return;
-    const preferred = cfg.defaultProduct && products.includes(cfg.defaultProduct) ? cfg.defaultProduct : products[0];
-    if (!state.product || !products.includes(state.product)) state.product = preferred;
-    container.textContent = "";
-    products.forEach(p => {
+    const groupContainer = document.getElementById(`${id}-product-group`);
+    const variantContainer = document.getElementById(`${id}-product-picker`);
+    if (!groupContainer || !variantContainer || !allRows.length) return;
+    const allProducts = [...new Set(allRows.map(r => r.urun_adi))];
+    const parsed = allProducts.map(p => ({ full: p, group: baseCommodityGroup(p) }));
+
+    function pickDefaultForGroup(group) {
+      const candidates = parsed.filter(p => p.group === group);
+      const def = (cfg.defaultProduct && candidates.find(p => p.full === cfg.defaultProduct)) || candidates[0];
+      return def ? new Set([def.full]) : new Set();
+    }
+
+    // artık mevcut olmayan ürünleri seçili kümeden temizle
+    for (const p of [...state.products]) {
+      if (!allProducts.includes(p)) state.products.delete(p);
+    }
+
+    const groups = [...new Set(parsed.map(p => p.group))].sort((a, b) => a.localeCompare(b, "tr"));
+    if (!groups.length) return;
+    if (!state.group || !groups.includes(state.group) || !state.products.size) {
+      const defEntry = (cfg.defaultProduct && parsed.find(p => p.full === cfg.defaultProduct)) || parsed[0];
+      state.group = defEntry ? defEntry.group : groups[0];
+      state.products = pickDefaultForGroup(state.group);
+    }
+
+    groupContainer.textContent = "";
+    groups.forEach(g => {
       const btn = document.createElement("button");
-      btn.className = "seg" + (p === state.product ? " active" : "");
+      btn.className = "chip" + (g === state.group ? " active" : "");
       btn.type = "button";
-      btn.textContent = p;
+      btn.textContent = g;
       btn.addEventListener("click", () => {
-        state.product = p;
-        container.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+        state.group = g;
+        state.products = pickDefaultForGroup(g);
+        buildProductPicker();
         renderAll();
       });
-      container.appendChild(btn);
+      groupContainer.appendChild(btn);
+    });
+
+    const variants = parsed.filter(p => p.group === state.group).sort((a, b) => a.full.localeCompare(b.full, "tr"));
+    const multi = state.products.size > 1;
+    variantContainer.textContent = "";
+    variants.forEach(v => {
+      const active = state.products.has(v.full);
+      const btn = document.createElement("button");
+      btn.className = "chip" + (active ? " active" : "");
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", String(active));
+      if (active && multi) {
+        const sw = document.createElement("span");
+        sw.className = "swatch";
+        sw.style.background = colorForProduct(v.full);
+        btn.appendChild(sw);
+      }
+      btn.appendChild(document.createTextNode(v.full));
+      btn.addEventListener("click", () => {
+        if (state.products.has(v.full)) {
+          if (state.products.size > 1) state.products.delete(v.full); // en az 1 ürün seçili kalmalı
+        } else {
+          state.products.add(v.full);
+        }
+        buildProductPicker();
+        renderAll();
+      });
+      variantContainer.appendChild(btn);
     });
   }
 
@@ -4239,6 +4437,8 @@ function initDailySummaryBorsaPanel(cfg) {
     document.getElementById(`${id}-page-prev`).title = tt("prevPageTitle");
     document.getElementById(`${id}-page-next`).title = tt("nextPageTitle");
     if (hasProductPicker) {
+      const groupLabelEl = document.getElementById(`${id}-label-product-group`);
+      if (groupLabelEl) groupLabelEl.textContent = tt("productGroupLabel");
       const productLabelEl = document.getElementById(`${id}-label-product`);
       if (productLabelEl) productLabelEl.textContent = tt("productPickerLabel");
     }
