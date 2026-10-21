@@ -1,40 +1,35 @@
-"""Geçici araştırma scripti: GTB/ÇTB/PTB'nin 5 yıl öncesine kadar gerçekten
-veri/erişim sağlayıp sağlamadığını (hata vermeden, makul şekilde boş/dolu
-dönüp dönmediğini) doğrular — 365 günlük backfill'i 5 yıla (1825 gün)
-çıkarmadan önce boşa uzun bir çalıştırma yapmamak için."""
+"""Geçici araştırma scripti v2: ÇTB ve PTB'nin gerçek geçmiş sınırını
+(hangi yıldan itibaren veri/erişim var) ince taneli olarak buluyor —
+ilk denemede 1 yıl çalışıp 3-5 yıl 0/hata döndüğü görüldü, aradaki
+noktalar (6 ay, 1.5/2/2.5/3 yıl) test ediliyor."""
 import datetime as dt
 
-print("=" * 20, "GTB — 5/3/1 yıl önce", "=" * 20)
-from gtb.client import fetch_salon_satis_html, parse_rows
+REF = dt.date(2026, 10, 21)
 
-for years_ago in [5, 3, 1]:
-    day = dt.date(2026, 10, 21) - dt.timedelta(days=365 * years_ago)
-    try:
-        html = fetch_salon_satis_html(day)
-        rows = parse_rows(html)
-        print(f"{years_ago} yıl önce ({day}): {len(rows)} satır")
-    except Exception as exc:
-        print(f"{years_ago} yıl önce ({day}): HATA — {exc}")
-
-print("\n" + "=" * 20 + " ÇTB — 5/3/1 yıl önce " + "=" * 20)
+print("=" * 20, "ÇTB — ince taneli geçmiş testi", "=" * 20)
 from ctb.client import fetch_aralik
 
-for years_ago in [5, 3, 1]:
-    day = dt.date(2026, 10, 21) - dt.timedelta(days=365 * years_ago)
+for months_ago in [12, 18, 24, 30, 36, 48, 60]:
+    day = REF - dt.timedelta(days=30 * months_ago // 1)
+    # haftasonu riskini azaltmak için en yakın iş gününe (Pzt-Cum) kaydır
+    while day.weekday() >= 5:
+        day -= dt.timedelta(days=1)
     try:
         urunler = fetch_aralik(day, day)
-        print(f"{years_ago} yıl önce ({day}): {len(urunler)} ürün")
+        print(f"{months_ago} ay önce ({day}, {day.strftime('%A')}): {len(urunler)} ürün")
     except Exception as exc:
-        print(f"{years_ago} yıl önce ({day}): HATA — {exc}")
+        print(f"{months_ago} ay önce ({day}): HATA — {exc}")
 
-print("\n" + "=" * 20 + " PTB — 5/3/1 yıl önce " + "=" * 20)
+print("\n" + "=" * 20 + " PTB — ince taneli geçmiş testi " + "=" * 20)
 from ptb.client import fetch_gunluk_bulten
 
-for years_ago in [5, 3, 1]:
-    day = dt.date(2026, 10, 21) - dt.timedelta(days=365 * years_ago)
+for months_ago in [12, 18, 24, 30, 36, 48, 60]:
+    day = REF - dt.timedelta(days=30 * months_ago // 1)
+    while day.weekday() >= 5:
+        day -= dt.timedelta(days=1)
     try:
         rows = fetch_gunluk_bulten(day)
         real_rows = [r for r in rows if (r.get("UrunAdi") or "").strip() and r.get("OrtFiyat") not in (None, "0")]
-        print(f"{years_ago} yıl önce ({day}): {len(rows)} ham satır, {len(real_rows)} gerçek ürün satırı")
+        print(f"{months_ago} ay önce ({day}, {day.strftime('%A')}): {len(rows)} ham satır, {len(real_rows)} gerçek ürün")
     except Exception as exc:
-        print(f"{years_ago} yıl önce ({day}): HATA — {exc}")
+        print(f"{months_ago} ay önce ({day}): HATA — {exc}")
