@@ -3669,11 +3669,15 @@ function initDailySummaryBorsaPanel(cfg) {
   const id = cfg.id;
   const appCfg = window.TUIK_DASHBOARD_CONFIG;
   const LINE_COLOR = cfg.lineColorVar;
-  // GTB gibi kaynaklarda hacim/rutubet verisi yok (sadece en az/en çok) ve
-  // fiyatlar zaten TL/TON cinsinden geliyor (UZTB/KTB/TÜRİB'in TL/kg'sinden
-  // farklı) — bu üç bayrak panel panelin veri şeklini UZTB varsayımından
-  // sapmaya izin veriyor.
-  const noVolumeData = !!cfg.noVolumeData;
+  // Her kaynağın veri şekli UZTB'nin "miktar+işlem+rutubet hepsi var"
+  // varsayımından sapabiliyor (GTB: hiçbiri yok; ÇTB/PTB: miktar+işlem var,
+  // rutubet yok) — bu üç bayrak hangi KPI/tonaj grafiği/tablo kolonunun
+  // gösterileceğini ayrı ayrı kontrol ediyor. Fiyatların zaten TL/TON
+  // cinsinden gelmesi (GTB — UZTB/KTB/TÜRİB/ÇTB/PTB'nin TL/kg'sinden farklı)
+  // ve günde çok ürünlü kaynaklarda ürün seçici gösterilmesi ayrı bayraklar.
+  const hasQty = cfg.hasQty !== false;
+  const hasCount = cfg.hasCount !== false;
+  const hasRutubet = cfg.hasRutubet !== false;
   const rawIsTlPerTon = !!cfg.rawIsTlPerTon;
   const hasProductPicker = !!cfg.hasProductPicker;
   const CHART_W = 960, CHART_H = 240, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
@@ -3685,10 +3689,10 @@ function initDailySummaryBorsaPanel(cfg) {
     if (v == null) return null;
     return rawIsTlPerTon ? v : v * 1000;
   }
-  // "Ağırlıklı Ortalama" ifadesi hacim verisi olmayan kaynaklarda yanlış
-  // (ağırlıklanacak bir miktar yok) — noVolumeData true ise bu dört anahtar
-  // için "Plain" (ağırlıksız) varyant kullanılıyor.
-  function ttA(key) { return noVolumeData ? STRINGS[lang][key + "Plain"] : STRINGS[lang][key]; }
+  // "Ağırlıklı Ortalama" ifadesi miktar verisi olmayan kaynaklarda yanlış
+  // (ağırlıklanacak bir miktar yok) — hasQty false ise bu dört anahtar için
+  // "Plain" (ağırlıksız) varyant kullanılıyor.
+  function ttA(key) { return !hasQty ? STRINGS[lang][key + "Plain"] : STRINGS[lang][key]; }
 
   const LOCALES = { tr: "tr-TR", en: "en-US", ru: "ru-RU" };
   const STRINGS = {};
@@ -3723,9 +3727,11 @@ function initDailySummaryBorsaPanel(cfg) {
     const cached = window.__supaCache.get(id, CACHE_TTL_MS);
     if (cached) return cached;
     const headers = { apikey: appCfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${appCfg.SUPABASE_ANON_KEY}` };
-    const selectCols = noVolumeData
-      ? "trade_date,urun_adi,min_fiyat,max_fiyat,ort_fiyat"
-      : "trade_date,urun_adi,min_fiyat,max_fiyat,ort_fiyat,toplam_kilo,islem_adet,ort_rutubet";
+    const selectCols = ["trade_date", "urun_adi", "min_fiyat", "max_fiyat", "ort_fiyat"]
+      .concat(hasQty ? ["toplam_kilo"] : [])
+      .concat(hasCount ? ["islem_adet"] : [])
+      .concat(hasRutubet ? ["ort_rutubet"] : [])
+      .join(",");
     const res = await fetch(
       `${appCfg.SUPABASE_URL}/rest/v1/${cfg.table}?select=${selectCols}&order=trade_date.asc`,
       { headers }
@@ -3782,7 +3788,7 @@ function initDailySummaryBorsaPanel(cfg) {
   }
 
   function overallWeightedAvg(rows) {
-    if (noVolumeData) {
+    if (!hasQty) {
       const vals = rows.map(r => r.ort_fiyat).filter(v => v != null);
       return vals.length ? scalePrice(vals.reduce((s, v) => s + v, 0) / vals.length) : null;
     }
@@ -4051,15 +4057,15 @@ function initDailySummaryBorsaPanel(cfg) {
       [ttA("kpiAvgPrice"), fmtPriceTon(overallWeightedAvg(rows))],
       [tt("kpiLastPrice"), series.length ? fmtPriceTon(series[series.length - 1].price) : "—"],
     ];
-    if (!noVolumeData) {
+    if (hasQty) {
+      tiles.push([tt("kpiTotalVolume"), fmtTon(rows.reduce((s, r) => s + (r.toplam_kilo || 0) / 1000, 0))]);
+    }
+    if (hasRutubet) {
       const rutubetVals = rows.filter(r => r.ort_rutubet != null);
       const avgRutubet = rutubetVals.length
         ? rutubetVals.reduce((s, r) => s + r.ort_rutubet, 0) / rutubetVals.length
         : null;
-      tiles.push(
-        [tt("kpiTotalVolume"), fmtTon(rows.reduce((s, r) => s + (r.toplam_kilo || 0) / 1000, 0))],
-        [tt("kpiAvgRutubet"), fmtPct(avgRutubet)]
-      );
+      tiles.push([tt("kpiAvgRutubet"), fmtPct(avgRutubet)]);
     }
     tiles.forEach(([label, value]) => {
       const tile = document.createElement("div");
@@ -4076,9 +4082,10 @@ function initDailySummaryBorsaPanel(cfg) {
     const tbody = document.getElementById(`${id}-tbody`);
     const foot = document.getElementById(`${id}-table-foot`);
     thead.textContent = ""; tbody.textContent = ""; foot.textContent = "";
-    const cols = noVolumeData
-      ? [tt("thDate"), tt("thMin"), tt("thMax"), ttA("thAvg")]
-      : [tt("thDate"), tt("thMin"), tt("thMax"), ttA("thAvg"), tt("thQty"), tt("thCount"), tt("thRutubet")];
+    const cols = [tt("thDate"), tt("thMin"), tt("thMax"), ttA("thAvg")]
+      .concat(hasQty ? [tt("thQty")] : [])
+      .concat(hasCount ? [tt("thCount")] : [])
+      .concat(hasRutubet ? [tt("thRutubet")] : []);
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
     const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
@@ -4086,20 +4093,15 @@ function initDailySummaryBorsaPanel(cfg) {
     tablePage = info.page;
     info.slice.forEach(r => {
       const tr = document.createElement("tr");
-      const cells = noVolumeData
-        ? [
-            fmtDateFull(r.trade_date),
-            fmtPriceTon(scalePrice(r.min_fiyat)),
-            fmtPriceTon(scalePrice(r.max_fiyat)),
-            fmtPriceTon(scalePrice(r.ort_fiyat)),
-          ]
-        : [
-            fmtDateFull(r.trade_date),
-            fmtPriceTon(scalePrice(r.min_fiyat)),
-            fmtPriceTon(scalePrice(r.max_fiyat)),
-            fmtPriceTon(scalePrice(r.ort_fiyat)),
-            fmtTon((r.toplam_kilo || 0) / 1000), String(r.islem_adet ?? "—"), fmtPct(r.ort_rutubet),
-          ];
+      const cells = [
+        fmtDateFull(r.trade_date),
+        fmtPriceTon(scalePrice(r.min_fiyat)),
+        fmtPriceTon(scalePrice(r.max_fiyat)),
+        fmtPriceTon(scalePrice(r.ort_fiyat)),
+      ]
+        .concat(hasQty ? [fmtTon((r.toplam_kilo || 0) / 1000)] : [])
+        .concat(hasCount ? [String(r.islem_adet ?? "—")] : [])
+        .concat(hasRutubet ? [fmtPct(r.ort_rutubet)] : []);
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
@@ -4107,9 +4109,10 @@ function initDailySummaryBorsaPanel(cfg) {
   }
 
   function exportCsv(rows) {
-    const cols = noVolumeData
-      ? ["trade_date", "urun_adi", "min_fiyat", "max_fiyat", "ort_fiyat"]
-      : ["trade_date", "urun_adi", "min_fiyat", "max_fiyat", "ort_fiyat", "toplam_kilo", "islem_adet", "ort_rutubet"];
+    const cols = ["trade_date", "urun_adi", "min_fiyat", "max_fiyat", "ort_fiyat"]
+      .concat(hasQty ? ["toplam_kilo"] : [])
+      .concat(hasCount ? ["islem_adet"] : [])
+      .concat(hasRutubet ? ["ort_rutubet"] : []);
     const esc = v => {
       const s = v == null ? "" : String(v);
       return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -4132,14 +4135,14 @@ function initDailySummaryBorsaPanel(cfg) {
     const series = toSeries(rows);
     renderPriceLegend();
     drawPriceChart(series);
-    if (!noVolumeData) drawTonnageChart(series);
+    if (hasQty) drawTonnageChart(series);
     renderKpis(rows, series);
     renderTable(rows);
   }
 
-  // GTB gibi hacim verisi olmayan kaynaklarda tonaj grafiği hiç anlamlı
+  // GTB gibi miktar verisi olmayan kaynaklarda tonaj grafiği hiç anlamlı
   // değil — bir kere gizleniyor, her renderAll'da tekrar çizilmiyor.
-  if (noVolumeData) {
+  if (!hasQty) {
     document.getElementById(`${id}-tonnage-title`).style.display = "none";
     document.getElementById(`${id}-tonnage-chart`).style.display = "none";
   }
@@ -4302,17 +4305,18 @@ initDailySummaryBorsaPanel({
   },
 });
 
-// GTB, UZTB'den İKİ yönde farklı: (1) kaynakta ortalama/hacim/işlem sayısı/
+// GTB, UZTB'den İKİ yönde farklı: (1) kaynakta ortalama/miktar/işlem sayısı/
 // rutubet YOK, sadece en az/en çok — ort_fiyat bunların ortalaması olarak
-// TÜRETİLDİ (noVolumeData: true devre dışı bırakır: hacim KPI'ları, tonaj
-// grafiği, tablo kolonları; "Ağırlıklı Ortalama" yerine düz "Ortalama"
-// etiketi kullanılır). (2) fiyatlar zaten TL/TON (UZTB/KTB/TÜRİB'in TL/kg'si
-// değil) — rawIsTlPerTon: true ×1000 dönüşümünü devre dışı bırakır. Ayrıca
-// günde ~12 ürün olduğundan (UZTB'nin tek emtiasından farklı) hasProductPicker
-// ile bir ürün seçici chip-row ekleniyor, varsayılan mısır.
+// TÜRETİLDİ (hasQty/hasCount/hasRutubet: false devre dışı bırakır: hacim
+// KPI'ları, tonaj grafiği, tablo kolonları; "Ağırlıklı Ortalama" yerine düz
+// "Ortalama" etiketi kullanılır). (2) fiyatlar zaten TL/TON (UZTB/KTB/
+// TÜRİB'in TL/kg'si değil) — rawIsTlPerTon: true ×1000 dönüşümünü devre
+// dışı bırakır. Ayrıca günde ~12 ürün olduğundan (UZTB'nin tek emtiasından
+// farklı) hasProductPicker ile bir ürün seçici chip-row ekleniyor, varsayılan
+// mısır.
 initDailySummaryBorsaPanel({
   id: "gtb", table: "gtb_fiyat", lineColorVar: "var(--cat-3)",
-  noVolumeData: true, rawIsTlPerTon: true,
+  hasQty: false, hasCount: false, hasRutubet: false, rawIsTlPerTon: true,
   hasProductPicker: true, defaultProduct: "MISIR (1. GRUP - NATUREL)",
   bannerStrong: {
     tr: "GTB (Gaziantep Ticaret Borsası) günlük Salon Satışı fiyat özeti",
