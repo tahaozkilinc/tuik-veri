@@ -3756,12 +3756,26 @@ function initDailySummaryBorsaPanel(cfg) {
       .concat(hasCount ? ["islem_adet"] : [])
       .concat(hasRutubet ? ["ort_rutubet"] : [])
       .join(",");
-    const res = await fetch(
-      `${appCfg.SUPABASE_URL}/rest/v1/${cfg.table}?select=${selectCols}&order=trade_date.asc`,
-      { headers }
-    );
-    if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
-    const rows = await res.json();
+    // Supabase/PostgREST varsayılan olarak tek istekte en fazla 1000 satır
+    // döndürür — GTB/ÇTB/PTB gibi günde çok ürünlü tablolar bunu kolayca
+    // aşıyor, bu da en eski satırlardan sonrasının (son yıllar dahil)
+    // sessizce kesilmesine yol açar. TÜRİB/KTB'deki gibi Range header'ıyla
+    // sayfalayarak tüm satırları çekiyoruz.
+    const pageSize = 1000;
+    let rows = [];
+    let from = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await fetch(
+        `${appCfg.SUPABASE_URL}/rest/v1/${cfg.table}?select=${selectCols}&order=trade_date.asc`,
+        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
+      );
+      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
+      const page = await res.json();
+      rows = rows.concat(page);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
     window.__supaCache.set(id, rows);
     return rows;
   }
