@@ -6,11 +6,13 @@ on:
     # hatasından ders alınarak (bkz. ktb-daily.yml) GTB'de de baştan "dünü"
     # istiyoruz — kaynağın kendi yayın saati bağımsız doğrulanmadı, erken
     # sabah "dünü" çekmek her ihtimalde güvenli. 05:00 UTC = 08:00 TR.
+    # (GH Actions'ın bu cron'u saatlerce geciktirdiği/bir günü tamamen
+    # atladığı gözlemlendi — bkz. gtb/run.py'deki "son 3 gün" tamponu.)
     - cron: "0 5 * * *"
   workflow_dispatch:
     inputs:
       date:
-        description: "Tek bir günü çek (YYYY-MM-DD), boş bırakılırsa dün"
+        description: "Tek bir günü çek (YYYY-MM-DD), boş bırakılırsa son 3 gün"
         required: false
         default: ""
       backfill_days:

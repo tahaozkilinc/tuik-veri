@@ -1,7 +1,7 @@
 """GTB günlük salon satış fiyat verisini çekip Supabase'e yükleyen CLI giriş noktası.
 
 Kullanım:
-    python -m gtb.run                       # dünü çek ve yükle
+    python -m gtb.run                       # son 3 günü çek ve yükle
     python -m gtb.run --date 2026-10-13      # belirli bir günü çek
     python -m gtb.run --backfill-days 365    # son N günü tek tek çekip yükle
 
@@ -12,6 +12,15 @@ NOT: KTB'de yaşanan "aynı günün akşamı için çok erken 'bugünü' isteme"
 hatasından ders alınarak (bkz. ktb/run.py, ktb-daily.yml) varsayılan tarih
 baştan BUGÜN değil DÜN seçildi — GTB'nin kendi yayın saati bağımsız
 doğrulanmadığı sürece "bugünü" istemek aynı riski taşıyor.
+
+NOT 2: GitHub Actions'ın zamanlanmış (cron) çalıştırmaları, özellikle az
+trafikli repolarda, gözlemlenen şekilde saatlerce gecikebiliyor ya da bir
+günü tamamen atlayabiliyor (örn. 22 Ekim çalıştırması 5 saat gecikti, 23
+Ekim'de planlanan saatte hiç tetiklenmedi). Tek günlük "dünü çek" yeterli
+tampon sağlamıyordu — bir gün atlanınca o günün verisi kalıcı olarak
+boşlukta kalıyordu. Varsayılan çalışma artık son 3 günü (dün, evvelsi gün,
+3 gün önce) her seferinde yeniden çekip yazıyor (sil-ve-ekle, zararsız),
+böylece ardışık 1-2 cron atlaması kendiliğinden düzeliyor.
 """
 
 from __future__ import annotations
@@ -79,10 +88,18 @@ def main() -> int:
             )
             return 0
 
-        day = dt.date.fromisoformat(args.date) if args.date else _yesterday_tr()
-        rows = fetch_and_load_day(client, day)
-        print(f"{day.isoformat()}: {rows} satır yazıldı.")
-        finish_run(client, run_id, status="success", rows_upserted=rows)
+        if args.date:
+            days = [dt.date.fromisoformat(args.date)]
+        else:
+            yesterday = _yesterday_tr()
+            days = [yesterday - dt.timedelta(days=2), yesterday - dt.timedelta(days=1), yesterday]
+
+        total_rows = 0
+        for day in days:
+            rows = fetch_and_load_day(client, day)
+            print(f"{day.isoformat()}: {rows} satır yazıldı.")
+            total_rows += rows
+        finish_run(client, run_id, status="success", rows_upserted=total_rows)
         return 0
 
     except Exception as exc:  # noqa: BLE001
