@@ -1,7 +1,7 @@
 """KTB günlük bülten verisini çekip Supabase'e yükleyen CLI giriş noktası.
 
 Kullanım:
-    python -m ktb.run                       # dünü çek ve yükle
+    python -m ktb.run                       # son 3 günü (dün dahil) çek ve yükle
     python -m ktb.run --date 2026-10-13      # belirli bir günü çek
     python -m ktb.run --backfill-days 365    # son N günü tek tek çekip yükle
 
@@ -17,6 +17,12 @@ bir daha asla tekrar denenmediği için o gün kalıcı olarak eksik kalıyor
 (nitekim ilk üç günlük cron çalışması da tam bunu yaşadı). "Dünü" istemek,
 cron ertesi sabah çalıştığı sürece yayının çoktan kesinleşmiş olmasını garanti
 eder (bkz. .github/workflows/ktb-daily.yml'deki zamanlama açıklaması).
+
+NOT 2: GitHub Actions'ın zamanlanmış çalıştırması ard arda günler boyunca
+hiç tetiklenmeyebiliyor (bkz. gtb/run.py, turib/run.py'deki aynı önlem).
+Varsayılan çalışma bu yüzden tek gün (dün) değil, dün dahil son 3 günü
+yeniden çekip yazıyor (sil-ve-ekle, zararsız) — ardışık 1-2 günlük cron
+atlaması kendiliğinden telafi ediliyor.
 """
 
 from __future__ import annotations
@@ -79,10 +85,18 @@ def main() -> int:
                        error_message=(f"{errors} günde hata oluştu" if errors else None))
             return 0
 
-        day = dt.date.fromisoformat(args.date) if args.date else _yesterday_tr()
-        rows = fetch_and_load_day(client, day)
-        print(f"{day.isoformat()}: {rows} satır yazıldı.")
-        finish_run(client, run_id, status="success", rows_upserted=rows)
+        if args.date:
+            days = [dt.date.fromisoformat(args.date)]
+        else:
+            yesterday = _yesterday_tr()
+            days = [yesterday - dt.timedelta(days=2), yesterday - dt.timedelta(days=1), yesterday]
+
+        total_rows = 0
+        for day in days:
+            rows = fetch_and_load_day(client, day)
+            print(f"{day.isoformat()}: {rows} satır yazıldı.")
+            total_rows += rows
+        finish_run(client, run_id, status="success", rows_upserted=total_rows)
         return 0
 
     except Exception as exc:  # noqa: BLE001

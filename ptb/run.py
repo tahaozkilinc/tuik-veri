@@ -1,9 +1,9 @@
 """PTB günlük bülten verisini çekip Supabase'e yükleyen CLI giriş noktası.
 
 Kullanım:
-    python -m ptb.run                       # bugünü VE dünü çek (ÇTB'deki
-                                             # aynı güvenlik önlemi — bkz.
-                                             # aşağıdaki not)
+    python -m ptb.run                       # son 3 günü (bugün dahil) çek
+                                             # (ÇTB'deki aynı güvenlik
+                                             # önlemi — bkz. aşağıdaki not)
     python -m ptb.run --date 2026-10-13      # belirli bir günü çek
     python -m ptb.run --backfill-days 365    # son N günü tek tek çekip yükle
 
@@ -82,7 +82,7 @@ def main() -> int:
             days = [dt.date.fromisoformat(args.date)]
         else:
             today = _today_tr()
-            days = [today - dt.timedelta(days=1), today]
+            days = [today - dt.timedelta(days=2), today - dt.timedelta(days=1), today]
 
         total_rows = 0
         for day in days:

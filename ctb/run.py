@@ -1,9 +1,9 @@
 """ÇTB günlük fiyat verisini çekip Supabase'e yükleyen CLI giriş noktası.
 
 Kullanım:
-    python -m ctb.run                       # bugünü VE dünü çek (kullanıcı
-                                             # talebi: her akşam 18:00'da
-                                             # çekilsin — bkz. aşağıdaki not)
+    python -m ctb.run                       # son 3 günü (bugün dahil) çek
+                                             # (kullanıcı talebi: her akşam
+                                             # 18:00'da çekilsin — bkz. not)
     python -m ctb.run --date 2026-10-13      # belirli bir günü çek
     python -m ctb.run --backfill-days 365    # son N günü tek tek çekip yükle
 
@@ -87,7 +87,7 @@ def main() -> int:
             days = [dt.date.fromisoformat(args.date)]
         else:
             today = _today_tr()
-            days = [today - dt.timedelta(days=1), today]
+            days = [today - dt.timedelta(days=2), today - dt.timedelta(days=1), today]
 
         total_rows = 0
         for day in days:

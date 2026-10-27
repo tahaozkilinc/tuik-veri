@@ -1,12 +1,19 @@
 """TÜRİB günlük bülten verisini çekip Supabase'e yükleyen CLI giriş noktası.
 
 Kullanım:
-    python -m turib.run                       # bugünü çek ve yükle
+    python -m turib.run                       # son 3 günü çek ve yükle
     python -m turib.run --date 2026-10-13      # belirli bir günü çek
     python -m turib.run --backfill-days 365    # son N günü tek tek çekip yükle
 
 TÜRİB hafta sonu/tatil günlerinde işlem yapmıyor — o günler için NORMAL SEANS
 tablosu boş döner, bu bir hata değildir, sadece atlanır.
+
+NOT: GitHub Actions'ın zamanlanmış çalıştırması gözlemlenen şekilde ard arda
+günler boyunca tetiklenmeyebiliyor (bkz. gtb/run.py'deki aynı önlem — 24/25
+Ekim'de turib-daily hiç çalışmadı, 26 Ekim'e kadar fark edilmedi). Varsayılan
+çalışma artık tek gün (bugün) değil son 3 günü yeniden çekip yazıyor
+(sil-ve-ekle, zararsız) — ardışık 1-2 günlük cron atlaması kendiliğinden
+telafi ediliyor.
 """
 
 from __future__ import annotations
@@ -65,10 +72,18 @@ def main() -> int:
                        error_message=(f"{errors} günde hata oluştu" if errors else None))
             return 0
 
-        day = dt.date.fromisoformat(args.date) if args.date else _today_tr()
-        rows = fetch_and_load_day(client, day)
-        print(f"{day.isoformat()}: {rows} satır yazıldı.")
-        finish_run(client, run_id, status="success", rows_upserted=rows)
+        if args.date:
+            days = [dt.date.fromisoformat(args.date)]
+        else:
+            today = _today_tr()
+            days = [today - dt.timedelta(days=2), today - dt.timedelta(days=1), today]
+
+        total_rows = 0
+        for day in days:
+            rows = fetch_and_load_day(client, day)
+            print(f"{day.isoformat()}: {rows} satır yazıldı.")
+            total_rows += rows
+        finish_run(client, run_id, status="success", rows_upserted=total_rows)
         return 0
 
     except Exception as exc:  # noqa: BLE001
