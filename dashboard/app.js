@@ -56,6 +56,38 @@ document.getElementById("refresh-data").addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Supabase/PostgREST tek istekte en fazla 1000 satır döner — büyüyen
+// tablolarda (TÜRİB/GTB artık 10.000+ satır) sayfaları SIRAYLA (await
+// döngüsüyle) çekmek 10+ saniyeye çıkabiliyordu ve bu süre boyunca arayüz
+// yükleniyor göstergesi olmadığı için "veri yok / bozuk" gibi görünüyordu.
+// İlk sayfayı Prefer: count=exact ile isteyip toplam satır sayısını
+// content-range'den öğrenip kalan sayfaları PARALEL çekiyoruz.
+async function fetchAllPagesParallel(url, headers) {
+  const pageSize = 1000;
+  const firstRes = await fetch(url, {
+    headers: Object.assign({}, headers, { Range: `0-${pageSize - 1}`, Prefer: "count=exact" }),
+  });
+  if (!firstRes.ok) throw new Error(`Supabase istek hatası: ${firstRes.status}`);
+  const firstPage = await firstRes.json();
+  const contentRange = firstRes.headers.get("content-range") || "";
+  const total = parseInt(contentRange.split("/")[1], 10);
+  if (!Number.isFinite(total) || total <= firstPage.length) return firstPage;
+
+  const requests = [];
+  for (let from = pageSize; from < total; from += pageSize) {
+    requests.push(
+      fetch(url, { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) })
+        .then(res => {
+          if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
+          return res.json();
+        })
+    );
+  }
+  const restPages = await Promise.all(requests);
+  return firstPage.concat(...restPages);
+}
+
+// ---------------------------------------------------------------------------
 // Üst durum rozeti — hangi sekme/alt sekme aktifse ONUN canlı verisinin en
 // son çekildiği an gösterilir (kayıt sayısı yok). Her panel, aktif olduğunda
 // (önbellekten de gelse) __updateStatusFromCache'i kendi önbellek anahtarıyla
@@ -2026,21 +2058,7 @@ window.__tabManager = (function () {
     const cached = window.__supaCache.get(cacheKey, CACHE_TTL_MS);
     if (cached) return cached;
     const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
-    const pageSize = 1000;
-    let rows = [];
-    let from = 0;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const res = await fetch(
-        `${cfg.SUPABASE_URL}/rest/v1/${table}?${query}`,
-        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
-      );
-      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
-      const page = await res.json();
-      rows = rows.concat(page);
-      if (page.length < pageSize) break;
-      from += pageSize;
-    }
+    const rows = await fetchAllPagesParallel(`${cfg.SUPABASE_URL}/rest/v1/${table}?${query}`, headers);
     window.__supaCache.set(cacheKey, rows);
     return rows;
   }
@@ -2719,21 +2737,10 @@ window.__tabManager = (function () {
     if (cached) return cached;
 
     const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
-    const pageSize = 1000;
-    let rows = [];
-    let from = 0;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const res = await fetch(
-        `${cfg.SUPABASE_URL}/rest/v1/turib_bulletin?select=trade_date,isin_kodu,enstruman_sinifi,agirlikli_ortalama_fiyat,en_dusuk,en_yuksek,islem_adedi,islem_miktari_kg,islem_hacmi_tl,lidas_adi,il,ilce&order=trade_date.asc`,
-        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
-      );
-      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
-      const page = await res.json();
-      rows = rows.concat(page);
-      if (page.length < pageSize) break;
-      from += pageSize;
-    }
+    const rows = await fetchAllPagesParallel(
+      `${cfg.SUPABASE_URL}/rest/v1/turib_bulletin?select=trade_date,isin_kodu,enstruman_sinifi,agirlikli_ortalama_fiyat,en_dusuk,en_yuksek,islem_adedi,islem_miktari_kg,islem_hacmi_tl,lidas_adi,il,ilce&order=trade_date.asc`,
+      headers
+    );
     window.__supaCache.set("turib", rows);
     return rows;
   }
@@ -3756,26 +3763,10 @@ function initDailySummaryBorsaPanel(cfg) {
       .concat(hasCount ? ["islem_adet"] : [])
       .concat(hasRutubet ? ["ort_rutubet"] : [])
       .join(",");
-    // Supabase/PostgREST varsayılan olarak tek istekte en fazla 1000 satır
-    // döndürür — GTB/ÇTB/PTB gibi günde çok ürünlü tablolar bunu kolayca
-    // aşıyor, bu da en eski satırlardan sonrasının (son yıllar dahil)
-    // sessizce kesilmesine yol açar. TÜRİB/KTB'deki gibi Range header'ıyla
-    // sayfalayarak tüm satırları çekiyoruz.
-    const pageSize = 1000;
-    let rows = [];
-    let from = 0;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const res = await fetch(
-        `${appCfg.SUPABASE_URL}/rest/v1/${cfg.table}?select=${selectCols}&order=trade_date.asc`,
-        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
-      );
-      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
-      const page = await res.json();
-      rows = rows.concat(page);
-      if (page.length < pageSize) break;
-      from += pageSize;
-    }
+    const rows = await fetchAllPagesParallel(
+      `${appCfg.SUPABASE_URL}/rest/v1/${cfg.table}?select=${selectCols}&order=trade_date.asc`,
+      headers
+    );
     window.__supaCache.set(id, rows);
     return rows;
   }
@@ -4764,21 +4755,10 @@ initDailySummaryBorsaPanel({
     const cached = window.__supaCache.get("ktb", CACHE_TTL_MS);
     if (cached) return cached;
     const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
-    const pageSize = 1000;
-    let rows = [];
-    let from = 0;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const res = await fetch(
-        `${cfg.SUPABASE_URL}/rest/v1/ktb_bulletin?select=trade_date,grup_kodu,grup_adi,sinif_adi,min_fiyat,ort_fiyat,max_fiyat,miktar,islem_sayisi,grup_min_fiyat,grup_ort_fiyat,grup_max_fiyat&order=trade_date.asc`,
-        { headers: Object.assign({}, headers, { Range: `${from}-${from + pageSize - 1}` }) }
-      );
-      if (!res.ok) throw new Error(`Supabase istek hatası: ${res.status}`);
-      const page = await res.json();
-      rows = rows.concat(page);
-      if (page.length < pageSize) break;
-      from += pageSize;
-    }
+    const rows = await fetchAllPagesParallel(
+      `${cfg.SUPABASE_URL}/rest/v1/ktb_bulletin?select=trade_date,grup_kodu,grup_adi,sinif_adi,min_fiyat,ort_fiyat,max_fiyat,miktar,islem_sayisi,grup_min_fiyat,grup_ort_fiyat,grup_max_fiyat&order=trade_date.asc`,
+      headers
+    );
     window.__supaCache.set("ktb", rows);
     return rows;
   }
