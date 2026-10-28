@@ -23,4 +23,4 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Run probe
-        run: python scripts/check_cors_header.py
+        run: python scripts/check_live_turib.py
