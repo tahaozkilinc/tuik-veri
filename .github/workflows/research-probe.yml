@@ -18,10 +18,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install supabase==2.31.0
+        run: |
+          pip install playwright==1.48.0
+          python -m playwright install --with-deps chromium
 
       - name: Run probe
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scripts/check_turib_deep.py
+        run: python scripts/check_live_turib.py
