@@ -664,7 +664,7 @@ function updatePagerUI(prefix, info) {
     const ytdStartKey = periodKey(periodFromKey(maxPeriodKey).year, 1);
 
     const state = {
-      flow: "all",
+      flow: "1", // kullanıcının isteği: sayfa her açıldığında sabit olarak İthalat + Mısır işaretli gelsin
       periodStart: ytdStartKey,
       periodEnd: maxPeriodKey,
       products: new Set([DEFAULT_PRODUCT_CODE]),
@@ -964,9 +964,9 @@ function updatePagerUI(prefix, info) {
     }
 
     document.getElementById("reset-filters").addEventListener("click", () => {
-      state.flow = "all";
+      state.flow = "1";
       state.products = new Set([DEFAULT_PRODUCT_CODE]); state.countries.clear();
-      document.querySelectorAll("#flow-filter .seg").forEach(b => b.classList.toggle("active", b.dataset.value === "all"));
+      document.querySelectorAll("#flow-filter .seg").forEach(b => b.classList.toggle("active", b.dataset.value === "1"));
       buildProductChips();
       document.getElementById("country-search").value = "";
       setPeriod(ytdStartKey, maxPeriodKey, "ytd");
