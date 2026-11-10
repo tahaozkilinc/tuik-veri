@@ -78,6 +78,12 @@ WORLD_SOYBEAN_MEAL_COLUMNS = [
     ("ending_stocks", "Dönem Sonu Stok (Devreden Stok)"),
 ]
 
+# "World Soybean Oil Supply and Use" aynı 6 sütun düzenini kullanıyor
+# (Beginning Stocks / Production / Imports / Domestic Total / Exports /
+# Ending Stocks) — WASDE'nin TXT yayınında bu tablo GERÇEKTEN VAR, önceden
+# yokmuş gibi varsayılıp hiç çekilmiyordu (bkz. wasde/parser.py).
+WORLD_SOYBEAN_OIL_COLUMNS = WORLD_SOYBEAN_MEAL_COLUMNS
+
 REGION_LABELS_TR: dict[str, str] = {
     "world": "Dünya",
     "world_less_china": "Dünya (Çin Hariç)",

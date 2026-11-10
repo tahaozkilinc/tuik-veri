@@ -13,10 +13,14 @@ daha güvenilir.
   - World Corn Supply and Use (+ Contd. sayfası)
   - World Soybean Supply and Use
   - World Soybean Meal Supply and Use
+  - World Soybean Oil Supply and Use
 
 WASDE'de TÜİK'teki "Mısır Özü" (nişasta/gluten) ve "Çekirdek" GTİP'lerine
 karşılık gelen bir bilanço tablosu YOK — WASDE sadece Corn / Soybean /
-Soybean Meal + Soybean Oil için üretim-arz-talep bilançosu yayınlıyor.
+Soybean Meal / Soybean Oil için üretim-arz-talep bilançosu yayınlıyor (hepsi
+hem ABD hem Dünya kapsamında — "Soya Yağı'nda Dünya tablosu yok" varsayımı
+YANLIŞTI, canlı kaynakta gerçekten "World Soybean Oil Supply and Use" tablosu
+var, önceden sadece hiç çekilmiyordu).
 """
 
 from __future__ import annotations
@@ -246,4 +250,9 @@ def parse_world_soy(text: str) -> tuple[dict[str, dict[str, list[float]]], dict[
 
 def parse_world_soymeal(text: str) -> tuple[dict[str, dict[str, list[float]]], dict[str, str]]:
     ti, end = find_block(text, "World Soybean Meal Supply and Use")
+    return parse_world_table(text[ti:end], ncols=6)
+
+
+def parse_world_soyoil(text: str) -> tuple[dict[str, dict[str, list[float]]], dict[str, str]]:
+    ti, end = find_block(text, "World Soybean Oil Supply and Use")
     return parse_world_table(text[ti:end], ncols=6)

@@ -243,6 +243,9 @@ def build_records(text: str, report_date: str, release_number: int) -> list[dict
     world_soymeal, world_soymeal_slots = parser.parse_world_soymeal(text)
     records += _world_table_to_records(world_soymeal, world_soymeal_slots, "soybean_meal", glossary.WORLD_SOYBEAN_MEAL_COLUMNS, report_date, release_number)
 
+    world_soyoil, world_soyoil_slots = parser.parse_world_soyoil(text)
+    records += _world_table_to_records(world_soyoil, world_soyoil_slots, "soybean_oil", glossary.WORLD_SOYBEAN_OIL_COLUMNS, report_date, release_number)
+
     records += compute_ending_stock_trends(records)
 
     # _period_slot sadece bu ay içinde "önceki rapora göre" hesaplaması için

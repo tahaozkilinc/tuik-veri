@@ -1661,8 +1661,10 @@ window.__tabManager = (function () {
   }
 
   const COMMODITIES = ["corn", "soybeans", "soybean_meal", "soybean_oil"];
-  // Soya Yağı için WASDE'de sadece ABD tablosu var, Dünya tablosu yok.
-  const WORLD_AVAILABLE = { corn: true, soybeans: true, soybean_meal: true, soybean_oil: false };
+  // Dördü de hem ABD hem Dünya kapsamında yayınlanıyor — eskiden Soya
+  // Yağı'nda Dünya tablosu olmadığı varsayılıp hiç çekilmiyordu, bu yanlıştı
+  // (kaynakta "World Soybean Oil Supply and Use" tablosu var, bkz. wasde/parser.py).
+  const WORLD_AVAILABLE = { corn: true, soybeans: true, soybean_meal: true, soybean_oil: true };
   const REGIONS = ["world", "world_less_china", "united_states", "total_foreign", "china"];
   const MEASURE_ORDER = [
     "area_planted", "area_harvested", "yield_per_acre",
