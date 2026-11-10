@@ -420,30 +420,32 @@ function updatePagerUI(prefix, info) {
   // gösterilmiyor (ürün çiplerinde GTIP_SHORT_NAMES kullanılıyor).
   const GTIP_NAMES = {
     "100590000019": "1005.90.00.00.19 MISIR",
-    "120190000000": "1201.90.00.00.00 SOYA FASULYESİ",
     "110430900011": "1104.30.90.00.11 MISIR ÖZÜ",
+    "151521900000": "1515.21.90.00.00 MISIR HAM",
+    "151529900000": "1515.29.90.00.00 MISIR RAFİNE",
+    "120190000000": "1201.90.00.00.00 SOYA FASULYESİ",
     "230400000000": "2304.00.00.00.00 SOYA KÜSPESİ",
+    "150710900000": "1507.10.90.00.00 SOYA HAM",
+    "150790900000": "1507.90.90.00.00 SOYA RAFİNE",
     "120600990019": "1206.00.99.00.19 ÇEKİRDEK",
     "151211910000": "1512.11.91.00.00 AYÇİÇEK HAM",
     "151219900011": "1512.19.90.00.11 AYÇİÇEK RAFİNE",
-    "150710900000": "1507.10.90.00.00 SOYA HAM",
-    "150790900000": "1507.90.90.00.00 SOYA RAFİNE",
-    "151521900000": "1515.21.90.00.00 MISIR HAM",
-    "151529900000": "1515.29.90.00.00 MISIR RAFİNE",
   };
   // sade ürün adı — grafik, tablo ve rapordaki her yerde bu kullanılır.
+  // Sıra bilinçli: aynı ana ürün (mısır/soya/ayçiçek) grubu kendi içinde
+  // yan yana — ürün çipleri ve renk ataması bu sırayı takip eder.
   const GTIP_SHORT_NAMES = {
     "100590000019": "MISIR",
-    "120190000000": "SOYA FASULYESİ",
     "110430900011": "MISIR ÖZÜ",
+    "151521900000": "MISIR HAM",
+    "151529900000": "MISIR RAFİNE",
+    "120190000000": "SOYA FASULYESİ",
     "230400000000": "SOYA KÜSPESİ",
+    "150710900000": "SOYA HAM",
+    "150790900000": "SOYA RAFİNE",
     "120600990019": "ÇEKİRDEK",
     "151211910000": "AYÇİÇEK HAM",
     "151219900011": "AYÇİÇEK RAFİNE",
-    "150710900000": "SOYA HAM",
-    "150790900000": "SOYA RAFİNE",
-    "151521900000": "MISIR HAM",
-    "151529900000": "MISIR RAFİNE",
   };
   const FLOW_COLOR = ["var(--series-export)", "var(--series-import)"];
   const CAT_COLORS = [
@@ -473,16 +475,16 @@ function updatePagerUI(prefix, info) {
   };
   const GTIP_SHORT_NAMES_I18N = {
     "100590000019": { en: "Corn", ru: "Кукуруза" },
-    "120190000000": { en: "Soybeans", ru: "Соевые бобы" },
     "110430900011": { en: "Corn Germ", ru: "Кукурузный зародыш" },
+    "151521900000": { en: "Crude Corn Oil", ru: "Сырое кукурузное масло" },
+    "151529900000": { en: "Refined Corn Oil", ru: "Рафинированное кукурузное масло" },
+    "120190000000": { en: "Soybeans", ru: "Соевые бобы" },
     "230400000000": { en: "Soybean Meal", ru: "Соевый шрот" },
+    "150710900000": { en: "Crude Soybean Oil", ru: "Сырое соевое масло" },
+    "150790900000": { en: "Refined Soybean Oil", ru: "Рафинированное соевое масло" },
     "120600990019": { en: "Sunflower Seed", ru: "Семена подсолнечника" },
     "151211910000": { en: "Crude Sunflower Oil", ru: "Сырое подсолнечное масло" },
     "151219900011": { en: "Refined Sunflower Oil", ru: "Рафинированное подсолнечное масло" },
-    "150710900000": { en: "Crude Soybean Oil", ru: "Сырое соевое масло" },
-    "150790900000": { en: "Refined Soybean Oil", ru: "Рафинированное соевое масло" },
-    "151521900000": { en: "Crude Corn Oil", ru: "Сырое кукурузное масло" },
-    "151529900000": { en: "Refined Corn Oil", ru: "Рафинированное кукурузное масло" },
   };
   const TUIK_STRINGS = {
     tr: {
