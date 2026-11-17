@@ -2456,8 +2456,11 @@ window.__tabManager = (function () {
       renderAll();
     });
 
-    setActivePreset(document.querySelector('#exchange-summary-period-presets .seg[data-preset="90"]'));
-    applyPreset("90");
+    // Varsayılan "Tüm Zamanlar" — "Son 90 Gün" varsayılanı kullanıcıya
+    // "bu tarihten önce veri yok" gibi görünüyordu (gerçek geçmiş çok daha
+    // eskiye gidiyor, sadece varsayılan filtre gizliyordu).
+    setActivePreset(document.querySelector('#exchange-summary-period-presets .seg[data-preset="all"]'));
+    applyPreset("all");
   }
 
   document.getElementById("exchange-currency-toggle").querySelectorAll(".seg").forEach(btn => {
@@ -3337,8 +3340,9 @@ window.__tabManager = (function () {
       renderAll();
     });
 
-    setActivePreset(document.querySelector('#turib-period-presets .seg[data-preset="90"]'));
-    applyPreset("90");
+    // Varsayılan "Tüm Zamanlar" — bkz. exchange-summary'deki aynı değişikliğin notu.
+    setActivePreset(document.querySelector('#turib-period-presets .seg[data-preset="all"]'));
+    applyPreset("all");
   }
 
   // TÜRİB ürün adları "[GRUP] [opsiyonel TİP] [SINIF]" biçiminde — örn.
@@ -4415,8 +4419,11 @@ function initDailySummaryBorsaPanel(cfg) {
     startInput.addEventListener("change", () => { state.dateStart = startInput.value || null; setActivePreset(null); renderAll(); });
     endInput.addEventListener("change", () => { state.dateEnd = endInput.value || null; setActivePreset(null); renderAll(); });
 
-    setActivePreset(document.querySelector(`#${id}-period-presets .seg[data-preset="90"]`));
-    applyPreset("90");
+    // Varsayılan "Tüm Zamanlar" — bkz. exchange-summary'deki aynı değişikliğin notu
+    // (kullanıcı GTB'de "14 Eylül'den önce veri yok" sandı; gerçek geçmiş çok
+    // daha eskiye gidiyordu, sadece "Son 90 Gün" varsayılanı gizliyordu).
+    setActivePreset(document.querySelector(`#${id}-period-presets .seg[data-preset="all"]`));
+    applyPreset("all");
   }
 
   function updateAsofBadge() {
@@ -5210,8 +5217,9 @@ initDailySummaryBorsaPanel({
       renderAll();
     });
 
-    setActivePreset(document.querySelector('#ktb-period-presets .seg[data-preset="90"]'));
-    applyPreset("90");
+    // Varsayılan "Tüm Zamanlar" — bkz. exchange-summary'deki aynı değişikliğin notu.
+    setActivePreset(document.querySelector('#ktb-period-presets .seg[data-preset="all"]'));
+    applyPreset("all");
   }
 
   function buildProductControls() {
