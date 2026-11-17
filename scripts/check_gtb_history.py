@@ -7,7 +7,11 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import sys
 import urllib.request
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from gtb import client as gtb_client
 
