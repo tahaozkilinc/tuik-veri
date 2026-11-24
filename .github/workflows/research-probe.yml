@@ -17,5 +17,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Check Ayçiçek product names (PTB/ÇTB/UZTB)
-        run: python scripts/check_aycicek_names.py
+      - name: Install Playwright
+        run: pip install playwright==1.48.0 && python -m playwright install --with-deps chromium
+
+      - name: Verify Özet (Ayçiçek) + click-to-select-day
+        run: python scripts/verify_ozet_aycicek_and_clicks.py
