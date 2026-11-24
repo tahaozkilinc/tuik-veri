@@ -2027,6 +2027,7 @@ window.__tabManager = (function () {
       asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi", asofLoading: "Yükleniyor…",
       priceSuffix: " TL/ton",
       selectedDayLabel: "Seçili Gün", selectedDayPrefix: "Seçili gün: ", backToToday: "✕",
+      commodityLabel: "Ürün", commodityMisir: "Mısır", commodityAycicek: "Ayçiçek",
     },
     en: {
       bannerStrong: "Corn price summary",
@@ -2043,6 +2044,7 @@ window.__tabManager = (function () {
       asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data", asofLoading: "Loading…",
       priceSuffix: " TRY/ton",
       selectedDayLabel: "Selected Day", selectedDayPrefix: "Selected day: ", backToToday: "✕",
+      commodityLabel: "Product", commodityMisir: "Corn", commodityAycicek: "Sunflower",
     },
     ru: {
       bannerStrong: "Сводка цен на кукурузу",
@@ -2059,6 +2061,7 @@ window.__tabManager = (function () {
       asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные", asofLoading: "Загрузка…",
       priceSuffix: " TRY/т",
       selectedDayLabel: "Выбранный день", selectedDayPrefix: "Выбранный день: ", backToToday: "✕",
+      commodityLabel: "Продукт", commodityMisir: "Кукуруза", commodityAycicek: "Подсолнечник",
     },
   };
   let lang = "tr";
@@ -2516,6 +2519,26 @@ window.__tabManager = (function () {
     applyPreset("90");
   }
 
+  // Özet'in TEK alt sekme olması + içinde Mısır/Ayçiçek arasında geçiş —
+  // kullanıcının talebi: "özet sekmesinin içinde mısır ayçiçiği olarak
+  // yaz" (ayrı bir üst sekme DEĞİL, bu sekmenin kendi filtre satırında
+  // bir geçiş düğmesi). Ayçiçek bölümü Ayçiçek IIFE'sinin kendi
+  // window.__aycicekSummaryTab.onActivate()'i ile tembel yükleniyor.
+  document.getElementById("exchange-summary-commodity-toggle").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.getElementById("exchange-summary-commodity-toggle").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+      const showAycicek = btn.dataset.commodity === "aycicek";
+      document.getElementById("exchange-summary-section").hidden = showAycicek;
+      document.getElementById("exchange-summary-aycicek-section").hidden = !showAycicek;
+      if (showAycicek) {
+        window.__aycicekSummaryTab && window.__aycicekSummaryTab.onActivate();
+        window.__updateStatusFromCache(["summary-aycicek-uztb", "summary-aycicek-ctb", "summary-aycicek-ptb", "summary-tcmb"]);
+      } else {
+        window.__updateStatusFromCache(SUMMARY_CACHE_KEYS);
+      }
+    });
+  });
+
   document.getElementById("exchange-currency-toggle").querySelectorAll(".seg").forEach(btn => {
     btn.addEventListener("click", () => {
       currency = btn.dataset.currency;
@@ -2567,6 +2590,9 @@ window.__tabManager = (function () {
     document.getElementById("exchange-summary-banner-body").textContent = tt("bannerBody");
     document.getElementById("exchange-summary-chart-title").textContent = tt("chartTitle");
     document.getElementById("exchange-summary-table-title").textContent = tt("tableTitle");
+    document.getElementById("exchange-summary-label-commodity").textContent = tt("commodityLabel");
+    document.querySelector('#exchange-summary-commodity-toggle .seg[data-commodity="misir"]').textContent = tt("commodityMisir");
+    document.querySelector('#exchange-summary-commodity-toggle .seg[data-commodity="aycicek"]').textContent = tt("commodityAycicek");
     document.getElementById("exchange-summary-label-daterange").textContent = tt("labelDateRange");
     document.getElementById("exchange-summary-label-quickselect").textContent = tt("labelQuickSelect");
     document.querySelector('#exchange-summary-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
@@ -2620,14 +2646,10 @@ window.__tabManager = (function () {
     return { tabId: `subtab-${id}`, sectionId: `${id}-section`, onActivate: () => { window[`__${id}Tab`] && window[`__${id}Tab`].onActivate(); window.__updateStatusFromCache(id); } };
   }
   const EXCHANGE_SUBTABS = {
-    summary: { tabId: "subtab-summary", sectionId: "exchange-summary-section", onActivate: () => window.__updateStatusFromCache(SUMMARY_CACHE_KEYS) },
-    summaryAycicek: {
-      tabId: "subtab-summary-aycicek", sectionId: "exchange-summary-aycicek-section",
-      // AYCICEK_CACHE_KEYS ayrı bir IIFE'de (aşağıdaki Ayçiçek Özet bloğu)
-      // tanımlı olduğu için buradan görünmüyor — anahtarlar kasıtlı olarak
-      // tekrar yazıldı (iki yerde aynı tutulmalı).
-      onActivate: () => { window.__aycicekSummaryTab && window.__aycicekSummaryTab.onActivate(); window.__updateStatusFromCache(["summary-aycicek-uztb", "summary-aycicek-ctb", "summary-aycicek-ptb", "summary-tcmb"]); },
-    },
+    // Özet (Mısır/Ayçiçek) artık TEK bir alt sekme — ikisi arasında geçiş
+    // üstteki alt sekme çubuğunda değil, bu bölümün kendi "Ürün" geçiş
+    // düğmesiyle (aşağıdaki commodity-toggle) yapılıyor.
+    summary: { tabId: "subtab-summary", sectionId: "exchange-summary-outer", onActivate: () => window.__updateStatusFromCache(SUMMARY_CACHE_KEYS) },
     turib: { tabId: "subtab-turib", sectionId: "turib-section", onActivate: () => { window.__turibTab && window.__turibTab.onActivate(); window.__updateStatusFromCache("turib"); } },
     uztb: dailyBorsaSubtab("uztb"),
     ktb: { tabId: "subtab-ktb", sectionId: "ktb-section", onActivate: () => { window.__ktbTab && window.__ktbTab.onActivate(); window.__updateStatusFromCache("ktb"); } },

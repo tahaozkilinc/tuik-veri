@@ -188,8 +188,7 @@
 
   <div id="exchange-panel" hidden>
     <div class="tab-bar subtab-bar" id="exchange-subtabs" role="tablist" aria-label="Ticaret Borsası alt sekmesi">
-      <button class="tab active" id="subtab-summary" type="button" role="tab" aria-selected="true">Özet (Mısır)</button>
-      <button class="tab" id="subtab-summary-aycicek" type="button" role="tab" aria-selected="false">Özet (Ayçiçek)</button>
+      <button class="tab active" id="subtab-summary" type="button" role="tab" aria-selected="true">Özet</button>
       <button class="tab" id="subtab-turib" type="button" role="tab" aria-selected="false">TÜRİB</button>
       <button class="tab" id="subtab-uztb" type="button" role="tab" aria-selected="false">UZTB</button>
       <button class="tab" id="subtab-ktb" type="button" role="tab" aria-selected="false">KTB</button>
@@ -199,6 +198,17 @@
       <button class="tab" id="subtab-edtb" type="button" role="tab" aria-selected="false">EDTB</button>
       <button class="tab" id="subtab-ctb" type="button" role="tab" aria-selected="false">ÇTB</button>
     </div>
+
+    <div id="exchange-summary-outer">
+    <section class="filters" aria-label="Özet ürün seçimi">
+      <div class="filter-group">
+        <span class="filter-label" id="exchange-summary-label-commodity">Ürün</span>
+        <div class="segmented" id="exchange-summary-commodity-toggle" role="group" aria-label="Ürün seçimi">
+          <button class="seg active" type="button" data-commodity="misir">Mısır</button>
+          <button class="seg" type="button" data-commodity="aycicek">Ayçiçek</button>
+        </div>
+      </div>
+    </section>
 
     <div id="exchange-summary-section">
       <div class="wasde-banner">
@@ -374,6 +384,7 @@
           </table>
         </div>
       </section>
+    </div>
     </div>
 
     <div id="turib-section" hidden>
