@@ -862,8 +862,18 @@ function updatePagerUI(prefix, info) {
         chip.appendChild(sw);
         chip.appendChild(document.createTextNode(translateProductShort(code)));
         chip.addEventListener("click", () => {
-          if (state.products.has(code)) state.products.delete(code); else state.products.add(code);
-          chip.classList.toggle("active");
+          // en az 1 ürün seçili kalmalı — hepsi kaldırılırsa state.products
+          // boş Set'e düşüyor ve filteredRows/trendProducts bunu "filtre
+          // yok, HEPSİNİ göster" olarak yorumluyor (bkz. filteredRows):
+          // kullanıcı "tek ürüne dönüyorum" derken son çipi de kapatınca
+          // rapor aniden 11 ürünün toplamına sıçrıyordu — "rapora şaşırma"
+          // şikayetinin kök nedeni buydu.
+          if (state.products.has(code)) {
+            if (state.products.size > 1) state.products.delete(code);
+          } else {
+            state.products.add(code);
+          }
+          buildProductChips();
           renderAll();
         });
         wrap.appendChild(chip);

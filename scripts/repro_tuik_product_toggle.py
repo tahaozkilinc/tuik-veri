@@ -72,6 +72,15 @@ def main() -> None:
             page.wait_for_timeout(400)
         snapshot(page, "tekrar tek ürün (sadece Mısır)")
 
+        # KÖK NEDEN testi: son kalan çipi (Mısır) de kapatmayı dene — fix
+        # öncesi bu, state.products'ı boş Set'e düşürüp "filtre yok, HEPSİNİ
+        # göster" moduna sessizce geçiyordu (11 ürünün toplamı birden
+        # görünüyordu) — kullanıcının "rapora şaşırma" şikayetinin kaynağı.
+        misir_chip = page.locator("#product-chips .chip", has_text="MISIR").first
+        misir_chip.click()
+        page.wait_for_timeout(400)
+        snapshot(page, "son çipi (Mısır) de kapatmaya çalıştıktan SONRA (en az 1 kalmalı)")
+
         print("\n=== konsol HATALARI ===")
         print(json.dumps(console_errors, indent=2, ensure_ascii=False))
         print("\n=== sayfa (uncaught) HATALARI ===")
