@@ -188,7 +188,8 @@
 
   <div id="exchange-panel" hidden>
     <div class="tab-bar subtab-bar" id="exchange-subtabs" role="tablist" aria-label="Ticaret Borsası alt sekmesi">
-      <button class="tab active" id="subtab-summary" type="button" role="tab" aria-selected="true">Özet</button>
+      <button class="tab active" id="subtab-summary" type="button" role="tab" aria-selected="true">Özet (Mısır)</button>
+      <button class="tab" id="subtab-summary-aycicek" type="button" role="tab" aria-selected="false">Özet (Ayçiçek)</button>
       <button class="tab" id="subtab-turib" type="button" role="tab" aria-selected="false">TÜRİB</button>
       <button class="tab" id="subtab-uztb" type="button" role="tab" aria-selected="false">UZTB</button>
       <button class="tab" id="subtab-ktb" type="button" role="tab" aria-selected="false">KTB</button>
@@ -228,6 +229,11 @@
           </div>
         </div>
       </section>
+
+      <div class="selected-day-banner" id="exchange-summary-selected-day" hidden>
+        <span id="exchange-summary-selected-day-text"></span>
+        <button class="reset-btn" id="exchange-summary-selected-day-clear" type="button">✕ Bugüne dön</button>
+      </div>
 
       <section class="kpi-row" id="exchange-summary-kpi-row" aria-label="Özet göstergeler"></section>
 
@@ -275,6 +281,92 @@
               </tr>
             </thead>
             <tbody id="exchange-summary-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="exchange-summary-aycicek-section" hidden>
+      <div class="wasde-banner">
+        <div id="exchange-summary-aycicek-banner-text">
+          <strong id="exchange-summary-aycicek-banner-strong">Ayçiçek fiyat özeti</strong>
+          <span id="exchange-summary-aycicek-banner-body"> — UZTB (Ayçiçek), ÇTB (Yağlık Ayçiçeği) ve PTB (Standart
+          Dışı Ayçiçeği) ortalama fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Ayçiçek ticareti mısıra göre
+          mevsimsel/seyrek olduğundan bazı aralıklarda veri az olabilir — bu bir hata değildir.</span>
+        </div>
+        <span class="wasde-release-badge" id="exchange-summary-aycicek-asof-badge">Yükleniyor…</span>
+      </div>
+
+      <section class="filters" aria-label="Özet filtreleri">
+        <div class="filter-group">
+          <span class="filter-label" id="exchange-summary-aycicek-label-daterange">Tarih Aralığı</span>
+          <div class="period-row">
+            <input type="date" class="text-input" id="exchange-summary-aycicek-date-start">
+            <span class="period-sep">–</span>
+            <input type="date" class="text-input" id="exchange-summary-aycicek-date-end">
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label" id="exchange-summary-aycicek-label-quickselect">Hızlı seçim</span>
+          <div class="segmented" id="exchange-summary-aycicek-period-presets" role="group" aria-label="Dönem hazır seçimleri">
+            <button class="seg" type="button" data-preset="30">Son 30 Gün</button>
+            <button class="seg active" type="button" data-preset="90">Son 90 Gün</button>
+            <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="selected-day-banner" id="exchange-summary-aycicek-selected-day" hidden>
+        <span id="exchange-summary-aycicek-selected-day-text"></span>
+        <button class="reset-btn" id="exchange-summary-aycicek-selected-day-clear" type="button">✕ Bugüne dön</button>
+      </div>
+
+      <section class="kpi-row" id="exchange-summary-aycicek-kpi-row" aria-label="Özet göstergeler"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="exchange-summary-aycicek-chart-title">Ayçiçek fiyat eğilimi</h2>
+          <div class="segmented" id="exchange-aycicek-currency-toggle" role="group" aria-label="Para birimi">
+            <button class="seg active" type="button" data-currency="try">TL</button>
+            <button class="seg" type="button" data-currency="usd">USD</button>
+          </div>
+        </div>
+        <div class="legend" id="exchange-summary-aycicek-legend"></div>
+        <svg class="chart" id="exchange-summary-aycicek-chart" role="img" aria-label="UZTB/ÇTB/PTB Ayçiçek ağırlıklı ortalama fiyat eğilimi"></svg>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 id="exchange-summary-aycicek-table-title">Günlük veriler</h2>
+          <div class="table-controls">
+            <div class="segmented" id="exchange-summary-aycicek-row-limit">
+              <button class="seg active" type="button" data-limit="10">10</button>
+              <button class="seg" type="button" data-limit="50">50</button>
+              <button class="seg" type="button" data-limit="100">100</button>
+            </div>
+            <div class="pager" id="exchange-summary-aycicek-pager">
+              <button class="pan-btn" id="exchange-summary-aycicek-page-prev" type="button" title="Önceki sayfa">◀</button>
+              <span class="pager-label" id="exchange-summary-aycicek-pager-label"></span>
+              <button class="pan-btn" id="exchange-summary-aycicek-page-next" type="button" title="Sonraki sayfa">▶</button>
+            </div>
+            <button class="reset-btn" id="exchange-summary-aycicek-export-btn" type="button">Excel'e aktar (CSV)</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="pivot" id="exchange-summary-aycicek-table">
+            <thead>
+              <tr>
+                <th id="exchange-summary-aycicek-th-date">Tarih</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-usd">USD/TRY (TCMB)</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-uztb-tl">UZTB Ayçiçek (TL/ton)</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-uztb-usd">UZTB Ayçiçek (USD/ton)</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-ctb-tl">ÇTB Ayçiçek (TL/ton)</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-ctb-usd">ÇTB Ayçiçek (USD/ton)</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-ptb-tl">PTB Ayçiçek (TL/ton)</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-ptb-usd">PTB Ayçiçek (USD/ton)</th>
+              </tr>
+            </thead>
+            <tbody id="exchange-summary-aycicek-tbody"></tbody>
           </table>
         </div>
       </section>

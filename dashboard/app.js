@@ -2026,6 +2026,7 @@ window.__tabManager = (function () {
       tooltipTurib: "TÜRİB Mısır", tooltipKtb: "KTB Mısır", tooltipGtb: "GTB Mısır", tooltipUsd: "USD/TRY",
       asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi", asofLoading: "Yükleniyor…",
       priceSuffix: " TL/ton",
+      selectedDayPrefix: "Seçili gün: ", backToToday: "✕ Bugüne dön",
     },
     en: {
       bannerStrong: "Corn price summary",
@@ -2041,6 +2042,7 @@ window.__tabManager = (function () {
       tooltipTurib: "TÜRİB Corn", tooltipKtb: "KTB Corn", tooltipGtb: "GTB Corn", tooltipUsd: "USD/TRY",
       asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data", asofLoading: "Loading…",
       priceSuffix: " TRY/ton",
+      selectedDayPrefix: "Selected day: ", backToToday: "✕ Back to latest",
     },
     ru: {
       bannerStrong: "Сводка цен на кукурузу",
@@ -2056,6 +2058,7 @@ window.__tabManager = (function () {
       tooltipTurib: "TÜRİB Кукуруза", tooltipKtb: "KTB Кукуруза", tooltipGtb: "GTB Кукуруза", tooltipUsd: "USD/TRY",
       asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные", asofLoading: "Загрузка…",
       priceSuffix: " TRY/т",
+      selectedDayPrefix: "Выбранный день: ", backToToday: "✕ К последним данным",
     },
   };
   let lang = "tr";
@@ -2338,6 +2341,7 @@ window.__tabManager = (function () {
       rect.addEventListener("focus", showFn);
       rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
       rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      rect.addEventListener("click", () => selectDay(p.date));
       hitLayer.appendChild(rect);
     });
     svg.appendChild(hitLayer);
@@ -2346,7 +2350,9 @@ window.__tabManager = (function () {
   function renderKpis(points, currency) {
     const el = document.getElementById("exchange-summary-kpi-row");
     el.textContent = "";
-    const last = points[points.length - 1];
+    // selectedDate (grafik/tabloda tıklanan gün) varsa o günü, yoksa en
+    // son günü gösterir — bkz. selectDay().
+    const last = (selectedDate && points.find(p => p.date === selectedDate)) || points[points.length - 1];
     const fmtSelected = v => currency === "usd" ? fmtUsdTon(v) : fmtPriceTon(v);
     const tiles = [
       [tt("kpiTurib"), last ? fmtSelected(currency === "usd" ? last.turibUsd : last.turibTl) : "—"],
@@ -2391,6 +2397,9 @@ window.__tabManager = (function () {
     exchangePage = info.page;
     info.slice.forEach(p => {
       const tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.title = tt("selectedDayPrefix") + fmtDateFull(p.date);
+      tr.addEventListener("click", () => selectDay(p.date));
       const cells = [
         fmtDateFull(p.date),
         fmtUsdTry(p.usd),
@@ -2415,6 +2424,7 @@ window.__tabManager = (function () {
   let exchangePage = 0;
   let dateStart = null;
   let dateEnd = null;
+  let selectedDate = null;
 
   // Grafik/tablo/KPI seçili tarih aralığına göre filtrelenmiş veriyi
   // kullanır; "Son veri" rozeti ve CSV dışa aktarım ayrı ele alınıyor
@@ -2427,9 +2437,28 @@ window.__tabManager = (function () {
     });
   }
 
+  // Grafikte/tabloda bir güne TIKLANINCA o günü "seçili gün" yapıp üstteki
+  // banner+KPI'larda sabitliyoruz (hover her zaman geçici tooltip gösterir) —
+  // kullanıcının talebi: "tıkladığım günün bilgileri yukarıda yazılsın".
+  function selectDay(date) {
+    selectedDate = date;
+    updateSelectedDayBanner();
+    renderKpis(filteredMerged(), currency);
+  }
+
+  function updateSelectedDayBanner() {
+    const bar = document.getElementById("exchange-summary-selected-day");
+    const text = document.getElementById("exchange-summary-selected-day-text");
+    if (!selectedDate) { bar.hidden = true; return; }
+    bar.hidden = false;
+    text.textContent = tt("selectedDayPrefix") + fmtDateFull(selectedDate);
+  }
+
   function renderAll() {
     exchangePage = 0; // filtre değişince sayfa 1'e dönülür — eski sayfa artık anlamsız
     const rows = filteredMerged();
+    // seçili gün artık görünür aralığın dışında kalıyorsa sıfırla
+    if (selectedDate && !rows.some(p => p.date === selectedDate)) { selectedDate = null; updateSelectedDayBanner(); }
     renderKpis(rows, currency);
     renderLegend();
     drawChart(rows, currency);
@@ -2517,6 +2546,11 @@ window.__tabManager = (function () {
     if (!rows.length) return;
     exportCsv(rows);
   });
+  document.getElementById("exchange-summary-selected-day-clear").addEventListener("click", () => {
+    selectedDate = null;
+    updateSelectedDayBanner();
+    renderKpis(filteredMerged(), currency);
+  });
 
   function updateAsofBadge() {
     const badge = document.getElementById("exchange-summary-asof-badge");
@@ -2549,7 +2583,9 @@ window.__tabManager = (function () {
     document.getElementById("exchange-summary-export-btn").textContent = tt("exportBtn");
     document.getElementById("exchange-summary-page-prev").title = tt("prevPageTitle");
     document.getElementById("exchange-summary-page-next").title = tt("nextPageTitle");
+    document.getElementById("exchange-summary-selected-day-clear").textContent = tt("backToToday");
     updateAsofBadge();
+    updateSelectedDayBanner();
     renderAll();
   }
   window.__registerI18nPanel(applyLanguage);
@@ -2584,6 +2620,13 @@ window.__tabManager = (function () {
   }
   const EXCHANGE_SUBTABS = {
     summary: { tabId: "subtab-summary", sectionId: "exchange-summary-section", onActivate: () => window.__updateStatusFromCache(SUMMARY_CACHE_KEYS) },
+    summaryAycicek: {
+      tabId: "subtab-summary-aycicek", sectionId: "exchange-summary-aycicek-section",
+      // AYCICEK_CACHE_KEYS ayrı bir IIFE'de (aşağıdaki Ayçiçek Özet bloğu)
+      // tanımlı olduğu için buradan görünmüyor — anahtarlar kasıtlı olarak
+      // tekrar yazıldı (iki yerde aynı tutulmalı).
+      onActivate: () => { window.__aycicekSummaryTab && window.__aycicekSummaryTab.onActivate(); window.__updateStatusFromCache(["summary-aycicek-uztb", "summary-aycicek-ctb", "summary-aycicek-ptb", "summary-tcmb"]); },
+    },
     turib: { tabId: "subtab-turib", sectionId: "turib-section", onActivate: () => { window.__turibTab && window.__turibTab.onActivate(); window.__updateStatusFromCache("turib"); } },
     uztb: dailyBorsaSubtab("uztb"),
     ktb: { tabId: "subtab-ktb", sectionId: "ktb-section", onActivate: () => { window.__ktbTab && window.__ktbTab.onActivate(); window.__updateStatusFromCache("ktb"); } },
@@ -2605,6 +2648,572 @@ window.__tabManager = (function () {
       if (isActive && cfgSub.onActivate) cfgSub.onActivate();
     });
   }
+})();
+
+// ---------------------------------------------------------------------------
+// Ayçiçek Özet alt sekmesi — Mısır Özet'in (yukarıdaki IIFE) birebir aynı
+// yapısı, kaynakları UZTB/ÇTB/PTB'ye çevrilmiş hali. Kullanıcının açık
+// talebi: "özet kısmında mısır ve ayçiçeği olarak iki sayfa aç, hem mısır
+// hem de ayçiçek için fiyat vereceğiz". ÇTB'de iki ayçiçek varyantı var
+// (YAĞLIK AYÇİÇEĞİ: 80 satır, taze; STANDART DIŞI AYÇİÇEK: 36 satır) —
+// daha standart/taze olan YAĞLIK AYÇİÇEĞİ seçildi. PTB'de tek varyant var
+// (STANDART DIŞI AYÇİÇEĞİ(YAĞLIK)) ama kaynakta çok seyrek işlem görüyor
+// (sadece birkaç satır) — bu bir hata değil, ayçiçek ticareti mısıra göre
+// çok daha mevsimsel/düşük hacimli, banner'da kullanıcıya açıkça belirtildi.
+(function () {
+  "use strict";
+
+  const cfg = window.TUIK_DASHBOARD_CONFIG;
+  const UZTB_COLOR = "var(--series-import)";
+  const CTB_COLOR = "var(--cat-5)";
+  const PTB_COLOR = "var(--cat-4)";
+  const CHART_W = 960, CHART_H = 260, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
+
+  const SUMMARY_LOCALES = { tr: "tr-TR", en: "en-US", ru: "ru-RU" };
+  const SUMMARY_STRINGS = {
+    tr: {
+      chartTitle: "Ayçiçek fiyat eğilimi", tableTitle: "Günlük veriler",
+      preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
+      legendUztb: "UZTB Ayçiçek", legendCtb: "ÇTB Ayçiçek (Yağlık)", legendPtb: "PTB Ayçiçek (Standart Dışı)",
+      kpiUztb: "UZTB Ayçiçek (son)", kpiCtb: "ÇTB Ayçiçek (son)", kpiPtb: "PTB Ayçiçek (son)", kpiUsd: "USD/TRY (TCMB, son)",
+      thDate: "Tarih", thUsd: "USD/TRY (TCMB)",
+      thUztbTl: "UZTB Ayçiçek (TL/ton)", thUztbUsd: "UZTB Ayçiçek (USD/ton)",
+      thCtbTl: "ÇTB Ayçiçek (TL/ton)", thCtbUsd: "ÇTB Ayçiçek (USD/ton)",
+      thPtbTl: "PTB Ayçiçek (TL/ton)", thPtbUsd: "PTB Ayçiçek (USD/ton)",
+      exportBtn: "Excel'e aktar (CSV)", prevPageTitle: "Önceki sayfa", nextPageTitle: "Sonraki sayfa",
+      noDataChart: "Henüz veri yok.", noDataRangeUsd: "Bu aralıkta USD kuru eşleşen veri yok.", noDataRange: "Bu aralıkta veri yok.",
+      tooltipUztb: "UZTB Ayçiçek", tooltipCtb: "ÇTB Ayçiçek", tooltipPtb: "PTB Ayçiçek", tooltipUsd: "USD/TRY",
+      asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi", asofLoading: "Yükleniyor…",
+      priceSuffix: " TL/ton",
+      selectedDayPrefix: "Seçili gün: ", backToToday: "✕ Bugüne dön",
+    },
+    en: {
+      chartTitle: "Sunflower price trend", tableTitle: "Daily data",
+      preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
+      legendUztb: "UZTB Sunflower", legendCtb: "ÇTB Sunflower (Oil-type)", legendPtb: "PTB Sunflower (Off-standard)",
+      kpiUztb: "UZTB Sunflower (latest)", kpiCtb: "ÇTB Sunflower (latest)", kpiPtb: "PTB Sunflower (latest)", kpiUsd: "USD/TRY (TCMB, latest)",
+      thDate: "Date", thUsd: "USD/TRY (TCMB)",
+      thUztbTl: "UZTB Sunflower (TRY/ton)", thUztbUsd: "UZTB Sunflower (USD/ton)",
+      thCtbTl: "ÇTB Sunflower (TRY/ton)", thCtbUsd: "ÇTB Sunflower (USD/ton)",
+      thPtbTl: "PTB Sunflower (TRY/ton)", thPtbUsd: "PTB Sunflower (USD/ton)",
+      exportBtn: "Export to Excel (CSV)", prevPageTitle: "Previous page", nextPageTitle: "Next page",
+      noDataChart: "No data yet.", noDataRangeUsd: "No USD-matched data in this range.", noDataRange: "No data in this range.",
+      tooltipUztb: "UZTB Sunflower", tooltipCtb: "ÇTB Sunflower", tooltipPtb: "PTB Sunflower", tooltipUsd: "USD/TRY",
+      asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data", asofLoading: "Loading…",
+      priceSuffix: " TRY/ton",
+      selectedDayPrefix: "Selected day: ", backToToday: "✕ Back to latest",
+    },
+    ru: {
+      chartTitle: "Динамика цены на подсолнечник", tableTitle: "Суточные данные",
+      preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
+      legendUztb: "UZTB Подсолнечник", legendCtb: "ÇTB Подсолнечник (масличный)", legendPtb: "PTB Подсолнечник (нестандарт)",
+      kpiUztb: "UZTB Подсолнечник (посл.)", kpiCtb: "ÇTB Подсолнечник (посл.)", kpiPtb: "PTB Подсолнечник (посл.)", kpiUsd: "USD/TRY (TCMB, посл.)",
+      thDate: "Дата", thUsd: "USD/TRY (TCMB)",
+      thUztbTl: "UZTB Подсолнечник (TRY/т)", thUztbUsd: "UZTB Подсолнечник (USD/т)",
+      thCtbTl: "ÇTB Подсолнечник (TRY/т)", thCtbUsd: "ÇTB Подсолнечник (USD/т)",
+      thPtbTl: "PTB Подсолнечник (TRY/т)", thPtbUsd: "PTB Подсолнечник (USD/т)",
+      exportBtn: "Экспорт в Excel (CSV)", prevPageTitle: "Предыдущая страница", nextPageTitle: "Следующая страница",
+      noDataChart: "Пока нет данных.", noDataRangeUsd: "В этом диапазоне нет данных с курсом USD.", noDataRange: "Нет данных в этом диапазоне.",
+      tooltipUztb: "UZTB Подсолнечник", tooltipCtb: "ÇTB Подсолнечник", tooltipPtb: "PTB Подсолнечник", tooltipUsd: "USD/TRY",
+      asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные", asofLoading: "Загрузка…",
+      priceSuffix: " TRY/т",
+      selectedDayPrefix: "Выбранный день: ", backToToday: "✕ К последним данным",
+    },
+  };
+  let lang = "tr";
+  function tt(key) { return SUMMARY_STRINGS[lang][key]; }
+
+  function fmtPriceTon(v) {
+    if (v == null || isNaN(v)) return "—";
+    return v.toLocaleString(SUMMARY_LOCALES[lang], { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + tt("priceSuffix");
+  }
+  function fmtUsdTon(v) {
+    if (v == null || isNaN(v)) return "—";
+    return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + "/ton";
+  }
+  function fmtUsdTry(v) {
+    if (v == null || isNaN(v)) return "—";
+    return v.toLocaleString(SUMMARY_LOCALES[lang], { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  }
+  function fmtDateShort(iso) {
+    return new Date(iso + "T00:00:00").toLocaleDateString(SUMMARY_LOCALES[lang], { day: "2-digit", month: "short" });
+  }
+  function fmtDateFull(iso) {
+    return new Date(iso + "T00:00:00").toLocaleDateString(SUMMARY_LOCALES[lang], { day: "numeric", month: "long", year: "numeric" });
+  }
+
+  const CACHE_TTL_MS = 3 * 60 * 60 * 1000;
+
+  async function fetchPaginated(cacheKey, table, query) {
+    const cached = window.__supaCache.get(cacheKey, CACHE_TTL_MS);
+    if (cached) return cached;
+    const headers = { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` };
+    const rows = await fetchAllPagesParallel(`${cfg.SUPABASE_URL}/rest/v1/${table}?${query}`, headers);
+    window.__supaCache.set(cacheKey, rows);
+    return rows;
+  }
+
+  function fetchUztbAycicek() {
+    return fetchPaginated("summary-aycicek-uztb", "uztb_fiyat", "select=trade_date,ort_fiyat&urun_adi=eq.AY%C3%87%C4%B0%C3%87EK&order=trade_date.asc");
+  }
+  function fetchCtbAycicek() {
+    return fetchPaginated("summary-aycicek-ctb", "ctb_fiyat", "select=trade_date,ort_fiyat&urun_adi=eq.YA%C4%9ELIK%20AY%C3%87%C4%B0%C3%87E%C4%9E%C4%B0&order=trade_date.asc");
+  }
+  function fetchPtbAycicek() {
+    return fetchPaginated("summary-aycicek-ptb", "ptb_fiyat", "select=trade_date,ort_fiyat&urun_adi=eq.STANDART%20DI%C5%9EI%20AY%C3%87%C4%B0%C3%87E%C4%9E%C4%B0%28YA%C4%9ELIK%29&order=trade_date.asc");
+  }
+  // Mısır Özet panelindeki fetchTcmbRates ile AYNI tablo/sorgu/cache-key —
+  // Mısır sekmesi daha önce çekmişse burada network isteği tekrarlanmıyor
+  // (window.__supaCache anahtara göre paylaşılan global bir önbellek).
+  function fetchTcmbRates() {
+    return fetchPaginated("summary-tcmb", "tcmb_usd_try", "select=trade_date,forex_buying&order=trade_date.asc");
+  }
+
+  // Üçü de kaynakta TL/KG tutuyor (GTB'nin aksine) — TL/ton'a çevirmek için ×1000.
+  function dailyMap(rows) {
+    const out = new Map();
+    rows.forEach(r => { if (r.ort_fiyat != null) out.set(r.trade_date, r.ort_fiyat * 1000); });
+    return out;
+  }
+  function tcmbDailyMap(rows) {
+    const out = new Map();
+    rows.forEach(r => { if (r.forex_buying != null) out.set(r.trade_date, r.forex_buying); });
+    return out;
+  }
+
+  function buildMerged(uztbMap, ctbMap, ptbMap, usdMap) {
+    const dates = [...new Set([...uztbMap.keys(), ...ctbMap.keys(), ...ptbMap.keys()])].sort();
+    let lastUsd = null;
+    return dates.map(date => {
+      if (usdMap.has(date)) lastUsd = usdMap.get(date);
+      const usd = lastUsd;
+      const uztbTl = uztbMap.get(date) ?? null;
+      const ctbTl = ctbMap.get(date) ?? null;
+      const ptbTl = ptbMap.get(date) ?? null;
+      return {
+        date, usd, uztbTl, ctbTl, ptbTl,
+        uztbUsd: (uztbTl != null && usd) ? uztbTl / usd : null,
+        ctbUsd: (ctbTl != null && usd) ? ctbTl / usd : null,
+        ptbUsd: (ptbTl != null && usd) ? ptbTl / usd : null,
+      };
+    });
+  }
+
+  function makeTooltip() {
+    let el = document.querySelector(".tooltip");
+    if (!el) { el = document.createElement("div"); el.className = "tooltip"; document.body.appendChild(el); }
+    return el;
+  }
+  function showTooltip(evt, node) {
+    const tip = makeTooltip();
+    tip.textContent = ""; tip.appendChild(node);
+    tip.style.opacity = "1";
+    let x = evt.clientX + 14, y = evt.clientY + 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+    const rect = tip.getBoundingClientRect();
+    if (rect.right > window.innerWidth) tip.style.left = (evt.clientX - rect.width - 14) + "px";
+    if (rect.bottom > window.innerHeight) tip.style.top = (evt.clientY - rect.height - 14) + "px";
+  }
+  function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
+
+  function buildGappedPath(points, field, xScale, yScale) {
+    let d = "";
+    let drawing = false;
+    points.forEach((p, i) => {
+      const v = p[field];
+      if (v == null) { drawing = false; return; }
+      d += (drawing ? "L" : "M") + xScale(i) + "," + yScale(v) + " ";
+      drawing = true;
+    });
+    return d.trim();
+  }
+
+  function renderLegend() {
+    const el = document.getElementById("exchange-summary-aycicek-legend");
+    el.textContent = "";
+    [[tt("legendUztb"), UZTB_COLOR], [tt("legendCtb"), CTB_COLOR], [tt("legendPtb"), PTB_COLOR]].forEach(([label, color]) => {
+      const key = document.createElement("span");
+      key.className = "key";
+      const sw = document.createElement("span");
+      sw.className = "swatch-line";
+      sw.style.background = color; sw.style.borderColor = color;
+      key.appendChild(sw);
+      key.appendChild(document.createTextNode(label));
+      el.appendChild(key);
+    });
+  }
+
+  // Grafikte bir noktaya TIKLANINCA o günü "seçili gün" yapıp üstteki
+  // banner+KPI'larda sabitliyoruz (hover ise her zaman geçici tooltip
+  // gösterir) — kullanıcının talebi: "tıkladığım günün bilgileri yukarıda
+  // yazılsın".
+  function selectDay(date) {
+    selectedDate = date;
+    updateSelectedDayBanner();
+    renderKpis(filteredMerged(), currency);
+  }
+
+  function drawChart(points, currency) {
+    const svg = document.getElementById("exchange-summary-aycicek-chart");
+    svg.textContent = "";
+    svg.setAttribute("viewBox", "0 0 " + CHART_W + " " + CHART_H);
+    if (!points.length) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
+      t.textContent = tt("noDataChart");
+      svg.appendChild(t);
+      return;
+    }
+    const uztbField = currency === "usd" ? "uztbUsd" : "uztbTl";
+    const ctbField = currency === "usd" ? "ctbUsd" : "ctbTl";
+    const ptbField = currency === "usd" ? "ptbUsd" : "ptbTl";
+    const xStep = points.length > 1 ? (CHART_W - PADL - PADR) / (points.length - 1) : 0;
+    const xScale = i => points.length > 1 ? PADL + i * xStep : (PADL + (CHART_W - PADR)) / 2;
+    const allVals = points.flatMap(p => [p[uztbField], p[ctbField], p[ptbField]]).filter(v => v != null);
+    if (!allVals.length) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL); t.setAttribute("y", CHART_H / 2); t.setAttribute("class", "axis-label");
+      t.textContent = currency === "usd" ? tt("noDataRangeUsd") : tt("noDataRange");
+      svg.appendChild(t);
+      return;
+    }
+    const minVal = Math.min(...allVals), maxVal = Math.max(...allVals);
+    const span = maxVal - minVal || Math.abs(maxVal) || 1;
+    const yPad = span * 0.1;
+    const yScale = v => CHART_H - PADB - ((v - minVal + yPad) / (span + 2 * yPad)) * (CHART_H - PADB - PADT);
+
+    for (let g = 0; g <= 3; g++) {
+      const y = PADT + (g * (CHART_H - PADB - PADT)) / 3;
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "gridline");
+      line.setAttribute("x1", PADL); line.setAttribute("x2", CHART_W - PADR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      svg.appendChild(line);
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", PADL - 8); t.setAttribute("y", y + 3);
+      t.setAttribute("text-anchor", "end"); t.setAttribute("class", "axis-label");
+      const val = maxVal + yPad - (g * (span + 2 * yPad)) / 3;
+      t.textContent = currency === "usd"
+        ? "$" + Math.round(val).toLocaleString("en-US")
+        : Math.round(val).toLocaleString(SUMMARY_LOCALES[lang]);
+      svg.appendChild(t);
+    }
+
+    const minLabelGap = 56;
+    const tickEvery = Math.max(1, Math.ceil(minLabelGap / Math.max(xStep, 1)));
+    points.forEach((p, i) => {
+      const isLast = i === points.length - 1;
+      if (i % tickEvery !== 0 && !isLast) return;
+      if (isLast && points.length > 1 && (points.length - 1) % tickEvery !== 0) {
+        const prevShown = Math.floor((points.length - 1) / tickEvery) * tickEvery;
+        if ((points.length - 1 - prevShown) * xStep < minLabelGap) return;
+      }
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", xScale(i)); t.setAttribute("y", CHART_H - 5);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "axis-label");
+      t.textContent = fmtDateShort(p.date);
+      svg.appendChild(t);
+    });
+
+    const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    hoverLine.setAttribute("class", "baseline");
+    hoverLine.setAttribute("y1", PADT); hoverLine.setAttribute("y2", CHART_H - PADB);
+    hoverLine.style.opacity = "0";
+    svg.appendChild(hoverLine);
+
+    [[uztbField, UZTB_COLOR], [ctbField, CTB_COLOR], [ptbField, PTB_COLOR]].forEach(([field, color]) => {
+      const d = buildGappedPath(points, field, xScale, yScale);
+      if (!d) return;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", d);
+      path.setAttribute("stroke", color); path.setAttribute("stroke-width", "2.5");
+      path.setAttribute("fill", "none"); path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
+      svg.appendChild(path);
+    });
+
+    const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    points.forEach((p, i) => {
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const hitW = Math.max(xStep, 6);
+      rect.setAttribute("x", xScale(i) - hitW / 2); rect.setAttribute("y", PADT);
+      rect.setAttribute("width", hitW); rect.setAttribute("height", CHART_H - PADB - PADT);
+      rect.setAttribute("fill", "transparent"); rect.style.cursor = "pointer";
+      rect.tabIndex = 0;
+      const showFn = evt => {
+        hoverLine.setAttribute("x1", xScale(i)); hoverLine.setAttribute("x2", xScale(i));
+        hoverLine.style.opacity = "1";
+        const wrap = document.createElement("div");
+        const ttl = document.createElement("div"); ttl.className = "ttl"; ttl.textContent = fmtDateFull(p.date);
+        wrap.appendChild(ttl);
+        const addRow = (label, tl, usd) => {
+          if (tl == null) return;
+          const row = document.createElement("div"); row.className = "row";
+          const l = document.createElement("span"); l.textContent = label + ": ";
+          const v = document.createElement("span"); v.className = "val";
+          v.textContent = fmtPriceTon(tl) + (usd != null ? " (" + fmtUsdTon(usd) + ")" : "");
+          row.appendChild(l); row.appendChild(v);
+          wrap.appendChild(row);
+        };
+        addRow(tt("tooltipUztb"), p.uztbTl, p.uztbUsd);
+        addRow(tt("tooltipCtb"), p.ctbTl, p.ctbUsd);
+        addRow(tt("tooltipPtb"), p.ptbTl, p.ptbUsd);
+        if (p.usd != null) {
+          const row = document.createElement("div"); row.className = "row";
+          const l = document.createElement("span"); l.textContent = tt("tooltipUsd") + ": ";
+          const v = document.createElement("span"); v.className = "val"; v.textContent = fmtUsdTry(p.usd);
+          row.appendChild(l); row.appendChild(v);
+          wrap.appendChild(row);
+        }
+        showTooltip(evt, wrap);
+      };
+      rect.addEventListener("pointermove", showFn);
+      rect.addEventListener("focus", showFn);
+      rect.addEventListener("pointerleave", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      rect.addEventListener("blur", () => { hoverLine.style.opacity = "0"; hideTooltip(); });
+      rect.addEventListener("click", () => selectDay(p.date));
+      hitLayer.appendChild(rect);
+    });
+    svg.appendChild(hitLayer);
+  }
+
+  function updateSelectedDayBanner() {
+    const bar = document.getElementById("exchange-summary-aycicek-selected-day");
+    const text = document.getElementById("exchange-summary-aycicek-selected-day-text");
+    if (!selectedDate) { bar.hidden = true; return; }
+    bar.hidden = false;
+    text.textContent = tt("selectedDayPrefix") + fmtDateFull(selectedDate);
+  }
+
+  function renderKpis(points, currency) {
+    const el = document.getElementById("exchange-summary-aycicek-kpi-row");
+    el.textContent = "";
+    const point = (selectedDate && points.find(p => p.date === selectedDate)) || points[points.length - 1];
+    const fmtSelected = v => currency === "usd" ? fmtUsdTon(v) : fmtPriceTon(v);
+    const tiles = [
+      [tt("kpiUztb"), point ? fmtSelected(currency === "usd" ? point.uztbUsd : point.uztbTl) : "—"],
+      [tt("kpiCtb"), point ? fmtSelected(currency === "usd" ? point.ctbUsd : point.ctbTl) : "—"],
+      [tt("kpiPtb"), point ? fmtSelected(currency === "usd" ? point.ptbUsd : point.ptbTl) : "—"],
+      [tt("kpiUsd"), point ? fmtUsdTry(point.usd) : "—"],
+    ];
+    tiles.forEach(([label, value]) => {
+      const tile = document.createElement("div");
+      tile.className = "stat-tile";
+      const l = document.createElement("div"); l.className = "label"; l.textContent = label;
+      const v = document.createElement("div"); v.className = "value num"; v.textContent = value;
+      tile.appendChild(l); tile.appendChild(v);
+      el.appendChild(tile);
+    });
+  }
+
+  function exportCsv(points) {
+    const cols = ["date", "usd", "uztbTl", "uztbUsd", "ctbTl", "ctbUsd", "ptbTl", "ptbUsd"];
+    const header = ["tarih", "usd_try", "uztb_aycicek_tl_ton", "uztb_aycicek_usd_ton", "ctb_aycicek_tl_ton", "ctb_aycicek_usd_ton", "ptb_aycicek_tl_ton", "ptb_aycicek_usd_ton"];
+    const esc = v => {
+      const s = v == null ? "" : String(v);
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [header.join(";")].concat(points.map(p => cols.map(c => esc(p[c])).join(";")));
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ticaret-borsasi-ozet-aycicek-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderTable(points, rowLimit, page) {
+    const tbody = document.getElementById("exchange-summary-aycicek-tbody");
+    tbody.textContent = "";
+    const sorted = [...points].sort((a, b) => b.date.localeCompare(a.date));
+    const info = paginateRows(sorted, page, rowLimit);
+    exchangePage = info.page;
+    info.slice.forEach(p => {
+      const tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.title = tt("selectedDayPrefix") + fmtDateFull(p.date);
+      tr.addEventListener("click", () => selectDay(p.date));
+      const cells = [
+        fmtDateFull(p.date),
+        fmtUsdTry(p.usd),
+        fmtPriceTon(p.uztbTl), fmtUsdTon(p.uztbUsd),
+        fmtPriceTon(p.ctbTl), fmtUsdTon(p.ctbUsd),
+        fmtPriceTon(p.ptbTl), fmtUsdTon(p.ptbUsd),
+      ];
+      cells.forEach((text, i) => {
+        const td = document.createElement("td");
+        if (i > 0) td.className = "num-col";
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    updatePagerUI("exchange-summary-aycicek", info);
+  }
+
+  let merged = [];
+  let currency = "try";
+  let rowLimit = 10;
+  let exchangePage = 0;
+  let dateStart = null;
+  let dateEnd = null;
+  let selectedDate = null;
+
+  function filteredMerged() {
+    return merged.filter(p => {
+      if (dateStart && p.date < dateStart) return false;
+      if (dateEnd && p.date > dateEnd) return false;
+      return true;
+    });
+  }
+
+  function renderAll() {
+    exchangePage = 0;
+    const rows = filteredMerged();
+    // seçili gün artık görünür aralığın dışında kalıyorsa sıfırla
+    if (selectedDate && !rows.some(p => p.date === selectedDate)) { selectedDate = null; updateSelectedDayBanner(); }
+    renderKpis(rows, currency);
+    renderLegend();
+    drawChart(rows, currency);
+    renderTable(rows, rowLimit, exchangePage);
+  }
+
+  function buildDateControls() {
+    const startInput = document.getElementById("exchange-summary-aycicek-date-start");
+    const endInput = document.getElementById("exchange-summary-aycicek-date-end");
+    if (!merged.length) { renderAll(); return; }
+    const allDates = merged.map(p => p.date).sort();
+    const minDate = allDates[0], maxDate = allDates[allDates.length - 1];
+    startInput.min = minDate; startInput.max = maxDate;
+    endInput.min = minDate; endInput.max = maxDate;
+    startInput.value = minDate; endInput.value = maxDate;
+
+    function setActivePreset(btn) {
+      document.querySelectorAll("#exchange-summary-aycicek-period-presets .seg").forEach(b => b.classList.toggle("active", b === btn));
+    }
+
+    function applyPreset(preset) {
+      if (preset === "all") {
+        dateStart = null; dateEnd = null;
+        startInput.value = minDate; endInput.value = maxDate;
+      } else {
+        const end = new Date(maxDate + "T00:00:00");
+        const start = new Date(end);
+        start.setDate(start.getDate() - Number(preset) + 1);
+        const startIso = start.toISOString().slice(0, 10);
+        dateStart = startIso < minDate ? minDate : startIso;
+        dateEnd = maxDate;
+        startInput.value = dateStart; endInput.value = dateEnd;
+      }
+      renderAll();
+    }
+
+    document.querySelectorAll("#exchange-summary-aycicek-period-presets .seg").forEach(btn => {
+      btn.addEventListener("click", () => { setActivePreset(btn); applyPreset(btn.dataset.preset); });
+    });
+    startInput.addEventListener("change", () => {
+      dateStart = startInput.value || null;
+      setActivePreset(null);
+      renderAll();
+    });
+    endInput.addEventListener("change", () => {
+      dateEnd = endInput.value || null;
+      setActivePreset(null);
+      renderAll();
+    });
+
+    // Varsayılan "Son 90 Gün" — diğer tüm borsa panelleriyle tutarlı tek standart.
+    setActivePreset(document.querySelector('#exchange-summary-aycicek-period-presets .seg[data-preset="90"]'));
+    applyPreset("90");
+  }
+
+  document.getElementById("exchange-aycicek-currency-toggle").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currency = btn.dataset.currency;
+      document.getElementById("exchange-aycicek-currency-toggle").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+      const rows = filteredMerged();
+      renderKpis(rows, currency);
+      drawChart(rows, currency);
+    });
+  });
+  document.getElementById("exchange-summary-aycicek-row-limit").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => {
+      rowLimit = Number(btn.dataset.limit);
+      exchangePage = 0;
+      document.getElementById("exchange-summary-aycicek-row-limit").querySelectorAll(".seg").forEach(b => b.classList.toggle("active", b === btn));
+      renderTable(filteredMerged(), rowLimit, exchangePage);
+    });
+  });
+  document.getElementById("exchange-summary-aycicek-page-prev").addEventListener("click", () => {
+    exchangePage -= 1;
+    renderTable(filteredMerged(), rowLimit, exchangePage);
+  });
+  document.getElementById("exchange-summary-aycicek-page-next").addEventListener("click", () => {
+    exchangePage += 1;
+    renderTable(filteredMerged(), rowLimit, exchangePage);
+  });
+  document.getElementById("exchange-summary-aycicek-export-btn").addEventListener("click", () => {
+    const rows = filteredMerged();
+    if (!rows.length) return;
+    exportCsv(rows);
+  });
+  document.getElementById("exchange-summary-aycicek-selected-day-clear").addEventListener("click", () => {
+    selectedDate = null;
+    updateSelectedDayBanner();
+    renderKpis(filteredMerged(), currency);
+  });
+
+  function updateAsofBadge() {
+    const badge = document.getElementById("exchange-summary-aycicek-asof-badge");
+    badge.textContent = merged.length ? tt("asofPrefix") + fmtDateFull(merged[merged.length - 1].date) : tt("asofNoData");
+  }
+
+  function applyLanguage(newLang) {
+    lang = newLang;
+    document.getElementById("exchange-summary-aycicek-chart-title").textContent = tt("chartTitle");
+    document.getElementById("exchange-summary-aycicek-table-title").textContent = tt("tableTitle");
+    document.querySelector('#exchange-summary-aycicek-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
+    document.querySelector('#exchange-summary-aycicek-period-presets .seg[data-preset="90"]').textContent = tt("preset90");
+    document.querySelector('#exchange-summary-aycicek-period-presets .seg[data-preset="all"]').textContent = tt("presetAll");
+    document.getElementById("exchange-summary-aycicek-th-date").textContent = tt("thDate");
+    document.getElementById("exchange-summary-aycicek-th-usd").textContent = tt("thUsd");
+    document.getElementById("exchange-summary-aycicek-th-uztb-tl").textContent = tt("thUztbTl");
+    document.getElementById("exchange-summary-aycicek-th-uztb-usd").textContent = tt("thUztbUsd");
+    document.getElementById("exchange-summary-aycicek-th-ctb-tl").textContent = tt("thCtbTl");
+    document.getElementById("exchange-summary-aycicek-th-ctb-usd").textContent = tt("thCtbUsd");
+    document.getElementById("exchange-summary-aycicek-th-ptb-tl").textContent = tt("thPtbTl");
+    document.getElementById("exchange-summary-aycicek-th-ptb-usd").textContent = tt("thPtbUsd");
+    document.getElementById("exchange-summary-aycicek-export-btn").textContent = tt("exportBtn");
+    document.getElementById("exchange-summary-aycicek-page-prev").title = tt("prevPageTitle");
+    document.getElementById("exchange-summary-aycicek-page-next").title = tt("nextPageTitle");
+    document.getElementById("exchange-summary-aycicek-selected-day-clear").textContent = tt("backToToday");
+    updateAsofBadge();
+    updateSelectedDayBanner();
+    renderAll();
+  }
+  window.__registerI18nPanel(applyLanguage);
+
+  let loaded = false;
+  window.__aycicekSummaryTab = {
+    onActivate() {
+      if (loaded) return;
+      loaded = true;
+      Promise.all([fetchUztbAycicek(), fetchCtbAycicek(), fetchPtbAycicek(), fetchTcmbRates()])
+        .then(([uztbRows, ctbRows, ptbRows, tcmbRows]) => {
+          window.__updateStatusFromCache(["summary-aycicek-uztb", "summary-aycicek-ctb", "summary-aycicek-ptb", "summary-tcmb"]);
+          lang = window.__appLang || "tr";
+          merged = buildMerged(dailyMap(uztbRows), dailyMap(ctbRows), dailyMap(ptbRows), tcmbDailyMap(tcmbRows));
+          updateAsofBadge();
+          buildDateControls();
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById("exchange-summary-aycicek-asof-badge").textContent = tt("asofError");
+        });
+    },
+  };
 })();
 
 // ---------------------------------------------------------------------------

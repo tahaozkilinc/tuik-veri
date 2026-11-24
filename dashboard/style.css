@@ -235,6 +235,16 @@
   }
   .reset-btn:hover { color: var(--bad); border-color: var(--bad); }
 
+  /* ---------- seçili gün bandı (Özet sayfaları: grafik/tabloda bir güne
+     tıklanınca o günün verisi üst KPI'ların yerine burada sabitlenir) ---------- */
+  .selected-day-banner {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    background: color-mix(in srgb, var(--focus) 10%, var(--surface-1)); border: 1px solid var(--focus);
+    border-radius: 12px; padding: 10px 14px; font-size: 13px;
+  }
+  .selected-day-banner strong { color: var(--text-primary); }
+  .selected-day-banner .reset-btn { align-self: center; margin-left: 0; }
+
   /* ---------- KPI row ---------- */
   .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
   .stat-tile {
