@@ -213,6 +213,13 @@
 
       <section class="filters" aria-label="Özet filtreleri">
         <div class="filter-group">
+          <span class="filter-label" id="exchange-summary-label-commodity">Ürün</span>
+          <div class="segmented" id="exchange-summary-commodity-toggle" role="group" aria-label="Ürün seçimi">
+            <button class="seg active" type="button" data-commodity="misir">Mısır</button>
+            <button class="seg" type="button" data-commodity="aycicek">Ayçiçek</button>
+          </div>
+        </div>
+        <div class="filter-group">
           <span class="filter-label" id="exchange-summary-label-daterange">Tarih Aralığı</span>
           <div class="period-row">
             <input type="date" class="text-input" id="exchange-summary-date-start">
@@ -228,12 +235,14 @@
             <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
           </div>
         </div>
+        <div class="filter-group selected-day-group" id="exchange-summary-selected-day" hidden>
+          <span class="filter-label" id="exchange-summary-label-selectedday">Seçili Gün</span>
+          <div class="selected-day-inline">
+            <span id="exchange-summary-selected-day-text"></span>
+            <button class="reset-btn" id="exchange-summary-selected-day-clear" type="button">✕</button>
+          </div>
+        </div>
       </section>
-
-      <div class="selected-day-banner" id="exchange-summary-selected-day" hidden>
-        <span id="exchange-summary-selected-day-text"></span>
-        <button class="reset-btn" id="exchange-summary-selected-day-clear" type="button">✕ Bugüne dön</button>
-      </div>
 
       <section class="kpi-row" id="exchange-summary-kpi-row" aria-label="Özet göstergeler"></section>
 
@@ -299,6 +308,13 @@
 
       <section class="filters" aria-label="Özet filtreleri">
         <div class="filter-group">
+          <span class="filter-label" id="exchange-summary-aycicek-label-commodity">Ürün</span>
+          <div class="segmented" id="exchange-summary-aycicek-commodity-toggle" role="group" aria-label="Ürün seçimi">
+            <button class="seg" type="button" data-commodity="misir">Mısır</button>
+            <button class="seg active" type="button" data-commodity="aycicek">Ayçiçek</button>
+          </div>
+        </div>
+        <div class="filter-group">
           <span class="filter-label" id="exchange-summary-aycicek-label-daterange">Tarih Aralığı</span>
           <div class="period-row">
             <input type="date" class="text-input" id="exchange-summary-aycicek-date-start">
@@ -314,12 +330,14 @@
             <button class="seg" type="button" data-preset="all">Tüm Zamanlar</button>
           </div>
         </div>
+        <div class="filter-group selected-day-group" id="exchange-summary-aycicek-selected-day" hidden>
+          <span class="filter-label" id="exchange-summary-aycicek-label-selectedday">Seçili Gün</span>
+          <div class="selected-day-inline">
+            <span id="exchange-summary-aycicek-selected-day-text"></span>
+            <button class="reset-btn" id="exchange-summary-aycicek-selected-day-clear" type="button">✕</button>
+          </div>
+        </div>
       </section>
-
-      <div class="selected-day-banner" id="exchange-summary-aycicek-selected-day" hidden>
-        <span id="exchange-summary-aycicek-selected-day-text"></span>
-        <button class="reset-btn" id="exchange-summary-aycicek-selected-day-clear" type="button">✕ Bugüne dön</button>
-      </div>
 
       <section class="kpi-row" id="exchange-summary-aycicek-kpi-row" aria-label="Özet göstergeler"></section>
 

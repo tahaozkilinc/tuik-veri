@@ -2026,7 +2026,8 @@ window.__tabManager = (function () {
       tooltipTurib: "TÜRİB Mısır", tooltipKtb: "KTB Mısır", tooltipGtb: "GTB Mısır", tooltipUsd: "USD/TRY",
       asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi", asofLoading: "Yükleniyor…",
       priceSuffix: " TL/ton",
-      selectedDayPrefix: "Seçili gün: ", backToToday: "✕ Bugüne dön",
+      selectedDayLabel: "Seçili Gün", selectedDayPrefix: "Seçili gün: ", backToToday: "✕",
+      commodityLabel: "Ürün", commodityMisir: "Mısır", commodityAycicek: "Ayçiçek",
     },
     en: {
       bannerStrong: "Corn price summary",
@@ -2042,7 +2043,8 @@ window.__tabManager = (function () {
       tooltipTurib: "TÜRİB Corn", tooltipKtb: "KTB Corn", tooltipGtb: "GTB Corn", tooltipUsd: "USD/TRY",
       asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data", asofLoading: "Loading…",
       priceSuffix: " TRY/ton",
-      selectedDayPrefix: "Selected day: ", backToToday: "✕ Back to latest",
+      selectedDayLabel: "Selected Day", selectedDayPrefix: "Selected day: ", backToToday: "✕",
+      commodityLabel: "Product", commodityMisir: "Corn", commodityAycicek: "Sunflower",
     },
     ru: {
       bannerStrong: "Сводка цен на кукурузу",
@@ -2058,7 +2060,8 @@ window.__tabManager = (function () {
       tooltipTurib: "TÜRİB Кукуруза", tooltipKtb: "KTB Кукуруза", tooltipGtb: "GTB Кукуруза", tooltipUsd: "USD/TRY",
       asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные", asofLoading: "Загрузка…",
       priceSuffix: " TRY/т",
-      selectedDayPrefix: "Выбранный день: ", backToToday: "✕ К последним данным",
+      selectedDayLabel: "Выбранный день", selectedDayPrefix: "Выбранный день: ", backToToday: "✕",
+      commodityLabel: "Продукт", commodityMisir: "Кукуруза", commodityAycicek: "Подсолнечник",
     },
   };
   let lang = "tr";
@@ -2516,6 +2519,12 @@ window.__tabManager = (function () {
     applyPreset("90");
   }
 
+  document.getElementById("exchange-summary-commodity-toggle").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.commodity === "aycicek") window.__showExchangeSubtab("summaryAycicek");
+    });
+  });
+
   document.getElementById("exchange-currency-toggle").querySelectorAll(".seg").forEach(btn => {
     btn.addEventListener("click", () => {
       currency = btn.dataset.currency;
@@ -2567,6 +2576,9 @@ window.__tabManager = (function () {
     document.getElementById("exchange-summary-banner-body").textContent = tt("bannerBody");
     document.getElementById("exchange-summary-chart-title").textContent = tt("chartTitle");
     document.getElementById("exchange-summary-table-title").textContent = tt("tableTitle");
+    document.getElementById("exchange-summary-label-commodity").textContent = tt("commodityLabel");
+    document.querySelector('#exchange-summary-commodity-toggle .seg[data-commodity="misir"]').textContent = tt("commodityMisir");
+    document.querySelector('#exchange-summary-commodity-toggle .seg[data-commodity="aycicek"]').textContent = tt("commodityAycicek");
     document.getElementById("exchange-summary-label-daterange").textContent = tt("labelDateRange");
     document.getElementById("exchange-summary-label-quickselect").textContent = tt("labelQuickSelect");
     document.querySelector('#exchange-summary-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
@@ -2583,6 +2595,7 @@ window.__tabManager = (function () {
     document.getElementById("exchange-summary-export-btn").textContent = tt("exportBtn");
     document.getElementById("exchange-summary-page-prev").title = tt("prevPageTitle");
     document.getElementById("exchange-summary-page-next").title = tt("nextPageTitle");
+    document.getElementById("exchange-summary-label-selectedday").textContent = tt("selectedDayLabel");
     document.getElementById("exchange-summary-selected-day-clear").textContent = tt("backToToday");
     updateAsofBadge();
     updateSelectedDayBanner();
@@ -2648,6 +2661,12 @@ window.__tabManager = (function () {
       if (isActive && cfgSub.onActivate) cfgSub.onActivate();
     });
   }
+  // Mısır/Ayçiçek Özet sayfalarının kendi filtre satırındaki "Ürün" geçiş
+  // düğmeleri (aşağıdaki Ayçiçek IIFE'si dahil) bu fonksiyonu kullanıyor —
+  // kullanıcının talebi: "özet sayfasının altında mısır ve ayçekirdeğini
+  // seçmem izin ver" (üstteki alt sekme çubuğuna ek olarak sayfanın kendi
+  // filtre alanından da geçiş yapılabilsin).
+  window.__showExchangeSubtab = showExchangeSubtab;
 })();
 
 // ---------------------------------------------------------------------------
@@ -2673,6 +2692,7 @@ window.__tabManager = (function () {
   const SUMMARY_STRINGS = {
     tr: {
       chartTitle: "Ayçiçek fiyat eğilimi", tableTitle: "Günlük veriler",
+      labelDateRange: "Tarih Aralığı", labelQuickSelect: "Hızlı seçim",
       preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
       legendUztb: "UZTB Ayçiçek", legendCtb: "ÇTB Ayçiçek (Yağlık)", legendPtb: "PTB Ayçiçek (Standart Dışı)",
       kpiUztb: "UZTB Ayçiçek (son)", kpiCtb: "ÇTB Ayçiçek (son)", kpiPtb: "PTB Ayçiçek (son)", kpiUsd: "USD/TRY (TCMB, son)",
@@ -2685,10 +2705,12 @@ window.__tabManager = (function () {
       tooltipUztb: "UZTB Ayçiçek", tooltipCtb: "ÇTB Ayçiçek", tooltipPtb: "PTB Ayçiçek", tooltipUsd: "USD/TRY",
       asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi", asofLoading: "Yükleniyor…",
       priceSuffix: " TL/ton",
-      selectedDayPrefix: "Seçili gün: ", backToToday: "✕ Bugüne dön",
+      selectedDayLabel: "Seçili Gün", selectedDayPrefix: "Seçili gün: ", backToToday: "✕",
+      commodityLabel: "Ürün", commodityMisir: "Mısır", commodityAycicek: "Ayçiçek",
     },
     en: {
       chartTitle: "Sunflower price trend", tableTitle: "Daily data",
+      labelDateRange: "Date Range", labelQuickSelect: "Quick select",
       preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
       legendUztb: "UZTB Sunflower", legendCtb: "ÇTB Sunflower (Oil-type)", legendPtb: "PTB Sunflower (Off-standard)",
       kpiUztb: "UZTB Sunflower (latest)", kpiCtb: "ÇTB Sunflower (latest)", kpiPtb: "PTB Sunflower (latest)", kpiUsd: "USD/TRY (TCMB, latest)",
@@ -2701,10 +2723,12 @@ window.__tabManager = (function () {
       tooltipUztb: "UZTB Sunflower", tooltipCtb: "ÇTB Sunflower", tooltipPtb: "PTB Sunflower", tooltipUsd: "USD/TRY",
       asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data", asofLoading: "Loading…",
       priceSuffix: " TRY/ton",
-      selectedDayPrefix: "Selected day: ", backToToday: "✕ Back to latest",
+      selectedDayLabel: "Selected Day", selectedDayPrefix: "Selected day: ", backToToday: "✕",
+      commodityLabel: "Product", commodityMisir: "Corn", commodityAycicek: "Sunflower",
     },
     ru: {
       chartTitle: "Динамика цены на подсолнечник", tableTitle: "Суточные данные",
+      labelDateRange: "Период", labelQuickSelect: "Быстрый выбор",
       preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
       legendUztb: "UZTB Подсолнечник", legendCtb: "ÇTB Подсолнечник (масличный)", legendPtb: "PTB Подсолнечник (нестандарт)",
       kpiUztb: "UZTB Подсолнечник (посл.)", kpiCtb: "ÇTB Подсолнечник (посл.)", kpiPtb: "PTB Подсолнечник (посл.)", kpiUsd: "USD/TRY (TCMB, посл.)",
@@ -2717,7 +2741,8 @@ window.__tabManager = (function () {
       tooltipUztb: "UZTB Подсолнечник", tooltipCtb: "ÇTB Подсолнечник", tooltipPtb: "PTB Подсолнечник", tooltipUsd: "USD/TRY",
       asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные", asofLoading: "Загрузка…",
       priceSuffix: " TRY/т",
-      selectedDayPrefix: "Выбранный день: ", backToToday: "✕ К последним данным",
+      selectedDayLabel: "Выбранный день", selectedDayPrefix: "Выбранный день: ", backToToday: "✕",
+      commodityLabel: "Продукт", commodityMisir: "Кукуруза", commodityAycicek: "Подсолнечник",
     },
   };
   let lang = "tr";
@@ -3129,6 +3154,12 @@ window.__tabManager = (function () {
     applyPreset("90");
   }
 
+  document.getElementById("exchange-summary-aycicek-commodity-toggle").querySelectorAll(".seg").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.commodity === "misir") window.__showExchangeSubtab("summary");
+    });
+  });
+
   document.getElementById("exchange-aycicek-currency-toggle").querySelectorAll(".seg").forEach(btn => {
     btn.addEventListener("click", () => {
       currency = btn.dataset.currency;
@@ -3174,6 +3205,11 @@ window.__tabManager = (function () {
     lang = newLang;
     document.getElementById("exchange-summary-aycicek-chart-title").textContent = tt("chartTitle");
     document.getElementById("exchange-summary-aycicek-table-title").textContent = tt("tableTitle");
+    document.getElementById("exchange-summary-aycicek-label-commodity").textContent = tt("commodityLabel");
+    document.querySelector('#exchange-summary-aycicek-commodity-toggle .seg[data-commodity="misir"]').textContent = tt("commodityMisir");
+    document.querySelector('#exchange-summary-aycicek-commodity-toggle .seg[data-commodity="aycicek"]').textContent = tt("commodityAycicek");
+    document.getElementById("exchange-summary-aycicek-label-daterange").textContent = tt("labelDateRange");
+    document.getElementById("exchange-summary-aycicek-label-quickselect").textContent = tt("labelQuickSelect");
     document.querySelector('#exchange-summary-aycicek-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
     document.querySelector('#exchange-summary-aycicek-period-presets .seg[data-preset="90"]').textContent = tt("preset90");
     document.querySelector('#exchange-summary-aycicek-period-presets .seg[data-preset="all"]').textContent = tt("presetAll");
@@ -3188,6 +3224,7 @@ window.__tabManager = (function () {
     document.getElementById("exchange-summary-aycicek-export-btn").textContent = tt("exportBtn");
     document.getElementById("exchange-summary-aycicek-page-prev").title = tt("prevPageTitle");
     document.getElementById("exchange-summary-aycicek-page-next").title = tt("nextPageTitle");
+    document.getElementById("exchange-summary-aycicek-label-selectedday").textContent = tt("selectedDayLabel");
     document.getElementById("exchange-summary-aycicek-selected-day-clear").textContent = tt("backToToday");
     updateAsofBadge();
     updateSelectedDayBanner();
