@@ -67,7 +67,7 @@ def _us_row_convert(measure_key: str, table: str, value: float) -> tuple[float, 
 # yıl önce, önceki pazarlama yılı tahmini, bu pazarlama yılının önceki ay
 # projeksiyonu, bu pazarlama yılının bu ay projeksiyonu]. Metindeki gerçek
 # etiketler (ay kısaltmaları, yıl numaraları) ay be ay değiştiği için
-# compute_ending_stock_trends bu SIRA etiketine (_period_slot) güveniyor,
+# compute_change_trends bu SIRA etiketine (_period_slot) güveniyor,
 # metin içeriğine değil — "önceki rapora göre" = proj_prev vs proj_latest,
 # "önceki pazarlama yılına göre" = est vs proj_latest.
 PERIOD_SLOTS = ["flat", "est", "proj_prev", "proj_latest"]
@@ -170,40 +170,44 @@ def _trend_record(base: dict, measure: str, measure_tr: str, value: float, perio
     }
 
 
-def compute_ending_stock_trends(records: list[dict]) -> list[dict]:
-    """Devreden stok (ending_stocks) için iki yüzdelik değişim üretir:
-      - ending_stocks_mom_change_pct: bu ayki WASDE'nin kendi önceki ay ->
-        bu ay revizyonu — "bir önceki rapora göre" sorusunun cevabı.
-      - ending_stocks_yoy_change_pct: önceki pazarlama yılı tahmininden bu
-        yılın projeksiyonuna geçiş — stok "düşüş eğiliminde mi" sorusunun
+def compute_change_trends(records: list[dict]) -> list[dict]:
+    """Her ölçü (production, ending_stocks, exports, avg_price, ...) için iki
+    yüzdelik değişim üretir — ÖNCEDEN bu sadece ending_stocks için
+    hesaplanıyordu ("üretim neden yüzde değişim vermiyor" diye sorulunca
+    tüm ölçülere genelleştirildi):
+      - <measure>_mom_change_pct: bu ayki WASDE'nin kendi önceki ay -> bu
+        ay revizyonu — "bir önceki rapora göre" sorusunun cevabı.
+      - <measure>_yoy_change_pct: önceki pazarlama yılı tahmininden bu
+        yılın projeksiyonuna geçiş — "bir önceki yıla göre" sorusunun
         cevabı.
     Hangi ayların/yılların karşılaştırıldığı metinden değil, her kaydın
     _period_slot etiketinden (flat/est/proj_prev/proj_latest) okunuyor —
     ay kısaltmaları ve pazarlama yılı numaraları her ay değiştiği için
-    metne güvenmek kırılgan olurdu. Negatif = düşüş (stok azalıyor).
+    metne güvenmek kırılgan olurdu. Negatif = düşüş.
     """
     by_series: dict[tuple, dict[str, dict]] = {}
     for r in records:
-        if r["measure"] != "ending_stocks" or not r.get("_period_slot"):
+        if not r.get("_period_slot"):
             continue
-        key = (r["commodity"], r["scope"], r["region"])
+        key = (r["commodity"], r["scope"], r["region"], r["measure"])
         by_series.setdefault(key, {})[r["_period_slot"]] = r
 
     trend_records: list[dict] = []
-    for by_slot in by_series.values():
+    for (_commodity, _scope, _region, measure), by_slot in by_series.items():
         prev_month = by_slot.get("proj_prev")
         latest = by_slot.get("proj_latest")
         est = by_slot.get("est")
         if latest is None:
             continue
+        measure_tr = latest["measure_label_tr"]
         if prev_month is not None:
             pct = _pct_change(prev_month["value"], latest["value"])
             if pct is not None:
                 trend_records.append(
                     _trend_record(
                         latest,
-                        "ending_stocks_mom_change_pct",
-                        "Devreden Stok - Bir Önceki Rapora Göre Değişim (%)",
+                        f"{measure}_mom_change_pct",
+                        f"{measure_tr} - Bir Önceki Rapora Göre Değişim (%)",
                         pct,
                         latest["period_label"],
                     )
@@ -214,8 +218,8 @@ def compute_ending_stock_trends(records: list[dict]) -> list[dict]:
                 trend_records.append(
                     _trend_record(
                         latest,
-                        "ending_stocks_yoy_change_pct",
-                        "Devreden Stok - Bir Önceki Pazarlama Yılına Göre Değişim (%)",
+                        f"{measure}_yoy_change_pct",
+                        f"{measure_tr} - Bir Önceki Pazarlama Yılına Göre Değişim (%)",
                         pct,
                         latest["period_label"],
                     )
@@ -246,7 +250,7 @@ def build_records(text: str, report_date: str, release_number: int) -> list[dict
     world_soyoil, world_soyoil_slots = parser.parse_world_soyoil(text)
     records += _world_table_to_records(world_soyoil, world_soyoil_slots, "soybean_oil", glossary.WORLD_SOYBEAN_OIL_COLUMNS, report_date, release_number)
 
-    records += compute_ending_stock_trends(records)
+    records += compute_change_trends(records)
 
     # _period_slot sadece bu ay içinde "önceki rapora göre" hesaplaması için
     # ara veri — wasde_stats şemasında böyle bir sütun yok, DB'ye yazılmadan

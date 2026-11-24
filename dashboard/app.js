@@ -1835,18 +1835,20 @@ window.__tabManager = (function () {
         value.className = "value num"; value.textContent = fmtWasdeValue(cell.value, translateUnit(cell.unit, cell.unit_label_tr));
         tile.appendChild(label); tile.appendChild(value);
 
-        if (measure === "ending_stocks") {
-          const mom = byMeasure["ending_stocks_mom_change_pct"] && byMeasure["ending_stocks_mom_change_pct"][latestPeriod];
-          const yoy = byMeasure["ending_stocks_yoy_change_pct"] && byMeasure["ending_stocks_yoy_change_pct"][latestPeriod];
-          [[tt("momLabel"), mom], [tt("yoyLabel"), yoy]].forEach(([suffix, r]) => {
-            if (!r) return;
-            const d2 = document.createElement("div");
-            const dir = r.value > 0.05 ? "up" : r.value < -0.05 ? "down" : "flat";
-            d2.className = "delta " + dir;
-            d2.textContent = (r.value >= 0 ? "▲ " : "▼ ") + Math.abs(r.value).toFixed(1) + "% " + suffix;
-            tile.appendChild(d2);
-          });
-        }
+        // Önceden sadece "ending_stocks" için mom/yoy delta gösteriliyordu
+        // ("üretim neden % değişim vermiyor" diye sorulunca genelleştirildi)
+        // — artık KPI kutusuna çıkan HER ölçü (production dahil) için çalışır.
+        const momKey = measure + "_mom_change_pct", yoyKey = measure + "_yoy_change_pct";
+        const mom = byMeasure[momKey] && byMeasure[momKey][latestPeriod];
+        const yoy = byMeasure[yoyKey] && byMeasure[yoyKey][latestPeriod];
+        [[tt("momLabel"), mom], [tt("yoyLabel"), yoy]].forEach(([suffix, r]) => {
+          if (!r) return;
+          const d2 = document.createElement("div");
+          const dir = r.value > 0.05 ? "up" : r.value < -0.05 ? "down" : "flat";
+          d2.className = "delta " + dir;
+          d2.textContent = (r.value >= 0 ? "▲ " : "▼ ") + Math.abs(r.value).toFixed(1) + "% " + suffix;
+          tile.appendChild(d2);
+        });
         container.appendChild(tile);
       });
     }
@@ -1860,10 +1862,21 @@ window.__tabManager = (function () {
         if (!byMeasure.has(r.measure)) byMeasure.set(r.measure, { label: translateMeasure(r.measure, r.measure_label_tr), unit: translateUnit(r.unit, r.unit_label_tr), byPeriod: {} });
         byMeasure.get(r.measure).byPeriod[r.period_label] = r.value;
       });
-      const momByPeriod = {}, yoyByPeriod = {};
+      // Önceden sadece ending_stocks için mom/yoy vardı — artık her ölçünün
+      // kendi "<measure>_mom_change_pct" / "<measure>_yoy_change_pct"
+      // serisi olabiliyor (bkz. wasde/records.py compute_change_trends).
+      const trendByMeasure = new Map();
       rs.forEach(r => {
-        if (r.measure === "ending_stocks_mom_change_pct") momByPeriod[r.period_label] = r.value;
-        if (r.measure === "ending_stocks_yoy_change_pct") yoyByPeriod[r.period_label] = r.value;
+        const momSuffix = "_mom_change_pct", yoySuffix = "_yoy_change_pct";
+        if (r.measure.endsWith(momSuffix)) {
+          const base = r.measure.slice(0, -momSuffix.length);
+          if (!trendByMeasure.has(base)) trendByMeasure.set(base, { mom: {}, yoy: {} });
+          trendByMeasure.get(base).mom[r.period_label] = r.value;
+        } else if (r.measure.endsWith(yoySuffix)) {
+          const base = r.measure.slice(0, -yoySuffix.length);
+          if (!trendByMeasure.has(base)) trendByMeasure.set(base, { mom: {}, yoy: {} });
+          trendByMeasure.get(base).yoy[r.period_label] = r.value;
+        }
       });
 
       const measures = [...byMeasure.keys()].sort((a, b) => {
@@ -1909,11 +1922,12 @@ window.__tabManager = (function () {
           td.textContent = m.byPeriod[p] != null ? fmtWasdeValue(m.byPeriod[p], m.unit) : "—";
           tr.appendChild(td);
         });
-        [momByPeriod, yoyByPeriod].forEach(bucket => {
+        const trend = trendByMeasure.get(measure);
+        [trend && trend.mom, trend && trend.yoy].forEach(bucket => {
           const td = document.createElement("td");
           td.className = "num-col";
-          if (measure === "ending_stocks" && bucket[periods[periods.length - 1]] != null) {
-            const v = bucket[periods[periods.length - 1]];
+          const v = bucket && bucket[periods[periods.length - 1]];
+          if (v != null) {
             const pill = document.createElement("span");
             pill.className = "trend-pill " + (v > 0.05 ? "up" : v < -0.05 ? "down" : "flat");
             pill.textContent = fmtPct(v);
