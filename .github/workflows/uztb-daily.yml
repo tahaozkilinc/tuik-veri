@@ -2,9 +2,15 @@ name: Daily UZTB Price Fetch
 
 on:
   schedule:
-    # 15:00 UTC = 18:00 Türkiye saati (TR daimi UTC+3, DST yok).
-    # Hafta sonu işlem yapılmıyor, bu yüzden sadece Pzt-Cuma çalışıyor.
-    - cron: "0 15 * * 1-5"
+    # 11:23 UTC = 14:23 Türkiye saati (TR daimi UTC+3, DST yok). Daha önce
+    # 15:00 UTC (18:00 TR) idi; GH Actions'ın kendi zamanlanmış görev
+    # gecikmesi (bazen 5-9 saat) o saatte gece yarısını aşıp "bugün"ü
+    # kaçırmaya sebep oluyordu (bkz. uztb/run.py'deki fill_uztb_fiyat_gaps
+    # yorumu). Hem daha erken bir saate alındı (gece yarısına kadar daha
+    # fazla tampon) hem de yuvarlak saat yerine (:00, GH'da en yoğun an)
+    # jitter'lı bir dakikaya kaydırıldı. Hafta sonu işlem yapılmıyor, bu
+    # yüzden sadece Pzt-Cuma çalışıyor.
+    - cron: "23 11 * * 1-5"
   workflow_dispatch:
     inputs:
       backfill:
