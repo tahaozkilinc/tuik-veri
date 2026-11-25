@@ -4346,7 +4346,7 @@ const DAILY_BORSA_COMMON_STRINGS = {
 // kelimelerinden birini içeriyorsa o grup altında toplanıyor (örn.
 // "EKMEKLİK BUĞDAY", "MAKARNALIK BUĞDAY", "SERT BUĞDAY (...)" hepsi
 // "BUĞDAY" grubuna), eşleşme yoksa ürünün kendi adı tek başına bir grup olur.
-const BASE_COMMODITY_KEYWORDS = ["BUĞDAY", "ARPA", "MISIR", "AYÇİÇE", "YULAF", "NOHUT", "MERCİMEK", "FİĞ", "TRİTİKALE"];
+const BASE_COMMODITY_KEYWORDS = ["BUĞDAY", "ARPA", "MISIR", "AYÇİÇE", "YULAF", "NOHUT", "MERCİMEK", "FİĞ", "TRİTİKALE", "ÇAVDAR", "KANOLA"];
 function baseCommodityGroup(name) {
   for (const kw of BASE_COMMODITY_KEYWORDS) {
     if (name.includes(kw)) return kw === "AYÇİÇE" ? "AYÇİÇEĞİ" : kw;
@@ -4995,7 +4995,8 @@ function initDailySummaryBorsaPanel(cfg) {
     const parsed = allProducts.map(p => ({ full: p, group: baseCommodityGroup(p) }));
 
     function pickDefaultForGroup(group) {
-      const candidates = parsed.filter(p => p.group === group);
+      // Görünen sırayla aynı (alfabetik) — varsayılan çeşit ilk çip olsun.
+      const candidates = parsed.filter(p => p.group === group).sort((a, b) => a.full.localeCompare(b.full, "tr"));
       const def = (cfg.defaultProduct && candidates.find(p => p.full === cfg.defaultProduct)) || candidates[0];
       return def ? new Set([def.full]) : new Set();
     }
