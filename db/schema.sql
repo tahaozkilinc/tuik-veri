@@ -207,12 +207,9 @@ create policy "public read turib_bulletin" on turib_bulletin for select using (t
 revoke insert, update, delete, truncate on turib_bulletin from anon, authenticated;
 
 -- Uzunköprü Ticaret Borsası (UZTB) — Salon Satışı günlük fiyat özeti.
--- www.uzunkoprutb.org.tr'nin kendi iç API'leri kullanılıyor (sayfa HTML'i
--- veriyi barındırmıyor, JS ile AJAX çekiyor). İki kaynak birleşiyor: bugün
--- için /api/salon-satis.php (bireysel işlemler, rutubet dahil, BURADAN
--- kendimiz günlük özet hesaplıyoruz), geçmiş içinse /json/gunluk_bulten_detay.asp
--- (kaynağın kendi tuttuğu ~1 aylık hazır özet, rutubet YOK). Her satır bir
--- günün TEK özeti — bireysel işlem değil.
+-- Kaynak: /json/gunluk_bulten_detay.asp (sitenin günlük bülten sayfasının
+-- kendi AJAX ucu) — kaynağın hesapladığı ~1 aylık hazır özet; her gün
+-- pencerenin tamamı yeniden yazılıyor. Her satır bir günün TEK özeti.
 create table if not exists uztb_fiyat (
     id           bigint generated always as identity primary key,
     trade_date   date not null,
@@ -223,10 +220,13 @@ create table if not exists uztb_fiyat (
     ort_fiyat    numeric,         -- ağırlıklı ortalama
     toplam_kilo  numeric,
     islem_adet   int,
-    ort_rutubet  numeric,         -- sadece /api/salon-satis.php ile çekilen günlerde dolu
+    ort_yag      numeric,         -- kiloyla ağırlıklı ortalama yağ oranı (%), kaynağın "Ort. Yağ"ı
     fetched_at   timestamptz not null default now(),
     unique (trade_date, urun_kodu)
 );
+-- Var olan tabloyu güncellemek için (rutubet yerine yağ oranı):
+alter table uztb_fiyat add column if not exists ort_yag numeric;
+alter table uztb_fiyat drop column if exists ort_rutubet;
 
 create index if not exists idx_uztb_fiyat_lookup on uztb_fiyat (urun_kodu, trade_date desc);
 

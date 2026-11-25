@@ -1,28 +1,16 @@
-"""UZTB API yanıtlarını günlük özet kayıtlarına (bir gün = bir satır) çevirir.
+"""UZTB günlük bülten satırlarını (gunluk_bulten_detay.asp) günlük özet
+kayıtlarına (bir gün = bir satır) çevirir.
 
-İki farklı kaynaktan geliyor:
-- Bugünün bireysel satırları (salon-satis.php) → min/maks/ağırlıklı
-  ortalama fiyat + toplam kilo + ORTALAMA RUTUBET kendimiz hesaplıyoruz
-  (kaynak zaten aynı hesabı sayfanın kendi JS'inde yapıyor, biz
-  tekrarlıyoruz).
-- Geçmiş günlerin özeti (gunluk_bulten_detay.asp) → kaynağın kendi
-  hazır hesapladığı min/maks/ortalama fiyat + toplam kilo + işlem adedi;
-  bu günler için rutubet bilgisi YOK (kaynakta bulunmuyor), bu yüzden
-  ort_rutubet alanı bilerek None bırakılıyor — sahte veri üretmiyoruz.
+Bülten, kaynağın kendi hesapladığı min/maks/ağırlıklı ortalama fiyat, toplam
+kilo, işlem adedi ve ORTALAMA YAĞ ORANINI ("Deger" alanı — sitedeki "Ort.
+Yağ" kolonu) son ~1 ay için verir. Deger, o günün bireysel işlemlerindeki
+yağ oranlarının kiloyla ağırlıklı ortalamasıdır (salon-satis.php'deki
+Index1_YagOrani'ndan hesaplanıp birebir eşleştiği doğrulandı).
 """
 
 from __future__ import annotations
 
 import datetime as dt
-
-
-def _parse_ddmmyyyy(s: str) -> str | None:
-    s = s.strip()
-    try:
-        d, m, y = s.split(".")
-        return dt.date(int(y), int(m), int(d)).isoformat()
-    except (ValueError, AttributeError):
-        return None
 
 
 def _infer_ddmm_date(ddmm: str, today: dt.date) -> str | None:
@@ -40,28 +28,14 @@ def _infer_ddmm_date(ddmm: str, today: dt.date) -> str | None:
     return candidate.isoformat()
 
 
-def summarize_today(rows: list[dict], urun_kodu: str, today: dt.date) -> dict | None:
-    if not rows:
+def _tr_decimal(v) -> float | None:
+    """Kaynak bazı sayıları '42,727' gibi virgül ondalıklı metin olarak
+    veriyor (aynı alan başka uçta float gelebiliyor)."""
+    if v is None or v == "":
         return None
-    prices = [r["FIYAT"] for r in rows if r.get("FIYAT")]
-    toplam_kilo = sum(r.get("KILO") or 0 for r in rows)
-    weighted_sum = sum((r.get("FIYAT") or 0) * (r.get("KILO") or 0) for r in rows)
-    ort_fiyat = weighted_sum / toplam_kilo if toplam_kilo else None
-    rutubet_vals = [r["Rutubet"] for r in rows if r.get("Rutubet") and r["Rutubet"] > 0]
-    ort_rutubet = sum(rutubet_vals) / len(rutubet_vals) if rutubet_vals else None
-    trade_date = _parse_ddmmyyyy(rows[0].get("TARIH", "")) or today.isoformat()
-    urun_adi = rows[0].get("MALADI") or urun_kodu
-    return {
-        "trade_date": trade_date,
-        "urun_kodu": urun_kodu,
-        "urun_adi": urun_adi,
-        "min_fiyat": min(prices) if prices else None,
-        "max_fiyat": max(prices) if prices else None,
-        "ort_fiyat": ort_fiyat,
-        "toplam_kilo": toplam_kilo or None,
-        "islem_adet": len(rows),
-        "ort_rutubet": ort_rutubet,
-    }
+    if isinstance(v, (int, float)):
+        return float(v)
+    return float(str(v).replace(",", "."))
 
 
 def parse_daily_summary(rows: list[dict], urun_kodu: str, today: dt.date) -> list[dict]:
@@ -79,6 +53,6 @@ def parse_daily_summary(rows: list[dict], urun_kodu: str, today: dt.date) -> lis
             "ort_fiyat": r.get("OrtFiyat"),
             "toplam_kilo": r.get("Kilo"),
             "islem_adet": r.get("IslemAdet"),
-            "ort_rutubet": None,
+            "ort_yag": _tr_decimal(r.get("Deger")),
         })
     return records

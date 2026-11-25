@@ -90,45 +90,30 @@ def replace_turib_bulletin(client: Client, trade_date: str, records: list[dict])
     return total
 
 
-def replace_uztb_fiyat(client: Client, trade_date: str, urun_kodu: str, record: dict) -> int:
-    """Bu (trade_date, urun_kodu) çiftine ait günlük özeti silip yeniden
-    yazar — her kayıt zaten bir günün TEK ÖZET satırı (bireysel işlem
-    değil), bu yüzden WASDE/export_sales'teki gibi toplu değil tekil
-    sil-ve-ekle. Günlük cron, backfill'in bıraktığı rutubetsiz özeti
-    gerçek (rutubet dahil) özetle üzerine yazar.
-    """
-    client.table("uztb_fiyat").delete().eq("trade_date", trade_date).eq("urun_kodu", urun_kodu).execute()
-    client.table("uztb_fiyat").insert(record).execute()
-    return 1
-
-
-def fill_uztb_fiyat_gaps(client: Client, urun_kodu: str, records: list[dict]) -> int:
-    """`records` içindeki (trade_date, urun_kodu) çiftlerinden DB'de HENÜZ
-    satırı olmayanları ekler — var olan satırlara (gerçek rutubetli günlük
-    cron kaydı dahil) hiç dokunmaz. GH Actions zamanlanmış görevleri bazen
-    saatlerce gecikebiliyor (bkz. GitHub'ın kendi dokümantasyonu); bu
-    gecikme gece yarısını geçerse canlı "bugün" ucu (salon-satis.php) her
-    zaman boş döner ve o günün verisi hiç yakalanamaz. Bu fonksiyon her
-    günlük çalıştırmada ayrıca çağrılarak, kaçırılan günleri kaynağın
-    kendi ~1 aylık özetinden (rutubetsiz de olsa) otomatik doldurur — veri
-    kaybı cron zamanlamasına bağlı kalmasın diye.
+def replace_uztb_fiyat(client: Client, urun_kodu: str, records: list[dict]) -> int:
+    """Kaynağın o anki ~1 aylık bülten penceresindeki günleri silip yeniden
+    yazar. Her çalıştırma pencerenin tamamını yazdığı için kaçırılan bir
+    gün (cron gecikmesi, kaynak geç güncellemesi) bir sonraki çalıştırmada
+    kendiliğinden düzelir; gün içi kısmi bir özet de ertesi gün kesinleşmiş
+    haliyle değişir.
     """
     if not records:
         return 0
     dates = sorted({r["trade_date"] for r in records})
-    existing = (
+    client.table("uztb_fiyat").delete().eq("urun_kodu", urun_kodu).in_("trade_date", dates).execute()
+    client.table("uztb_fiyat").insert(records).execute()
+    return len(records)
+
+
+def read_uztb_fiyat(client: Client, urun_kodu: str, dates: list[str]) -> list[dict]:
+    resp = (
         client.table("uztb_fiyat")
-        .select("trade_date")
+        .select("trade_date,min_fiyat,max_fiyat,ort_fiyat,toplam_kilo,islem_adet,ort_yag")
         .eq("urun_kodu", urun_kodu)
         .in_("trade_date", dates)
         .execute()
     )
-    have = {row["trade_date"] for row in existing.data}
-    missing = [r for r in records if r["trade_date"] not in have]
-    if not missing:
-        return 0
-    client.table("uztb_fiyat").insert(missing).execute()
-    return len(missing)
+    return resp.data
 
 
 def replace_ktb_bulletin(client: Client, trade_date: str, records: list[dict]) -> int:

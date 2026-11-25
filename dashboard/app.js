@@ -4281,7 +4281,7 @@ window.__tabManager = (function () {
 // küçük borsalar) için ortak panel fabrikası — kaynakta geçmiş veri için
 // tarih parametreli bir API yok, bu yüzden DB zaten GÜNLÜK ÖZET satırları
 // tutuyor (bir gün = bir satır: min/maks/ağırlıklı ortalama fiyat, toplam
-// kilo, ortalama rutubet), satırlar doğrudan grafik noktasına dönüşüyor.
+// kilo, ortalama yağ oranı), satırlar doğrudan grafik noktasına dönüşüyor.
 // Her borsa kendi element id öneki + Supabase tablosu + banner metniyle
 // initDailySummaryBorsaPanel(cfg) çağrısıyla kaydoluyor (bkz. dosya sonu).
 const DAILY_BORSA_COMMON_STRINGS = {
@@ -4295,8 +4295,8 @@ const DAILY_BORSA_COMMON_STRINGS = {
     tooltipAvg: "Ağırlıklı Ort.", tooltipMax: "En Yüksek", tooltipMin: "En Düşük",
     noDataChart: "Bu filtrede veri yok.",
     kpiAvgPrice: "Ağırlıklı ortalama fiyat (seçili dönem)", kpiLastPrice: "Son fiyat",
-    kpiTotalVolume: "Toplam işlem hacmi", kpiAvgRutubet: "Ortalama rutubet",
-    thDate: "Tarih", thMin: "En Düşük", thMax: "En Yüksek", thAvg: "Ağ. Ort. Fiyat", thQty: "Toplam Miktar", thCount: "İşlem Adedi", thRutubet: "Ort. Rutubet", thProduct: "Ürün",
+    kpiTotalVolume: "Toplam işlem hacmi", kpiAvgYag: "Ortalama yağ oranı (seçili dönem)", kpiYagCost: "Ortalama yağ maliyeti (ton yağ başına)",
+    thDate: "Tarih", thMin: "En Düşük", thMax: "En Yüksek", thAvg: "Ağ. Ort. Fiyat", thQty: "Toplam Miktar", thCount: "İşlem Adedi", thYag: "Ort. Yağ", thYagCost: "Ton Yağ Maliyeti", thProduct: "Ürün",
     asofPrefix: "Son veri: ", asofNoData: "Veri yok", asofError: "Veri çekilemedi",
     tonSuffix: " ton", priceSuffix: " TL/ton",
     legendAvgPlain: "Ortalama", kpiAvgPricePlain: "Ortalama fiyat (seçili dönem)",
@@ -4313,8 +4313,8 @@ const DAILY_BORSA_COMMON_STRINGS = {
     tooltipAvg: "Weighted Avg.", tooltipMax: "Highest", tooltipMin: "Lowest",
     noDataChart: "No data for this filter.",
     kpiAvgPrice: "Weighted average price (selected period)", kpiLastPrice: "Last price",
-    kpiTotalVolume: "Total trade volume", kpiAvgRutubet: "Average moisture",
-    thDate: "Date", thMin: "Lowest", thMax: "Highest", thAvg: "Weighted Avg. Price", thQty: "Total Quantity", thCount: "Trade Count", thRutubet: "Avg. Moisture", thProduct: "Product",
+    kpiTotalVolume: "Total trade volume", kpiAvgYag: "Average oil content (selected period)", kpiYagCost: "Average oil cost (per ton of oil)",
+    thDate: "Date", thMin: "Lowest", thMax: "Highest", thAvg: "Weighted Avg. Price", thQty: "Total Quantity", thCount: "Trade Count", thYag: "Avg. Oil", thYagCost: "Cost per Ton of Oil", thProduct: "Product",
     asofPrefix: "Latest data: ", asofNoData: "No data", asofError: "Failed to fetch data",
     tonSuffix: " ton", priceSuffix: " TRY/ton",
     legendAvgPlain: "Average", kpiAvgPricePlain: "Average price (selected period)",
@@ -4331,8 +4331,8 @@ const DAILY_BORSA_COMMON_STRINGS = {
     tooltipAvg: "Средневзв.", tooltipMax: "Максимум", tooltipMin: "Минимум",
     noDataChart: "Нет данных для этого фильтра.",
     kpiAvgPrice: "Средневзвешенная цена (за период)", kpiLastPrice: "Последняя цена",
-    kpiTotalVolume: "Общий объём торгов", kpiAvgRutubet: "Средняя влажность",
-    thDate: "Дата", thMin: "Минимум", thMax: "Максимум", thAvg: "Сред. взв. цена", thQty: "Общий объём", thCount: "Число сделок", thRutubet: "Сред. влажность", thProduct: "Продукт",
+    kpiTotalVolume: "Общий объём торгов", kpiAvgYag: "Средняя масличность (за период)", kpiYagCost: "Средняя стоимость масла (за тонну масла)",
+    thDate: "Дата", thMin: "Минимум", thMax: "Максимум", thAvg: "Сред. взв. цена", thQty: "Общий объём", thCount: "Число сделок", thYag: "Сред. масличность", thYagCost: "Цена тонны масла", thProduct: "Продукт",
     asofPrefix: "Данные на: ", asofNoData: "Нет данных", asofError: "Не удалось загрузить данные",
     tonSuffix: " т", priceSuffix: " TRY/т",
     legendAvgPlain: "Среднее", kpiAvgPricePlain: "Средняя цена (за период)",
@@ -4370,15 +4370,14 @@ function initDailySummaryBorsaPanel(cfg) {
   const id = cfg.id;
   const appCfg = window.TUIK_DASHBOARD_CONFIG;
   const LINE_COLOR = cfg.lineColorVar;
-  // Her kaynağın veri şekli UZTB'nin "miktar+işlem+rutubet hepsi var"
-  // varsayımından sapabiliyor (GTB: hiçbiri yok; ÇTB/PTB: miktar+işlem var,
-  // rutubet yok) — bu üç bayrak hangi KPI/tonaj grafiği/tablo kolonunun
-  // gösterileceğini ayrı ayrı kontrol ediyor. Fiyatların zaten TL/TON
+  // Her kaynağın veri şekli farklı (GTB: miktar/işlem yok; ÇTB/PTB/UZTB:
+  // miktar+işlem var; sadece UZTB'de yağ oranı var) — bu bayraklar hangi
+  // KPI/tonaj grafiği/tablo kolonunun gösterileceğini ayrı ayrı kontrol ediyor. Fiyatların zaten TL/TON
   // cinsinden gelmesi (GTB — UZTB/KTB/TÜRİB/ÇTB/PTB'nin TL/kg'sinden farklı)
   // ve günde çok ürünlü kaynaklarda ürün seçici gösterilmesi ayrı bayraklar.
   const hasQty = cfg.hasQty !== false;
   const hasCount = cfg.hasCount !== false;
-  const hasRutubet = cfg.hasRutubet !== false;
+  const hasYag = !!cfg.hasYag;
   const rawIsTlPerTon = !!cfg.rawIsTlPerTon;
   const hasProductPicker = !!cfg.hasProductPicker;
   const CHART_W = 960, CHART_H = 240, PADL = 70, PADR = 20, PADT = 16, PADB = 28;
@@ -4389,6 +4388,10 @@ function initDailySummaryBorsaPanel(cfg) {
   function scalePrice(v) {
     if (v == null) return null;
     return rawIsTlPerTon ? v : v * 1000;
+  }
+  // Ton yağ maliyeti: tohumun fiyatı ÷ içerdiği yağ oranı.
+  function yagCost(r) {
+    return r.ort_yag ? scalePrice(r.ort_fiyat / (r.ort_yag / 100)) : null;
   }
   // "Ağırlıklı Ortalama" ifadesi miktar verisi olmayan kaynaklarda yanlış
   // (ağırlıklanacak bir miktar yok) — hasQty false ise bu dört anahtar için
@@ -4431,7 +4434,7 @@ function initDailySummaryBorsaPanel(cfg) {
     const selectCols = ["trade_date", "urun_adi", "min_fiyat", "max_fiyat", "ort_fiyat"]
       .concat(hasQty ? ["toplam_kilo"] : [])
       .concat(hasCount ? ["islem_adet"] : [])
-      .concat(hasRutubet ? ["ort_rutubet"] : [])
+      .concat(hasYag ? ["ort_yag"] : [])
       .join(",");
     const rows = await fetchAllPagesParallel(
       `${appCfg.SUPABASE_URL}/rest/v1/${cfg.table}?select=${selectCols}&order=trade_date.asc`,
@@ -4851,7 +4854,7 @@ function initDailySummaryBorsaPanel(cfg) {
   }
 
   // rows: o anki filtrelerle TÜM seçili ürünlerin birleşik satırları (toplam
-  // hacim/rutubet için); perProduct: her seçili ürünün kendi fiyat serisi —
+  // hacim/yağ için); perProduct: her seçili ürünün kendi fiyat serisi —
   // birden çok ürün seçiliyken her biri kendi rengiyle etiketli ayrı kutu
   // (bkz. TÜRİB'deki aynı desen).
   function renderKpis(rows, perProduct) {
@@ -4868,12 +4871,18 @@ function initDailySummaryBorsaPanel(cfg) {
     if (hasQty) {
       tiles.push({ color: null, label: tt("kpiTotalVolume"), value: fmtTon(rows.reduce((s, r) => s + (r.toplam_kilo || 0) / 1000, 0)) });
     }
-    if (hasRutubet) {
-      const rutubetVals = rows.filter(r => r.ort_rutubet != null);
-      const avgRutubet = rutubetVals.length
-        ? rutubetVals.reduce((s, r) => s + r.ort_rutubet, 0) / rutubetVals.length
-        : null;
-      tiles.push({ color: null, label: tt("kpiAvgRutubet"), value: fmtPct(avgRutubet) });
+    if (hasYag) {
+      // İkisi de kiloyla ağırlıklı: dönemdeki toplam yağ / toplam kilo, ve
+      // ödenen toplam TL / içerdiği toplam yağ tonu.
+      let sumYagKg = 0, sumKg = 0, sumTl = 0;
+      rows.forEach(r => {
+        if (r.ort_yag == null || r.toplam_kilo == null || r.ort_fiyat == null) return;
+        sumYagKg += r.toplam_kilo * r.ort_yag / 100;
+        sumKg += r.toplam_kilo;
+        sumTl += r.toplam_kilo * r.ort_fiyat;
+      });
+      tiles.push({ color: null, label: tt("kpiAvgYag"), value: fmtPct(sumKg ? sumYagKg / sumKg * 100 : null) });
+      tiles.push({ color: null, label: tt("kpiYagCost"), value: fmtPriceTon(sumYagKg ? scalePrice(sumTl / sumYagKg) : null) });
     }
     tiles.forEach(t => {
       const tile = document.createElement("div");
@@ -4901,7 +4910,7 @@ function initDailySummaryBorsaPanel(cfg) {
       .concat([tt("thMin"), tt("thMax"), ttA("thAvg")])
       .concat(hasQty ? [tt("thQty")] : [])
       .concat(hasCount ? [tt("thCount")] : [])
-      .concat(hasRutubet ? [tt("thRutubet")] : []);
+      .concat(hasYag ? [tt("thYag"), tt("thYagCost")] : []);
     cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; thead.appendChild(th); });
 
     const sorted = [...rows].sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (a.urun_adi || "").localeCompare(b.urun_adi || "", "tr"));
@@ -4918,7 +4927,7 @@ function initDailySummaryBorsaPanel(cfg) {
         ])
         .concat(hasQty ? [fmtTon((r.toplam_kilo || 0) / 1000)] : [])
         .concat(hasCount ? [String(r.islem_adet ?? "—")] : [])
-        .concat(hasRutubet ? [fmtPct(r.ort_rutubet)] : []);
+        .concat(hasYag ? [fmtPct(r.ort_yag), fmtPriceTon(yagCost(r))] : []);
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       tbody.appendChild(tr);
     });
@@ -4929,12 +4938,13 @@ function initDailySummaryBorsaPanel(cfg) {
     const cols = ["trade_date", "urun_adi", "min_fiyat", "max_fiyat", "ort_fiyat"]
       .concat(hasQty ? ["toplam_kilo"] : [])
       .concat(hasCount ? ["islem_adet"] : [])
-      .concat(hasRutubet ? ["ort_rutubet"] : []);
+      .concat(hasYag ? ["ort_yag", "yag_maliyeti_tl_ton"] : []);
     const esc = v => {
       const s = v == null ? "" : String(v);
       return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
-    const lines = [cols.join(";")].concat(rows.map(r => cols.map(c => esc(r[c])).join(";")));
+    const val = (r, c) => c === "yag_maliyeti_tl_ton" ? yagCost(r) : r[c];
+    const lines = [cols.join(";")].concat(rows.map(r => cols.map(c => esc(val(r, c))).join(";")));
     const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -5178,21 +5188,22 @@ function initDailySummaryBorsaPanel(cfg) {
 
 initDailySummaryBorsaPanel({
   id: "uztb", table: "uztb_fiyat", lineColorVar: "var(--series-import)",
+  hasYag: true,
   bannerStrong: {
     tr: "UZTB (Uzunköprü Ticaret Borsası) günlük Salon Satışı fiyat özeti",
     en: "UZTB (Uzunköprü Ticaret Borsası) daily Trading Hall price summary",
     ru: "УЗТБ (Uzunköprü Ticaret Borsası) — суточная сводка цен торгового зала",
   },
   bannerBody: {
-    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
-    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
-    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+    tr: " — borsanın kendi günlük bülteninden her iş günü akşamı çekilir: en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar ve kiloyla ağırlıklı ortalama yağ oranı. Ton yağ maliyeti = ortalama fiyat ÷ yağ oranı.",
+    en: " — fetched every business-day evening from the exchange's own daily bulletin: lowest/highest/weighted average price, total quantity and weight-weighted average oil content. Cost per ton of oil = average price ÷ oil content.",
+    ru: " — загружается каждый рабочий вечер из собственного суточного бюллетеня биржи: минимальная/максимальная/средневзвешенная цена, общий объём и средневзвешенная по весу масличность. Цена тонны масла = средняя цена ÷ масличность.",
   },
 });
 
-// GTB, UZTB'den İKİ yönde farklı: (1) kaynakta ortalama/miktar/işlem sayısı/
-// rutubet YOK, sadece en az/en çok — ort_fiyat bunların ortalaması olarak
-// TÜRETİLDİ (hasQty/hasCount/hasRutubet: false devre dışı bırakır: hacim
+// GTB, UZTB'den İKİ yönde farklı: (1) kaynakta ortalama/miktar/işlem sayısı
+// YOK, sadece en az/en çok — ort_fiyat bunların ortalaması olarak
+// TÜRETİLDİ (hasQty/hasCount: false devre dışı bırakır: hacim
 // KPI'ları, tonaj grafiği, tablo kolonları; "Ağırlıklı Ortalama" yerine düz
 // "Ortalama" etiketi kullanılır). (2) fiyatlar zaten TL/TON (UZTB/KTB/
 // TÜRİB'in TL/kg'si değil) — rawIsTlPerTon: true ×1000 dönüşümünü devre
@@ -5201,7 +5212,7 @@ initDailySummaryBorsaPanel({
 // mısır.
 initDailySummaryBorsaPanel({
   id: "gtb", table: "gtb_fiyat", lineColorVar: "var(--cat-3)",
-  hasQty: false, hasCount: false, hasRutubet: false, rawIsTlPerTon: true,
+  hasQty: false, hasCount: false, rawIsTlPerTon: true,
   hasProductPicker: true, defaultProduct: "MISIR (1. GRUP - NATUREL)",
   bannerStrong: {
     tr: "GTB (Gaziantep Ticaret Borsası) günlük Salon Satışı fiyat özeti",
@@ -5217,20 +5228,20 @@ initDailySummaryBorsaPanel({
 
 // PTB günde çok ürünlü (BUĞDAY/ARPA/MISIR/YULAF altında birçok kalite
 // sınıfı) — hasProductPicker gerekiyor (GTB'dekiyle aynı mekanizma).
-// Kaynakta miktar + işlem sayısı VAR ama rutubet YOK (ÇTB ile aynı şekil,
-// UZTB/KTB'den farklı) — hasRutubet: false. Fiyatlar TL/kg (TL/ton değil).
+// Kaynakta miktar + işlem sayısı var (ÇTB ile aynı şekil). Fiyatlar TL/kg
+// (TL/ton değil).
 initDailySummaryBorsaPanel({
   id: "ptb", table: "ptb_fiyat", lineColorVar: "var(--cat-4)",
-  hasProductPicker: true, hasRutubet: false, defaultGroup: "MISIR",
+  hasProductPicker: true, defaultGroup: "MISIR",
   bannerStrong: {
     tr: "PTB (Polatlı Ticaret Borsası) günlük Salon Satışı fiyat özeti",
     en: "PTB (Polatlı Ticaret Borsası) daily Trading Hall price summary",
     ru: "ПТБ (Polatlı Ticaret Borsası) — суточная сводка цен торгового зала",
   },
   bannerBody: {
-    tr: " — her akşam 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir; kaynakta rutubet verisi yok.",
-    en: " — a daily summary (lowest/highest/weighted average price, total quantity) computed from that day's trades is fetched every evening at 18:00 (TR time); the source has no moisture data.",
-    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём), рассчитанная по сделкам дня, загружается каждый вечер в 18:00 (время Турции); у источника нет данных о влажности.",
+    tr: " — her akşam 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity) computed from that day's trades is fetched every evening at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём), рассчитанная по сделкам дня, загружается каждый вечер в 18:00 (время Турции).",
   },
 });
 
@@ -5247,9 +5258,9 @@ initDailySummaryBorsaPanel({
     ru: "ЭТБ (Eskişehir Ticaret Borsası) — суточная сводка цен торгового зала",
   },
   bannerBody: {
-    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
-    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
-    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity) computed from that day's trades is fetched every business day at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
   },
 });
 
@@ -5261,31 +5272,30 @@ initDailySummaryBorsaPanel({
     ru: "ЭДТБ (Edirne Ticaret Borsası) — суточная сводка цен торгового зала",
   },
   bannerBody: {
-    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar, ortalama rutubet) çekilir.",
-    en: " — a daily summary (lowest/highest/weighted average price, total quantity, average moisture) computed from that day's trades is fetched every business day at 18:00 (TR time).",
-    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём, средняя влажность), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
+    tr: " — her iş günü 18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity) computed from that day's trades is fetched every business day at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём), рассчитанная по сделкам дня, загружается каждый рабочий день в 18:00 (время Турции).",
   },
 });
 
 // ÇTB (Çorum Ticaret Borsası) — PTB ile aynı şekil: günde çok ürünlü
-// (hasProductPicker), miktar + işlem sayısı var ama rutubet yok
-// (hasRutubet: false), fiyatlar TL/kg.
+// (hasProductPicker), miktar + işlem sayısı var, fiyatlar TL/kg.
 initDailySummaryBorsaPanel({
   id: "ctb", table: "ctb_fiyat", lineColorVar: "var(--cat-5)",
   // NOT: ÇTB'de Mısır HİÇ işlem görmüyor (ürün grupları: Arpa/Ayçiçeği/
   // Buğday/Fiğ/Mercimek/Nohut/Tritikale/Yulaf) — kullanıcının "her veri
   // setinde Mısır" talebini burada gerçek bir Mısır verisi olmadığı için
   // karşılayamıyoruz; en yakın ilgili ürün olan Ayçiçeği varsayılan yapıldı.
-  hasProductPicker: true, hasRutubet: false, defaultGroup: "AYÇİÇEĞİ",
+  hasProductPicker: true, defaultGroup: "AYÇİÇEĞİ",
   bannerStrong: {
     tr: "ÇTB (Çorum Ticaret Borsası) günlük ürün fiyat özeti",
     en: "ÇTB (Çorum Ticaret Borsası) daily product price summary",
     ru: "ЧТБ (Çorum Ticaret Borsası) — суточная сводка цен",
   },
   bannerBody: {
-    tr: " — her akşam 18:00'da o güne ait işlemlerden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir; kaynakta rutubet verisi yok.",
-    en: " — a daily summary (lowest/highest/weighted average price, total quantity) computed from that day's trades is fetched every evening at 18:00 (TR time); the source has no moisture data.",
-    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём), рассчитанная по сделкам дня, загружается каждый вечер в 18:00 (время Турции); у источника нет данных о влажности.",
+    tr: " — her akşam 18:00'da o güne ait işlemlerden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat, toplam miktar) çekilir.",
+    en: " — a daily summary (lowest/highest/weighted average price, total quantity) computed from that day's trades is fetched every evening at 18:00 (TR time).",
+    ru: " — суточная сводка (минимальная/максимальная/средневзвешенная цена, общий объём), рассчитанная по сделкам дня, загружается каждый вечер в 18:00 (время Турции).",
   },
 });
 

@@ -2,21 +2,13 @@ name: Daily UZTB Price Fetch
 
 on:
   schedule:
-    # 11:23 UTC = 14:23 Türkiye saati (TR daimi UTC+3, DST yok). Daha önce
-    # 15:00 UTC (18:00 TR) idi; GH Actions'ın kendi zamanlanmış görev
-    # gecikmesi (bazen 5-9 saat) o saatte gece yarısını aşıp "bugün"ü
-    # kaçırmaya sebep oluyordu (bkz. uztb/run.py'deki fill_uztb_fiyat_gaps
-    # yorumu). Hem daha erken bir saate alındı (gece yarısına kadar daha
-    # fazla tampon) hem de yuvarlak saat yerine (:00, GH'da en yoğun an)
-    # jitter'lı bir dakikaya kaydırıldı. Hafta sonu işlem yapılmıyor, bu
-    # yüzden sadece Pzt-Cuma çalışıyor.
-    - cron: "23 11 * * 1-5"
+    # 15:37 UTC = 18:37 TR (TR daimi UTC+3, DST yok) — salon kapandıktan
+    # sonra, günün özeti kesinleşmişken. Her çalıştırma kaynağın ~1 aylık
+    # bülten penceresinin tamamını yeniden yazdığı için GH Actions'ın
+    # zamanlanmış görev gecikmesi (bazen saatlerce) veri kaybettirmez.
+    # Hafta sonu işlem yapılmıyor, bu yüzden sadece Pzt-Cuma çalışıyor.
+    - cron: "37 15 * * 1-5"
   workflow_dispatch:
-    inputs:
-      backfill:
-        description: "Kaynağın elindeki ~1 aylık geçmiş özeti çek (rutubet hariç)"
-        required: false
-        default: "false"
 
 permissions:
   contents: read
@@ -35,14 +27,8 @@ jobs:
       - name: Install dependencies
         run: pip install supabase==2.31.0
 
-      - name: Fetch + load UZTB daily price summary
+      - name: Fetch + load + verify UZTB daily bulletin
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          UZTB_BACKFILL: ${{ github.event.inputs.backfill }}
-        run: |
-          if [ "$UZTB_BACKFILL" = "true" ]; then
-            python -m uztb.run --backfill
-          else
-            python -m uztb.run
-          fi
+        run: python -m uztb.run
