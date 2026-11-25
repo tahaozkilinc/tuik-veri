@@ -112,7 +112,7 @@
   .brand { display: flex; align-items: center; gap: 14px; }
   .brand a { display: flex; line-height: 0; transition: opacity 0.15s; }
   .brand a:hover { opacity: 0.8; }
-  .brand-logo { height: 56px; width: auto; flex: none; }
+  .brand-logo { height: 34px; width: auto; flex: none; }
   .brand .eyebrow {
     display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--text-muted); font-weight: 600;
@@ -395,7 +395,7 @@
 
   @media (max-width: 560px) {
     .brand { flex-wrap: wrap; row-gap: 8px; }
-    .brand-logo { height: 44px; }
+    .brand-logo { height: 28px; }
     .group-logos { border-left: none; padding-left: 0; flex-basis: 100%; }
     .group-logo { height: 20px; }
     .filters { gap: 12px; }
