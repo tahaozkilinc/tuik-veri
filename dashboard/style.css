@@ -112,7 +112,7 @@
   .brand { display: flex; align-items: center; gap: 14px; }
   .brand a { display: flex; line-height: 0; transition: opacity 0.15s; }
   .brand a:hover { opacity: 0.8; }
-  .brand-logo { height: 26px; width: auto; flex: none; }
+  .brand-logo { height: 22px; width: auto; flex: none; }
   .brand .eyebrow {
     display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--text-muted); font-weight: 600;
@@ -121,22 +121,14 @@
     display: flex; align-items: center; gap: 8px; padding-left: 14px;
     border-left: 1px solid var(--border);
   }
-  .group-logo {
-    height: 26px; width: auto; flex: none; background: var(--surface-2);
-    border-radius: 6px; padding: 3px 8px;
-    display: block; box-sizing: content-box;
-  }
+  .group-logo { height: 22px; width: auto; flex: none; display: block; }
   .group-logo.logo-dark { display: none; }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .group-logo.logo-light { display: none; }
-    :root:not([data-theme="light"]) .group-logo.logo-dark {
-      display: block; background: none; border: none; padding: 0;
-    }
+    :root:not([data-theme="light"]) .group-logo.logo-dark { display: block; }
   }
   :root[data-theme="dark"] .group-logo.logo-light { display: none; }
-  :root[data-theme="dark"] .group-logo.logo-dark {
-    display: block; background: none; border: none; padding: 0;
-  }
+  :root[data-theme="dark"] .group-logo.logo-dark { display: block; }
   .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .snapshot-badge {
     font-size: 12px; color: var(--text-secondary); background: var(--surface-2);
