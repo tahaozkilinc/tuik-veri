@@ -5328,8 +5328,9 @@ initDailySummaryBorsaPanel({
   const KTB_STRINGS = {
     tr: {
       bannerStrong: "KTB (Konya Ticaret Borsası) günlük Satış Salonu bülteni",
-      bannerBody: " — her iş günü 18:00'da o günün bülteni çekilir. Fiyatlar seçili ürün grubunun o günkü tüm sınıflarının (kalite derecelerinin) ağırlıklı ortalaması, en düşüğü ve en yükseğidir.",
+      bannerBody: " — her iş günü 18:00'da o günün bülteni çekilir. Fiyatlar seçili ürün grubunun o günkü tüm sınıflarının (kalite derecelerinin) — ya da Çeşit satırından seçilen sınıfların — ağırlıklı ortalaması, en düşüğü ve en yükseğidir.",
       productGroupLabel: "Ürün Grubu",
+      classLabel: "Çeşit (Sınıf)", classAll: "Tümü",
       dateRangeLabel: "Tarih Aralığı",
       quickSelectLabel: "Hızlı seçim",
       preset30: "Son 30 Gün", preset90: "Son 90 Gün", presetAll: "Tüm Zamanlar",
@@ -5353,8 +5354,9 @@ initDailySummaryBorsaPanel({
     },
     en: {
       bannerStrong: "KTB (Konya Ticaret Borsası) daily Sales Hall bulletin",
-      bannerBody: " — the day's bulletin is fetched every business day at 18:00 (TR time). Prices are the quantity-weighted average, lowest and highest across all classes (quality grades) of the selected product group that day.",
+      bannerBody: " — the day's bulletin is fetched every business day at 18:00 (TR time). Prices are the quantity-weighted average, lowest and highest across all classes (quality grades) of the selected product group that day — or only the classes picked in the Variety row.",
       productGroupLabel: "Product Group",
+      classLabel: "Variety (Class)", classAll: "All",
       dateRangeLabel: "Date Range",
       quickSelectLabel: "Quick select",
       preset30: "Last 30 Days", preset90: "Last 90 Days", presetAll: "All Time",
@@ -5378,8 +5380,9 @@ initDailySummaryBorsaPanel({
     },
     ru: {
       bannerStrong: "КТБ (Konya Ticaret Borsası) — ежедневный бюллетень торгового зала",
-      bannerBody: " — бюллетень за день загружается каждый рабочий день в 18:00 (время Турции). Цены — это средневзвешенная, минимальная и максимальная цена по всем классам (сортам) выбранной товарной группы за этот день.",
+      bannerBody: " — бюллетень за день загружается каждый рабочий день в 18:00 (время Турции). Цены — это средневзвешенная, минимальная и максимальная цена по всем классам (сортам) выбранной товарной группы за этот день — или только по классам, выбранным в строке «Сорт».",
       productGroupLabel: "Товарная группа",
+      classLabel: "Сорт (класс)", classAll: "Все",
       dateRangeLabel: "Период",
       quickSelectLabel: "Быстрый выбор",
       preset30: "Последние 30 дней", preset90: "Последние 90 дней", presetAll: "Всё время",
@@ -5474,10 +5477,11 @@ initDailySummaryBorsaPanel({
   function hideTooltip() { const t = document.querySelector(".tooltip"); if (t) t.style.opacity = "0"; }
 
   let allRows = [];
-  const state = { product: null, dateStart: null, dateEnd: null };
+  // classes boşsa grubun TÜM sınıfları (kaynağın kendi grup özeti) kullanılır.
+  const state = { product: null, classes: new Set(), dateStart: null, dateEnd: null };
 
   function productRows() {
-    return allRows.filter(r => r.grup_adi === state.product);
+    return allRows.filter(r => r.grup_adi === state.product && (!state.classes.size || state.classes.has(r.sinif_adi)));
   }
   function currentRows() {
     return productRows().filter(r => {
@@ -5487,18 +5491,31 @@ initDailySummaryBorsaPanel({
     });
   }
 
-  // Grafik için: aynı (tarih, grup) satırlarının hepsinde grup_min/ort/max_fiyat
-  // zaten aynı değeri taşıyor (kaynağın kendi günlük grup özeti) — burada
-  // sadece tekilleştirip TL/ton'a çeviriyoruz. Tonaj o günün tüm sınıf
-  // satırlarındaki miktarın toplamı.
+  // Grafik için: tüm sınıflar seçiliyken aynı (tarih, grup) satırlarının
+  // hepsinde grup_min/ort/max_fiyat zaten aynı değeri taşıyor (kaynağın kendi
+  // günlük grup özeti) — sadece tekilleştirilip TL/ton'a çevriliyor. Belirli
+  // sınıflar seçiliyse o günün seçili sınıf satırlarından hesaplanıyor:
+  // miktarla ağırlıklı ortalama, en düşüklerin en düşüğü, en yükseklerin en
+  // yükseği. Tonaj her durumda o günün (seçili) satırlarındaki miktar toplamı.
   function dailyWeightedSeries(rows) {
+    const byClass = state.classes.size > 0;
     const byDate = new Map();
     rows.forEach(r => {
-      const e = byDate.get(r.trade_date) || { kg: 0, price: null, minPrice: null, maxPrice: null };
+      const e = byDate.get(r.trade_date) || { kg: 0, price: null, minPrice: null, maxPrice: null, pKg: 0, wKg: 0, pSum: 0, pN: 0 };
       e.kg += (r.miktar || 0);
-      if (r.grup_ort_fiyat != null) e.price = r.grup_ort_fiyat;
-      if (r.grup_min_fiyat != null) e.minPrice = r.grup_min_fiyat;
-      if (r.grup_max_fiyat != null) e.maxPrice = r.grup_max_fiyat;
+      if (byClass) {
+        if (r.ort_fiyat != null) {
+          e.pSum += r.ort_fiyat; e.pN += 1;
+          if (r.miktar) { e.pKg += r.ort_fiyat * r.miktar; e.wKg += r.miktar; }
+        }
+        if (r.min_fiyat != null) e.minPrice = e.minPrice == null ? r.min_fiyat : Math.min(e.minPrice, r.min_fiyat);
+        if (r.max_fiyat != null) e.maxPrice = e.maxPrice == null ? r.max_fiyat : Math.max(e.maxPrice, r.max_fiyat);
+        e.price = e.wKg ? e.pKg / e.wKg : (e.pN ? e.pSum / e.pN : null);
+      } else {
+        if (r.grup_ort_fiyat != null) e.price = r.grup_ort_fiyat;
+        if (r.grup_min_fiyat != null) e.minPrice = r.grup_min_fiyat;
+        if (r.grup_max_fiyat != null) e.maxPrice = r.grup_max_fiyat;
+      }
       byDate.set(r.trade_date, e);
     });
     return [...byDate.entries()]
@@ -5847,7 +5864,8 @@ initDailySummaryBorsaPanel({
     tablePage = 0; // filtre değişince sayfa 1'e dönülür — eski sayfa artık anlamsız
     const rows = currentRows();
     const series = dailyWeightedSeries(rows);
-    document.getElementById("ktb-chart-title").textContent = tt("chartTitlePrefix") + " — " + translateProduct(state.product || "");
+    const classSuffix = state.classes.size ? " (" + [...state.classes].sort((a, b) => a.localeCompare(b, "tr")).join(", ") + ")" : "";
+    document.getElementById("ktb-chart-title").textContent = tt("chartTitlePrefix") + " — " + translateProduct(state.product || "") + classSuffix;
     renderPriceLegend();
     drawPriceChart(series);
     drawTonnageChart(series);
@@ -5917,12 +5935,44 @@ initDailySummaryBorsaPanel({
       btn.type = "button"; btn.textContent = translateProduct(p);
       btn.addEventListener("click", () => {
         state.product = p;
+        state.classes.clear();
         wrap.querySelectorAll(".chip").forEach(b => b.classList.toggle("active", b === btn));
+        buildClassControls();
         buildDateControls();
         renderAll();
       });
       wrap.appendChild(btn);
     });
+  }
+
+  // Seçili grubun sınıfları (çeşitleri): "Tümü" + her sınıf için çoklu
+  // seçimli çip. Hepsi tek tek seçilirse "Tümü"ne dönülür.
+  function buildClassControls() {
+    const wrap = document.getElementById("ktb-class");
+    wrap.textContent = "";
+    const classes = [...new Set(allRows.filter(r => r.grup_adi === state.product).map(r => r.sinif_adi).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "tr"));
+    for (const c of [...state.classes]) if (!classes.includes(c)) state.classes.delete(c);
+    const addChip = (label, active, onClick) => {
+      const btn = document.createElement("button");
+      btn.className = "chip" + (active ? " active" : "");
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", String(active));
+      btn.textContent = label;
+      btn.addEventListener("click", onClick);
+      wrap.appendChild(btn);
+    };
+    addChip(tt("classAll"), state.classes.size === 0, () => {
+      state.classes.clear();
+      buildClassControls();
+      renderAll();
+    });
+    classes.forEach(c => addChip(c, state.classes.has(c), () => {
+      if (state.classes.has(c)) state.classes.delete(c); else state.classes.add(c);
+      if (state.classes.size === classes.length) state.classes.clear();
+      buildClassControls();
+      renderAll();
+    }));
   }
 
   function updateAsofBadge() {
@@ -5947,6 +5997,7 @@ initDailySummaryBorsaPanel({
     document.getElementById("ktb-banner-strong").textContent = tt("bannerStrong");
     document.getElementById("ktb-banner-body").textContent = tt("bannerBody");
     document.getElementById("ktb-label-product").textContent = tt("productGroupLabel");
+    document.getElementById("ktb-label-class").textContent = tt("classLabel");
     document.getElementById("ktb-label-daterange").textContent = tt("dateRangeLabel");
     document.getElementById("ktb-label-quickselect").textContent = tt("quickSelectLabel");
     document.querySelector('#ktb-period-presets .seg[data-preset="30"]').textContent = tt("preset30");
@@ -5960,6 +6011,7 @@ initDailySummaryBorsaPanel({
     updateAsofBadge();
     if (allRows.length) {
       buildProductControls();
+      buildClassControls();
       renderAll();
     }
   }
@@ -5977,6 +6029,7 @@ initDailySummaryBorsaPanel({
           allRows = rows;
           updateAsofBadge();
           buildProductControls();
+          buildClassControls();
           buildDateControls();
           renderAll();
         })
