@@ -76,15 +76,16 @@ def _extract_tab_pane(html: str, tab_id: str) -> str | None:
 
 def extract_normal_seans_table(html: str) -> tuple[list[str], list[list[str]]]:
     """NORMAL SEANS sekmesinin (id="nav-home") tablosunu (başlıklar, satırlar)
-    olarak döndürür. Sekme bulunamazsa ya da tablo yoksa ValueError fırlatır —
-    sayfa yapısı değiştiyse sessizce boş/yanlış veri yazmak yerine görünür
-    şekilde durmalıyız."""
+    olarak döndürür. Sekmenin kendisi yoksa ValueError fırlatır — sayfa yapısı
+    değiştiyse sessizce boş veri yazmak yerine görünür şekilde durmalıyız.
+    Sekme var ama tablo yoksa o gün işlem yapılmamış demektir (hafta sonu,
+    tatil, henüz başlamamış gün): boş sonuç döner."""
     pane = _extract_tab_pane(html, "nav-home")
     if pane is None:
         raise ValueError("TÜRİB sayfasında 'nav-home' (NORMAL SEANS) sekmesi bulunamadı — sayfa yapısı değişmiş olabilir.")
     table_m = re.search(r"<table[^>]*>(.*?)</table>", pane, re.S)
     if table_m is None:
-        raise ValueError("NORMAL SEANS sekmesinde <table> bulunamadı.")
+        return [], []
     table_html = table_m.group(0)
 
     headers = [_strip_tags(h) for h in re.findall(r"<th[^>]*>(.*?)</th>", table_html, re.S)]

@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 
 def send_report_email(to_addrs: list[str], subject: str, body_text: str, pdf_bytes: bytes, pdf_filename: str) -> None:
     host = os.environ["SMTP_HOST"]
-    port = int(os.environ.get("SMTP_PORT", "587"))
+    port = int(os.environ.get("SMTP_PORT") or 587)
     username = os.environ["SMTP_USERNAME"]
     password = os.environ["SMTP_PASSWORD"]
     mail_from = os.environ.get("MAIL_FROM") or username

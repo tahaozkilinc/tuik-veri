@@ -84,12 +84,24 @@ def main() -> int:
             today = _today_tr()
             days = [today - dt.timedelta(days=2), today - dt.timedelta(days=1), today]
 
+        # Günler örtüşen 3 günlük pencere — tek bir günün geçici hatası bir
+        # sonraki çalıştırmada telafi edildiği için görevi düşürmüyor; sadece
+        # her gün hata veriyorsa (sistematik sorun) düşüyor.
         total_rows = 0
+        day_errors = []
         for day in days:
-            rows = fetch_and_load_day(client, day)
+            try:
+                rows = fetch_and_load_day(client, day)
+            except Exception as exc:  # noqa: BLE001
+                day_errors.append(f"{day.isoformat()}: {exc}")
+                print(f"UYARI {day.isoformat()}: {exc}")
+                continue
             print(f"{day.isoformat()}: {rows} satır yazıldı.")
             total_rows += rows
-        finish_run(client, run_id, status="success", rows_upserted=total_rows)
+        if len(day_errors) == len(days):
+            raise RuntimeError("Tüm günler hata verdi: " + " | ".join(day_errors))
+        finish_run(client, run_id, status="success", rows_upserted=total_rows,
+                   error_message="; ".join(day_errors) or None)
         return 0
 
     except Exception as exc:  # noqa: BLE001

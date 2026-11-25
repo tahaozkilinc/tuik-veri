@@ -29,9 +29,18 @@ def main() -> int:
 
     trade_date = dt.date.fromisoformat(args.date) if args.date else dt.datetime.now(TR_TZ).date()
 
+    # Repoda SMTP secret'ları tanımlı değilse gönderilecek bir yol yok — bu
+    # bir hata değil, mail kurulumu yapılmamış demek; görev düşmesin.
+    if not os.environ.get("SMTP_HOST"):
+        print("SMTP_HOST tanımlı değil — mail gönderimi atlandı (SMTP secret'ları eklenince otomatik başlar).")
+        return 0
+
     try:
         client = get_client()
         data = fetch_report_data(client, trade_date)
+        if not any(v["rows"] for v in data.values()):
+            print(f"{trade_date.isoformat()} için işlem yok — boş rapor gönderilmedi.")
+            return 0
         pdf_bytes = render_report_pdf(trade_date, data)
 
         to_addrs = [a.strip() for a in os.environ["REPORT_TO"].split(",") if a.strip()]
