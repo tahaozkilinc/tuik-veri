@@ -112,33 +112,12 @@
   .brand { display: flex; align-items: center; gap: 14px; }
   .brand a { display: flex; line-height: 0; transition: opacity 0.15s; }
   .brand a:hover { opacity: 0.8; }
-  .brand-logo { height: 40px; width: auto; flex: none; }
+  .brand-logo { height: 56px; width: auto; flex: none; }
   .brand .eyebrow {
     display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--text-muted); font-weight: 600; margin-bottom: 4px;
+    color: var(--text-muted); font-weight: 600;
   }
-  .brand h1 { margin: 0; font-size: 26px; font-weight: 700; text-wrap: balance; letter-spacing: -0.01em; }
   .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .group-logos {
-    display: flex; align-items: center; gap: 8px; padding-left: 14px;
-    border-left: 1px solid var(--border);
-  }
-  .group-logo {
-    height: 26px; width: auto; flex: none; background: var(--surface-2);
-    border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px;
-    display: block; box-sizing: content-box;
-  }
-  .group-logo.logo-dark { display: none; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .group-logo.logo-light { display: none; }
-    :root:not([data-theme="light"]) .group-logo.logo-dark {
-      display: block; background: none; border: none; padding: 0;
-    }
-  }
-  :root[data-theme="dark"] .group-logo.logo-light { display: none; }
-  :root[data-theme="dark"] .group-logo.logo-dark {
-    display: block; background: none; border: none; padding: 0;
-  }
   .snapshot-badge {
     font-size: 12px; color: var(--text-secondary); background: var(--surface-2);
     border: 1px solid var(--border); border-radius: 100px; padding: 5px 12px;
@@ -395,10 +374,7 @@
   .tooltip .ttl { font-weight: 600; margin-bottom: 4px; opacity: 0.85; }
 
   @media (max-width: 560px) {
-    .brand { flex-wrap: wrap; row-gap: 8px; }
-    .brand h1 { font-size: 21px; }
-    .group-logos { border-left: none; padding-left: 0; flex-basis: 100%; }
-    .group-logo { height: 20px; }
+    .brand-logo { height: 44px; }
     .filters { gap: 12px; }
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
     /* tek başına kalan son kutu (tek/üç/beş kutulu panellerde) yarım
