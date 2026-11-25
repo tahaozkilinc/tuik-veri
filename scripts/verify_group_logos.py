@@ -25,6 +25,13 @@ with sync_playwright() as p:
         "els => els.map(e => ({alt: e.alt, src: e.currentSrc || e.src, w: e.naturalWidth, h: e.naturalHeight, bg: getComputedStyle(e).backgroundColor}))",
     )
     print("group-logo (acik tema - ilk yukleme):", json.dumps(logos, ensure_ascii=False))
+
+    links = page.eval_on_selector_all(
+        ".brand a",
+        "els => els.map(e => ({href: e.href, target: e.target, img_alt: e.querySelector('img')?.alt}))",
+    )
+    print("brand/group-logo linkleri:", json.dumps(links, ensure_ascii=False))
+
     header_screenshot(page, "/tmp/header_light.png")
 
     page.click("#theme-toggle")
