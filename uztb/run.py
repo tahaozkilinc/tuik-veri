@@ -18,7 +18,13 @@ from __future__ import annotations
 import datetime as dt
 import sys
 
-from loader.supabase_loader import finish_run, get_client, replace_uztb_fiyat, start_run
+from loader.supabase_loader import (
+    fill_uztb_fiyat_gaps,
+    finish_run,
+    get_client,
+    replace_uztb_fiyat,
+    start_run,
+)
 from uztb import client, records
 
 URUN_KODU = "99992"  # kullanıcının belirttiği UZTB ürünü (AYÇİÇEK/çekirdek)
@@ -46,12 +52,26 @@ def main() -> int:
 
         raw = client.fetch_today_rows(URUN_KODU)
         rec = records.summarize_today(raw, URUN_KODU, today)
+        total = 0
         if rec is None:
             print("Bugün için henüz Salon Satışı verisi yok.")
-            finish_run(db_client, run_id, status="success", rows_upserted=0)
-            return 0
-        total = replace_uztb_fiyat(db_client, rec["trade_date"], URUN_KODU, rec)
-        print(f"{rec['trade_date']}: {total} satır yazıldı ({rec['islem_adet']} işlem).")
+        else:
+            total = replace_uztb_fiyat(db_client, rec["trade_date"], URUN_KODU, rec)
+            print(f"{rec['trade_date']}: {total} satır yazıldı ({rec['islem_adet']} işlem).")
+
+        # GH Actions zamanlanmış görevleri bazen saatlerce gecikebiliyor; gece
+        # yarısını geçerse yukarıdaki "bugün" ucu hep boş döner ve o günün
+        # verisi sonsuza dek kaybolur (kaynakta tarih parametreli geçmiş API
+        # yok). Her çalıştırmada ayrıca kaynağın ~1 aylık özetine bakıp
+        # DB'de hiç satırı olmayan günleri (rutubetsiz de olsa) dolduruyoruz
+        # — var olan (gerçek rutubetli) satırlara dokunulmuyor.
+        gap_raw = client.fetch_daily_summary(URUN_KODU)
+        gap_recs = records.parse_daily_summary(gap_raw, URUN_KODU, today)
+        gap_filled = fill_uztb_fiyat_gaps(db_client, URUN_KODU, gap_recs)
+        if gap_filled:
+            print(f"Ayrıca {gap_filled} eksik gün dolduruldu (kaçırılan günler).")
+        total += gap_filled
+
         finish_run(db_client, run_id, status="success", rows_upserted=total)
         return 0
 

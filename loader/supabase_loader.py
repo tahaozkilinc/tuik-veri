@@ -102,6 +102,35 @@ def replace_uztb_fiyat(client: Client, trade_date: str, urun_kodu: str, record: 
     return 1
 
 
+def fill_uztb_fiyat_gaps(client: Client, urun_kodu: str, records: list[dict]) -> int:
+    """`records` içindeki (trade_date, urun_kodu) çiftlerinden DB'de HENÜZ
+    satırı olmayanları ekler — var olan satırlara (gerçek rutubetli günlük
+    cron kaydı dahil) hiç dokunmaz. GH Actions zamanlanmış görevleri bazen
+    saatlerce gecikebiliyor (bkz. GitHub'ın kendi dokümantasyonu); bu
+    gecikme gece yarısını geçerse canlı "bugün" ucu (salon-satis.php) her
+    zaman boş döner ve o günün verisi hiç yakalanamaz. Bu fonksiyon her
+    günlük çalıştırmada ayrıca çağrılarak, kaçırılan günleri kaynağın
+    kendi ~1 aylık özetinden (rutubetsiz de olsa) otomatik doldurur — veri
+    kaybı cron zamanlamasına bağlı kalmasın diye.
+    """
+    if not records:
+        return 0
+    dates = sorted({r["trade_date"] for r in records})
+    existing = (
+        client.table("uztb_fiyat")
+        .select("trade_date")
+        .eq("urun_kodu", urun_kodu)
+        .in_("trade_date", dates)
+        .execute()
+    )
+    have = {row["trade_date"] for row in existing.data}
+    missing = [r for r in records if r["trade_date"] not in have]
+    if not missing:
+        return 0
+    client.table("uztb_fiyat").insert(missing).execute()
+    return len(missing)
+
+
 def replace_ktb_bulletin(client: Client, trade_date: str, records: list[dict]) -> int:
     """Bu `trade_date`'e ait eski KTB satırlarını silip yeni veriyi ekler —
     turib_bulletin ile aynı mantık: kaynak her çağrıda o günün TAM bültenini
