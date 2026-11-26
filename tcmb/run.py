@@ -1,7 +1,7 @@
 """TCMB günlük USD/TRY kurunu çekip Supabase'e yükleyen CLI giriş noktası.
 
 Kullanım:
-    python -m tcmb.run                       # bugünü çek ve yükle
+    python -m tcmb.run                       # son 7 günü çek ve yükle
     python -m tcmb.run --date 2026-10-13      # belirli bir günü çek
     python -m tcmb.run --backfill-days 365    # son N günü tek tek çekip yükle
 
@@ -65,10 +65,41 @@ def main() -> int:
                        error_message=(f"{errors} günde hata oluştu" if errors else None))
             return 0
 
-        day = dt.date.fromisoformat(args.date) if args.date else _today_tr()
-        rows = fetch_and_load_day(sb_client, day)
-        print(f"{day.isoformat()}: {rows} satır yazıldı.")
-        finish_run(sb_client, run_id, status="success", rows_upserted=rows)
+        if args.date:
+            days = [dt.date.fromisoformat(args.date)]
+        else:
+            # Son 7 gün (bugün dahil): GitHub zamanlayıcısı bu görevi
+            # saatlerce geciktirip TR gece yarısından SONRA çalıştırabiliyor
+            # (gözlemlendi: 19:00 TR görevi 02:00-03:00 TR'de çalıştı). Tek
+            # "bugün" çekilince henüz yayınlanmamış günün dosyası 404 dönüyor
+            # ve görev 0 satırla "başarılı" bitiyordu — kur 30 Ekim'de takılı
+            # kalmıştı. Örtüşen pencere her çalışmada eksik günleri tamamlar.
+            today = _today_tr()
+            days = [today - dt.timedelta(days=i) for i in range(6, -1, -1)]
+
+        total_rows = 0
+        written: list[str] = []
+        day_errors: list[str] = []
+        for day in days:
+            try:
+                rows = fetch_and_load_day(sb_client, day)
+            except Exception as exc:  # noqa: BLE001
+                day_errors.append(f"{day.isoformat()}: {exc}")
+                print(f"UYARI {day.isoformat()}: {exc}")
+                continue
+            if rows:
+                total_rows += rows
+                written.append(day.isoformat())
+            print(f"{day.isoformat()}: {rows} satır yazıldı.")
+        warnings = list(day_errors)
+        if not args.date and not written and not day_errors:
+            warnings.append("son 7 günde yayınlanmış kur bulunamadı")
+        if len(day_errors) == len(days):
+            # Kaynağa hiç ulaşılamadı — görev düşmez, bir sonraki çalışmanın
+            # 7 günlük penceresi boşluğu kapatır.
+            print("UYARI: TCMB'ye ulaşılamadı — bir sonraki çalışmada tekrar denenecek.")
+        finish_run(sb_client, run_id, status="success", rows_upserted=total_rows,
+                   error_message=("; ".join(warnings)[:2000] or None))
         return 0
 
     except Exception as exc:  # noqa: BLE001
