@@ -50,7 +50,9 @@ def _num(s: str) -> float | None:
 
 
 def _qty_unit(s: str) -> tuple[float | None, str | None]:
-    m = re.match(r"^([\d.,]+)\s*([A-Za-zÇĞİÖŞÜçğıöşü]*)$", (s or "").strip())
+    # Birim bazı satırlarda sonda noktayla geliyor ("4.500,00 KG." —
+    # Tritikale/Çavdar satırları, canlıda görüldü): sondaki noktalama yok sayılır.
+    m = re.match(r"^([\d.,]+)\s*([A-Za-zÇĞİÖŞÜçğıöşü]*)[.\s]*$", (s or "").strip())
     if not m:
         return None, None
     return _num(m.group(1)), (m.group(2).upper() or None)

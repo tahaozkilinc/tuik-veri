@@ -100,7 +100,7 @@ def main() -> int:
     if args.since:
         start = dt.date.fromisoformat(args.since)
         days = [start + dt.timedelta(days=i) for i in range((today - start).days + 1)]
-        workers = 4
+        workers = 6
     elif args.date:
         days = [dt.date.fromisoformat(args.date)]
         workers = 1
