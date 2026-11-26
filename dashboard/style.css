@@ -121,8 +121,15 @@
     display: flex; align-items: center; gap: 8px; padding-left: 14px;
     border-left: 1px solid var(--border);
   }
-  .group-logo { height: 22px; width: auto; flex: none; display: block; }
+  .group-logo { height: var(--logo-h, 22px); width: auto; flex: none; display: block; }
   .group-logo.logo-dark { display: none; }
+  /* Açık tema logolarının dosyasında beyaz kenar boşluğu var (görünen
+     yükseklik ELİTA'da 47/57, Un & Yem'de 95/104), koyu tema dosyaları ise
+     kenarsız kırpılmış. Aynı yüksekliği verince koyu temada logolar
+     %10-20 büyük görünüyordu — koyu varyantlara açık temadaki GÖRÜNEN
+     yükseklik veriliyor. */
+  .group-logo.logo-dark.logo-elita { height: calc(var(--logo-h, 22px) * 47 / 57); }
+  .group-logo.logo-dark.logo-unyem { height: calc(var(--logo-h, 22px) * 95 / 104); }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .group-logo.logo-light { display: none; }
     :root:not([data-theme="light"]) .group-logo.logo-dark { display: block; }
@@ -388,8 +395,7 @@
   @media (max-width: 560px) {
     .brand { flex-wrap: wrap; row-gap: 8px; }
     .brand-logo { height: 20px; }
-    .group-logos { border-left: none; padding-left: 0; flex-basis: 100%; }
-    .group-logo { height: 20px; }
+    .group-logos { border-left: none; padding-left: 0; flex-basis: 100%; --logo-h: 20px; }
     .filters { gap: 12px; }
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
     /* tek başına kalan son kutu (tek/üç/beş kutulu panellerde) yarım
