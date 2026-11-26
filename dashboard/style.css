@@ -123,13 +123,12 @@
   }
   .group-logo { height: var(--logo-h, 22px); width: auto; flex: none; display: block; }
   .group-logo.logo-dark { display: none; }
-  /* Açık tema logolarının dosyasında beyaz kenar boşluğu var (görünen
-     yükseklik ELİTA'da 47/57, Un & Yem'de 95/104), koyu tema dosyaları ise
-     kenarsız kırpılmış. Aynı yüksekliği verince koyu temada logolar
-     %10-20 büyük görünüyordu — koyu varyantlara açık temadaki GÖRÜNEN
-     yükseklik veriliyor. */
-  .group-logo.logo-dark.logo-elita { height: calc(var(--logo-h, 22px) * 47 / 57); }
-  .group-logo.logo-dark.logo-unyem { height: calc(var(--logo-h, 22px) * 95 / 104); }
+  /* Açık ve koyu tema logoları AYNI görselden üretildi (aynı ikon, aynı
+     piksel boyutu; sadece yazı rengi farklı) — tema değişince logo
+     değişmez. Yükseklikler, kullanıcının onayladığı açık tema görünümündeki
+     oranlar (SUNAR'a göre ELİTA 47/57, Un & Yem 95/104). */
+  .group-logo.logo-elita { height: calc(var(--logo-h, 22px) * 47 / 57); }
+  .group-logo.logo-unyem { height: calc(var(--logo-h, 22px) * 95 / 104); }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .group-logo.logo-light { display: none; }
     :root:not([data-theme="light"]) .group-logo.logo-dark { display: block; }
