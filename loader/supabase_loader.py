@@ -171,6 +171,23 @@ def replace_ptb_fiyat(client: Client, trade_date: str, records: list[dict]) -> i
     return total
 
 
+def replace_rows_for_date(client: Client, table: str, trade_date: str, records: list[dict]) -> int:
+    """Genel sil-ve-ekle: `table` içindeki bu `trade_date` satırlarını silip
+    `records`'u ekler (ETB/EDTB). Boş `records` o günü temizler."""
+    client.table(table).delete().eq("trade_date", trade_date).execute()
+    total = 0
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i : i + BATCH_SIZE]
+        client.table(table).insert(batch).execute()
+        total += len(batch)
+    return total
+
+
+def count_rows_for_date(client: Client, table: str, trade_date: str) -> int:
+    resp = client.table(table).select("trade_date", count="exact").eq("trade_date", trade_date).limit(1).execute()
+    return resp.count or 0
+
+
 def replace_tcmb_rate(client: Client, trade_date: str, record: dict) -> int:
     """Bu `trade_date`'e ait eski TCMB kur satırını silip yeniden yazar —
     uztb_fiyat'taki tekil sil-ve-ekle ile aynı mantık: her kayıt zaten bir

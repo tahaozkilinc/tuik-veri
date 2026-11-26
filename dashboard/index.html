@@ -223,7 +223,7 @@
       <div class="wasde-banner">
         <div id="exchange-summary-banner-text">
           <strong id="exchange-summary-banner-strong">Mısır fiyat özeti</strong>
-          <span id="exchange-summary-banner-body"> — TÜRİB (Mısır 1.Sınıf), KTB (Mısır) ve GTB (Mısır) ortalama
+          <span id="exchange-summary-banner-body"> — TÜRİB (Mısır 1.Sınıf), KTB (Mısır), GTB (Mısır) ve ETB (Mısır) ortalama
           fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Sadece ortalama gösterilir, alt/üst
           limit yok.</span>
         </div>
@@ -299,6 +299,8 @@
                 <th class="num-col" id="exchange-summary-th-ktb-usd">KTB Mısır (USD/ton)</th>
                 <th class="num-col" id="exchange-summary-th-gtb-tl">GTB Mısır (TL/ton)</th>
                 <th class="num-col" id="exchange-summary-th-gtb-usd">GTB Mısır (USD/ton)</th>
+                <th class="num-col" id="exchange-summary-th-etb-tl">ETB Mısır (TL/ton)</th>
+                <th class="num-col" id="exchange-summary-th-etb-usd">ETB Mısır (USD/ton)</th>
               </tr>
             </thead>
             <tbody id="exchange-summary-tbody"></tbody>
@@ -311,8 +313,8 @@
       <div class="wasde-banner">
         <div id="exchange-summary-aycicek-banner-text">
           <strong id="exchange-summary-aycicek-banner-strong">Ayçiçek fiyat özeti</strong>
-          <span id="exchange-summary-aycicek-banner-body"> — UZTB (Ayçiçek), ÇTB (Yağlık Ayçiçeği) ve PTB (Standart
-          Dışı Ayçiçeği) ortalama fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Ayçiçek ticareti mısıra göre
+          <span id="exchange-summary-aycicek-banner-body"> — UZTB (Ayçiçek), ÇTB (Yağlık Ayçiçeği), PTB (Standart
+          Dışı Ayçiçeği) ve EDTB (Yağlık Ayçiçek) ortalama fiyatları, TCMB günlük USD/TRY kuruyla birlikte. Ayçiçek ticareti mısıra göre
           mevsimsel/seyrek olduğundan bazı aralıklarda veri az olabilir — bu bir hata değildir.</span>
         </div>
         <span class="wasde-release-badge" id="exchange-summary-aycicek-asof-badge">Yükleniyor…</span>
@@ -387,6 +389,8 @@
                 <th class="num-col" id="exchange-summary-aycicek-th-ctb-usd">ÇTB Ayçiçek (USD/ton)</th>
                 <th class="num-col" id="exchange-summary-aycicek-th-ptb-tl">PTB Ayçiçek (TL/ton)</th>
                 <th class="num-col" id="exchange-summary-aycicek-th-ptb-usd">PTB Ayçiçek (USD/ton)</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-edtb-tl">EDTB Ayçiçek (TL/ton)</th>
+                <th class="num-col" id="exchange-summary-aycicek-th-edtb-usd">EDTB Ayçiçek (USD/ton)</th>
               </tr>
             </thead>
             <tbody id="exchange-summary-aycicek-tbody"></tbody>
@@ -709,15 +713,22 @@
     <div id="etb-section" hidden>
       <div class="wasde-banner">
         <div id="etb-banner-text">
-          <strong id="etb-banner-strong">ETB (Eskişehir Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
-          <span id="etb-banner-body"> — her iş günü
-          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
-          toplam miktar) çekilir.</span>
+          <strong id="etb-banner-strong">ETB (Eskişehir Ticaret Borsası) günlük borsa bülteni</strong>
+          <span id="etb-banner-body"> — borsanın günlük bülteninden her akşam 18:00'da o günün tescil edilen
+          tüm işlemleri ürün bazında çekilir (en düşük/en yüksek/ortalama fiyat, miktar, işlem adedi).</span>
         </div>
         <span class="wasde-release-badge" id="etb-asof-badge">Yükleniyor…</span>
       </div>
 
       <section class="filters" aria-label="ETB filtreleri">
+        <div class="filter-group product-filter-group">
+          <span class="filter-label" id="etb-label-product-group">Ürün Grubu</span>
+          <div class="chip-multi" id="etb-product-group" role="group" aria-label="Ürün grubu seçimi"></div>
+        </div>
+        <div class="filter-group product-filter-group">
+          <span class="filter-label" id="etb-label-product">Çeşit</span>
+          <div class="chip-multi" id="etb-product-picker" role="group" aria-label="Çeşit seçimi"></div>
+        </div>
         <div class="filter-group">
           <span class="filter-label" id="etb-label-daterange">Tarih Aralığı</span>
           <div class="period-row">
@@ -778,10 +789,9 @@
     <div id="edtb-section" hidden>
       <div class="wasde-banner">
         <div id="edtb-banner-text">
-          <strong id="edtb-banner-strong">EDTB (Edirne Ticaret Borsası) günlük Salon Satışı fiyat özeti</strong>
-          <span id="edtb-banner-body"> — her iş günü
-          18:00'da o günün işlemlerinden hesaplanan günlük özet (en düşük/en yüksek/ağırlıklı ortalama fiyat,
-          toplam miktar) çekilir.</span>
+          <strong id="edtb-banner-strong">EDTB (Edirne Ticaret Borsası) yağlık ayçiçeği fiyatları</strong>
+          <span id="edtb-banner-body"> — borsanın online bülteninden her akşam 18:00'da Yağlık Ayçiçekler
+          grubunun (tüm sınıflar) günlük en düşük/en yüksek/ağırlıklı ortalama fiyatı ve miktarı çekilir.</span>
         </div>
         <span class="wasde-release-badge" id="edtb-asof-badge">Yükleniyor…</span>
       </div>

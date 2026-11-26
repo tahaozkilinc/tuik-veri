@@ -1,0 +1,47 @@
+name: Daily EDTB Sunflower Price Fetch
+
+on:
+  schedule:
+    # 15:00 UTC = 18:00 TR. edtb/run.py her çalışmada son 30 günü kaynaktan
+    # yeniden yazıyor — geciken/atlanan çalışmalar kendiliğinden düzeliyor.
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Bugünden geriye kaç gün yazılsın (ilk doldurma için 366)"
+        required: false
+        default: "30"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edtb-daily
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # apt/CDN aynaları ara sıra takılabiliyor — kurulum 3 kez deneniyor.
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            pip install supabase==2.31.0 playwright && python -m playwright install --with-deps chromium && exit 0
+            echo "kurulum denemesi $i başarısız, tekrar deneniyor"; sleep 30
+          done
+          exit 1
+
+      - name: Fetch + load EDTB yağlık ayçiçeği
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          EDTB_DAYS: ${{ github.event.inputs.days }}
+        run: python -m edtb.run --days "${EDTB_DAYS:-30}"

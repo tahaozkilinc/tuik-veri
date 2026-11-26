@@ -1,0 +1,48 @@
+name: Daily ETB Price Fetch
+
+on:
+  schedule:
+    # Kullanıcının açık talebi: her gün 18:00 TR'de o günün verisi çekilsin.
+    # 15:00 UTC = 18:00 TR. etb/run.py son 4 günü yeniden yazıyor — GitHub
+    # zamanlayıcısının saatlerce gecikmesi ya da bir günün atlanması
+    # kendiliğinden telafi ediliyor.
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Geçmiş doldurma: bu tarihten (YYYY-MM-DD) bugüne her günü çek. Boş = son 4 gün."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: etb-daily
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install supabase==2.31.0
+
+      - name: Fetch + parse + load ETB bülteni
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ETB_SINCE: ${{ github.event.inputs.since }}
+        run: |
+          if [ -n "$ETB_SINCE" ]; then
+            python -m etb.run --since "$ETB_SINCE"
+          else
+            python -m etb.run
+          fi

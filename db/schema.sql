@@ -401,3 +401,51 @@ begin
             unique nulls not distinct (period_year, period_month, flow, gtip_code, port_code, country_code);
     end if;
 end $$;
+
+-- ETB (Eskişehir Ticaret Borsası) günlük borsa bülteni — tüm tescil edilen
+-- işlemler, ürün bazında. Kaynak: www.esktb.org.tr/tr/?PID=bulten/bulten
+-- (CAPNO=D). Fiyatlar TL/birim (birim çoğunlukla KG; süt gibi ürünlerde LT),
+-- toplam_kilo = o birimde işlem miktarı. Her gün sil-ve-ekle ile yazılır.
+create table if not exists etb_fiyat (
+    id              bigint generated always as identity primary key,
+    trade_date      date not null,
+    ana_grup        text,            -- örn 'DİĞER HUBUBATLAR'
+    alt_grup        text,            -- örn 'DİĞER HUBUBATLAR' / 'EKM. SERT BUĞDAY'
+    urun_adi        text not null,   -- örn 'MISIR(SARI)'
+    min_fiyat       numeric,
+    max_fiyat       numeric,
+    ort_fiyat       numeric,
+    toplam_kilo     numeric,
+    birim           text,            -- 'KG', 'LT', ...
+    islem_tutari_tl numeric,
+    satis_sekli     text,
+    islem_adet      int,
+    fetched_at      timestamptz not null default now()
+);
+create unique index if not exists uq_etb_fiyat on etb_fiyat (trade_date, coalesce(ana_grup, ''), coalesce(alt_grup, ''), urun_adi, coalesce(satis_sekli, ''));
+create index if not exists idx_etb_fiyat_lookup on etb_fiyat (urun_adi, trade_date desc);
+alter table etb_fiyat enable row level security;
+drop policy if exists "public read etb_fiyat" on etb_fiyat;
+create policy "public read etb_fiyat" on etb_fiyat for select using (true);
+revoke insert, update, delete, truncate on etb_fiyat from anon, authenticated;
+
+-- EDTB (Edirne Ticaret Borsası) — sadece YAĞLIK AYÇİÇEKLER grubunun (tüm
+-- sınıflar) günlük özeti. Kaynak: online.etb.org.tr/online-bulten
+-- (grupKodu=AYC). Fiyatlar TL/kg.
+create table if not exists edtb_fiyat (
+    id              bigint generated always as identity primary key,
+    trade_date      date not null,
+    urun_adi        text not null,
+    min_fiyat       numeric,
+    max_fiyat       numeric,
+    ort_fiyat       numeric,
+    toplam_kilo     numeric,
+    islem_adet      int,
+    islem_tutari_tl numeric,
+    fetched_at      timestamptz not null default now(),
+    unique (trade_date, urun_adi)
+);
+alter table edtb_fiyat enable row level security;
+drop policy if exists "public read edtb_fiyat" on edtb_fiyat;
+create policy "public read edtb_fiyat" on edtb_fiyat for select using (true);
+revoke insert, update, delete, truncate on edtb_fiyat from anon, authenticated;
