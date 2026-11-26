@@ -1,39 +1,27 @@
-import json
-from playwright.sync_api import sync_playwright
+"""Geçici: ETB/EDTB ayrıştırıcılarını canlı kaynakta veritabanına yazmadan dener."""
+import datetime as dt, sys, time
+sys.path.insert(0, ".")
+from etb import records as ER
+from etb.client import EtbSession
+from edtb import records as DR
+from edtb.client import fetch_daily_list
 
-URL = "https://online.etb.org.tr/online-bulten?grupKodu=AYC&sinifKodu=-&tarih=-"
-calls = []
-
-def on_response(resp):
-    req = resp.request
-    if "/api/" not in req.url:
-        return
+s = EtbSession()
+for d in ["2026-11-25", "2026-11-22", "2026-06-15", "2025-03-12", "2023-01-10"]:
+    t0 = time.time()
     try:
-        body = resp.text()
+        recs = ER.parse_day(s.fetch_day_html(dt.date.fromisoformat(d)), dt.date.fromisoformat(d))
+        units = sorted({r["birim"] for r in recs})
+        mis = [(r["urun_adi"], r["ort_fiyat"], r["toplam_kilo"]) for r in recs if r["urun_adi"].upper().startswith("MISIR")]
+        print(f"ETB {d}: {len(recs)} satır, birimler={units}, mısır={mis} ({time.time()-t0:.1f}s)")
+        print("   ürünler:", sorted({r['urun_adi'] for r in recs})[:40])
     except Exception as e:
-        body = f"<err {e}>"
-    calls.append({
-        "method": req.method, "url": req.url, "status": resp.status,
-        "req_headers": {k: v for k, v in req.headers.items() if k.lower() in ("authorization", "content-type", "x-source", "source", "isletmeid", "firmaid", "subeid", "uygulamaid") or k.lower().startswith("x-")},
-        "post": (req.post_data or "")[:800],
-        "body": body[:2500],
-        "len": len(body),
-    })
+        print(f"ETB {d}: HATA {e}")
 
-with sync_playwright() as p:
-    b = p.chromium.launch()
-    pg = b.new_page(viewport={"width": 1400, "height": 1000})
-    pg.on("response", on_response)
-    pg.goto(URL, wait_until="networkidle", timeout=90000)
-    pg.wait_for_timeout(6000)
-    print("TEXT:", pg.inner_text("body")[:4000])
-    # date inputs present?
-    print("INPUTS:", pg.eval_on_selector_all("input, select, mat-select, p-calendar", "els => els.map(e => e.outerHTML.slice(0,200))")[:20])
-    b.close()
-
-for c in calls:
-    print("\n=====", c["method"], c["status"], c["url"], "len=", c["len"])
-    print("REQH:", c["req_headers"])
-    if c["post"]:
-        print("POST:", c["post"])
-    print("BODY:", c["body"])
+raw = fetch_daily_list()
+recs, warns = DR.parse_rows(raw)
+print(f"EDTB: ham {len(raw)}, kayıt {len(recs)}, ilk {recs[0]['trade_date']}, son {recs[-1]['trade_date']}, uyarı {len(warns)}")
+print("EDTB son 3:", recs[-3:])
+print("EDTB uyarılar:", warns[:10])
+yil = [r for r in recs if r["trade_date"] >= (dt.date.today() - dt.timedelta(days=366)).isoformat()]
+print("EDTB son 1 yıl gün sayısı:", len(yil))
