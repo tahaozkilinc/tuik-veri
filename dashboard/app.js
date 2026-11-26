@@ -2116,13 +2116,14 @@ window.__tabManager = (function () {
       "select=trade_date,ort_fiyat&urun_adi=eq.MISIR%20%281.%20GRUP%20-%20NATUREL%29&order=trade_date.asc"
     );
   }
-  // ETB: günlük bültendeki MISIR ürünleri (çoğunlukla "MISIR(SARI)"), KG
-  // birimli, "BEDEL FARKI" satırları hariç — aynı gün birden çok mısır
-  // satırı varsa miktar-ağırlıklı birleştirilir (etbDailyMap).
+  // ETB: sadece dane mısır — "MISIR(SARI)" (silajlık/sap/tohumluk/cin gibi
+  // diğer mısır ürünleri fiyatı çarpıtıyordu, canlıda görüldü). Aynı gün
+  // birden çok satır (farklı satış şekli) varsa miktar-ağırlıklı
+  // birleştirilir (etbDailyMap).
   function fetchEtbMisir() {
     return fetchPaginated(
       "summary-etb", "etb_fiyat",
-      "select=trade_date,ort_fiyat,toplam_kilo&birim=eq.KG&urun_adi=ilike.MISIR*&urun_adi=not.ilike.*BEDEL*&order=trade_date.asc,id.asc"
+      "select=trade_date,ort_fiyat,toplam_kilo&birim=eq.KG&urun_adi=eq.MISIR%28SARI%29&order=trade_date.asc,id.asc"
     );
   }
   function fetchTcmbRates() {
@@ -5324,7 +5325,7 @@ function etbGroupOfRow(r) {
 }
 initDailySummaryBorsaPanel({
   id: "etb", table: "etb_fiyat", lineColorVar: "var(--cat-6)",
-  hasProductPicker: true, defaultGroup: "MISIR",
+  hasProductPicker: true, defaultProduct: "MISIR(SARI)",
   extraCols: ["ana_grup", "alt_grup"],
   extraQuery: "&birim=eq.KG&urun_adi=not.ilike.*BEDEL%20FARKI*",
   groupOfRow: etbGroupOfRow,

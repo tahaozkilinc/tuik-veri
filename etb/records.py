@@ -58,6 +58,16 @@ def _qty_unit(s: str) -> tuple[float | None, str | None]:
     return _num(m.group(1)), (m.group(2).upper() or None)
 
 
+def _norm_name(s: str) -> str:
+    """Kaynak aynı ürünü yıllar içinde farklı boşluklarla yazıyor
+    ("MISIR (SARI)" / "MISIR(SARI)", "TRİTİKALE (2.Der)" / "TRİTİKALE(2.Der)")
+    — zaman serisi tek isim altında birleşsin diye parantez çevresindeki
+    boşluklar atılıyor."""
+    s = re.sub(r"\s*\(\s*", "(", s)
+    s = re.sub(r"\s*\)", ")", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def parse_day(html: str, trade_date: dt.date) -> list[dict]:
     m = re.search(r'id="BDATE"[^>]*value="([^"]+)"', html, re.S)
     if not m:
@@ -94,7 +104,7 @@ def parse_day(html: str, trade_date: dt.date) -> list[dict]:
             "trade_date": trade_date.isoformat(),
             "ana_grup": ana_grup,
             "alt_grup": alt_grup,
-            "urun_adi": texts[0],
+            "urun_adi": _norm_name(texts[0]),
             "min_fiyat": _num(texts[1]),
             "max_fiyat": _num(texts[2]),
             "ort_fiyat": _num(texts[3]),
